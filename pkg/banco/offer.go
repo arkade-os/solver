@@ -89,10 +89,10 @@ func (o *Offer) DepositAssetStr() string {
 	return o.DepositAsset.String()
 }
 
-// WantAssetStr returns the want asset ID as a string, or empty for BTC.
+// WantAssetStr returns the want asset ID as a string, or "BTC".
 func (o *Offer) WantAssetStr() string {
 	if o.WantAsset == nil {
-		return ""
+		return "BTC"
 	}
 	return o.WantAsset.String()
 }

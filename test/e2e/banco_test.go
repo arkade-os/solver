@@ -33,11 +33,14 @@ func TestBancoAssetToBTC(t *testing.T) {
 	require.NoError(t, err)
 	btcBefore := balBefore.OffchainBalance.Total
 
-	// Configure taker pair: asset/"" (quote is empty for BTC want).
-	// We add directly via pairRepo because takerSvc.AddPair validates
-	// that both base and quote are non-empty.
+	// Configure taker pair: asset/BTC. Both BTC deposit and BTC want now
+	// stringify as the literal "BTC", so findMatchingPair lines up against
+	// WantAssetStr(). We still write directly to pairRepo (instead of going
+	// through takerSvc.AddPair) so we can pin BaseDecimals=QuoteDecimals=0;
+	// AddPair would resolve BTC's quote decimals to 8 and the mock price
+	// feed (1.0) would no longer match the 500/500 offer ratio.
 	pair := banco.Pair{
-		Pair:          assetID + "/",
+		Pair:          assetID + "/BTC",
 		MinAmount:     1,
 		MaxAmount:     100000000,
 		BaseDecimals:  0,

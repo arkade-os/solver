@@ -66,18 +66,18 @@ func TestValidatePrice(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestFindMatchingPair_Match(t *testing.T) {
-	// BTC deposit, want = "" (BTC) -> pair "BTC/"
+	// BTC deposit, want = BTC -> pair "BTC/BTC"
 	offer := &Offer{DepositAsset: nil}
-	// offer.WantAsset is nil, so WantAssetStr() == ""
+	// offer.WantAsset is nil, so WantAssetStr() == "BTC"
 
 	pairs := []Pair{
-		{Pair: "BTC/"},    // Base="BTC", Quote=""
+		{Pair: "BTC/BTC"}, // Base="BTC", Quote="BTC"
 		{Pair: "OTHER/X"}, // won't match
 	}
 
 	result := findMatchingPair(pairs, offer)
 	require.NotNil(t, result)
-	assert.Equal(t, "BTC/", result.Pair)
+	assert.Equal(t, "BTC/BTC", result.Pair)
 }
 
 func TestFindMatchingPair_NoMatchWrongBase(t *testing.T) {
@@ -85,7 +85,7 @@ func TestFindMatchingPair_NoMatchWrongBase(t *testing.T) {
 	offer := &Offer{DepositAsset: assetId}
 
 	pairs := []Pair{
-		{Pair: "BTC/"}, // Base="BTC", but offer deposits an asset
+		{Pair: "BTC/BTC"}, // Base="BTC", but offer deposits an asset
 	}
 
 	result := findMatchingPair(pairs, offer)
@@ -95,10 +95,10 @@ func TestFindMatchingPair_NoMatchWrongBase(t *testing.T) {
 func TestFindMatchingPair_NoMatchWrongQuote(t *testing.T) {
 	assetId := testAssetId(t)
 	offer := &Offer{DepositAsset: nil} // BTC deposit
-	offer.WantAsset = assetId          // wants an asset, so WantAssetStr() != ""
+	offer.WantAsset = assetId          // wants an asset, so WantAssetStr() != "BTC"
 
 	pairs := []Pair{
-		{Pair: "BTC/"}, // Quote="" but offer wants an asset
+		{Pair: "BTC/BTC"}, // Quote="BTC" but offer wants an asset
 	}
 
 	result := findMatchingPair(pairs, offer)

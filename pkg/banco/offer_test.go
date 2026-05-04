@@ -128,17 +128,18 @@ func TestOffer_DepositAssetStr(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestOffer_WantAssetStr(t *testing.T) {
-	t.Run("nil WantAsset returns empty string", func(t *testing.T) {
+	t.Run("nil WantAsset returns BTC", func(t *testing.T) {
 		o := &Offer{}
 		// WantAsset lives on embedded contract.Offer; nil is the zero value
-		assert.Equal(t, "", o.WantAssetStr())
+		assert.Equal(t, "BTC", o.WantAssetStr())
 	})
 
-	t.Run("non-nil WantAsset returns non-empty string", func(t *testing.T) {
+	t.Run("non-nil WantAsset returns asset id", func(t *testing.T) {
 		o := &Offer{}
 		o.WantAsset = testAssetId(t)
 		s := o.WantAssetStr()
 		assert.NotEmpty(t, s)
+		assert.NotEqual(t, "BTC", s)
 	})
 }
 
