@@ -5,13 +5,18 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 )
 
 const (
-	defaultDatadir  = ".bancod"
-	defaultGRPCPort = 7070
-	defaultHTTPPort = 7071
-	defaultLogLevel = 4 // logrus.InfoLevel
+	defaultDatadir            = ".bancod"
+	defaultGRPCPort           = 7070
+	defaultHTTPPort           = 7071
+	defaultLogLevel           = 4 // logrus.InfoLevel
+	defaultBancoEnabled       = true
+	defaultBountyEnabled      = false
+	defaultBountyBatchSize    = 10
+	defaultBountyBatchTimeout = 5 * time.Second
 )
 
 // Config holds all configuration for the bancod server.
@@ -24,6 +29,14 @@ type Config struct {
 	GRPCPort        int
 	HTTPPort        int
 	LogLevel        int
+
+	// Plugin toggles. At least one must be enabled.
+	BancoEnabled  bool
+	BountyEnabled bool
+
+	// Bounty plugin tuning (ignored when BountyEnabled is false).
+	BountyBatchSize    int
+	BountyBatchTimeout time.Duration
 }
 
 // LoadConfig reads BANCOD_* environment variables and returns a Config
@@ -92,14 +105,67 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("BANCOD_GRPC_PORT and BANCOD_HTTP_PORT must be different")
 	}
 
+	bancoEnabled, err := parseBool("BANCOD_BANCO_ENABLED", defaultBancoEnabled)
+	if err != nil {
+		return nil, err
+	}
+	bountyEnabled, err := parseBool("BANCOD_BOUNTY_ENABLED", defaultBountyEnabled)
+	if err != nil {
+		return nil, err
+	}
+	if !bancoEnabled && !bountyEnabled {
+		return nil, fmt.Errorf("at least one plugin must be enabled (BANCOD_BANCO_ENABLED or BANCOD_BOUNTY_ENABLED)")
+	}
+
+	bountyBatchSize := defaultBountyBatchSize
+	if v := os.Getenv("BANCOD_BOUNTY_BATCH_SIZE"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid BANCOD_BOUNTY_BATCH_SIZE: %w", err)
+		}
+		if n <= 0 {
+			return nil, fmt.Errorf("BANCOD_BOUNTY_BATCH_SIZE must be > 0")
+		}
+		bountyBatchSize = n
+	}
+
+	bountyBatchTimeout := defaultBountyBatchTimeout
+	if v := os.Getenv("BANCOD_BOUNTY_BATCH_TIMEOUT"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid BANCOD_BOUNTY_BATCH_TIMEOUT: %w", err)
+		}
+		if d <= 0 {
+			return nil, fmt.Errorf("BANCOD_BOUNTY_BATCH_TIMEOUT must be > 0")
+		}
+		bountyBatchTimeout = d
+	}
+
 	return &Config{
-		Datadir:         datadir,
-		ArkURL:          arkURL,
-		WalletSeed:      walletSeed,
-		WalletPassword:  walletPassword,
-		IntrospectorURL: introspectorURL,
-		GRPCPort:        grpcPort,
-		HTTPPort:        httpPort,
-		LogLevel:        logLevel,
+		Datadir:            datadir,
+		ArkURL:             arkURL,
+		WalletSeed:         walletSeed,
+		WalletPassword:     walletPassword,
+		IntrospectorURL:    introspectorURL,
+		GRPCPort:           grpcPort,
+		HTTPPort:           httpPort,
+		LogLevel:           logLevel,
+		BancoEnabled:       bancoEnabled,
+		BountyEnabled:      bountyEnabled,
+		BountyBatchSize:    bountyBatchSize,
+		BountyBatchTimeout: bountyBatchTimeout,
 	}, nil
+}
+
+// parseBool reads an env var as "true"/"false" (case-insensitive). Empty → fallback.
+func parseBool(key string, fallback bool) (bool, error) {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback, nil
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return false, fmt.Errorf("invalid %s: %w (expected true/false)", key, err)
+	}
+	return b, nil
 }

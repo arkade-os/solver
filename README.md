@@ -66,8 +66,18 @@ for a taker bot.
 - `SubscribeArkd` — helper that returns a `<-chan *psbt.Packet` from arkd's
   transaction stream, suitable for feeding into `Solver.Run`.
 
-All three `pkg/` packages are intended to be importable by other projects and
-do not depend on any `internal/` code.
+### `pkg/solver/bounty`
+
+A second solver plugin: PoW-gated payment bounties. Alice posts a bounty
+(`difficulty + receiverPkScript + amount`), the bot mines a claim transaction
+whose own txid begins with `difficulty` zero bytes, the introspector enforces
+both the PoW and a covenant that pays `amount - 100` sats to the receiver
+(the bot keeps the 100-sat tip, aggregated across batched claims). See
+[`pkg/solver/bounty/README.md`](pkg/solver/bounty/README.md) for the full
+contract and wire format.
+
+All `pkg/` packages are intended to be importable by other projects and do not
+depend on any `internal/` code.
 
 ---
 
@@ -88,6 +98,14 @@ web UI. Configured entirely through environment variables:
 | `BANCOD_GRPC_PORT` | | `7070` | gRPC listener |
 | `BANCOD_HTTP_PORT` | | `7071` | HTTP REST + web UI listener |
 | `BANCOD_LOG_LEVEL` | | `4` (Info) | logrus level |
+| `BANCOD_BANCO_ENABLED` | | `true` | enable the banco swap plugin |
+| `BANCOD_BOUNTY_ENABLED` | | `false` | enable the bounty (PoW) plugin |
+| `BANCOD_BOUNTY_BATCH_SIZE` | | `10` | bounty: per-difficulty size trigger |
+| `BANCOD_BOUNTY_BATCH_TIMEOUT` | | `5s` | bounty: time trigger (Go duration) |
+
+At least one plugin must be enabled. The bounty plugin can run alone (no
+SQLite, no gRPC API), or alongside banco — each owns its own solver and arkd
+subscription.
 
 ### `banco`
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"os/signal"
 	"syscall"
@@ -38,18 +39,6 @@ func main() {
 		log.WithError(err).Fatal("failed to create datadir")
 	}
 
-	db, err := sqlitedb.OpenDB(cfg.Datadir)
-	if err != nil {
-		log.WithError(err).Fatal("failed to open database")
-	}
-	// nolint:errcheck
-	defer db.Close()
-
-	pairRepo := sqlitedb.NewPairRepository(db)
-	tradeRepo := sqlitedb.NewTradeRepository(db)
-
-	priceFeed := pricefeed.NewCoinGecko()
-
 	introConn, err := grpc.NewClient(
 		cfg.IntrospectorURL,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -75,33 +64,96 @@ func main() {
 	}
 	defer arkClient.Stop()
 
-	tradeListener := application.NewTradeListener(tradeRepo, log)
-	plugin := banco.NewPlugin(banco.Config{
-		SolverClient:    arkClient,
-		Introspector:    introspector,
-		PairsRepository: pairRepo,
-		PriceFeed:       priceFeed,
-		Listener:        tradeListener,
-		Log:             log,
-	})
-	s := solver.New(plugin).WithLogger(log)
-
-	takerSvc := application.NewTakerService(s, pairRepo, tradeRepo, arkClient, arkClient.Indexer(), log)
-
-	takerSvc.Start()
-
-	srv := grpcservice.NewServer(takerSvc, cfg.GRPCPort, cfg.HTTPPort, log)
-	if err := srv.Start(); err != nil {
-		log.WithError(err).Fatal("failed to start server")
+	var (
+		takerSvc  *application.TakerService
+		bountySvc *application.BountyService
+		srv       *grpcservice.Server
+		db        = optionalSqliteDB(cfg, log)
+	)
+	if db != nil {
+		// nolint:errcheck
+		defer db.Close()
 	}
-	log.WithField("version", Version).Info("bancod started")
+
+	if cfg.BancoEnabled {
+		if db == nil {
+			log.Fatal("banco plugin requires sqlite datadir")
+		}
+		pairRepo := sqlitedb.NewPairRepository(db)
+		tradeRepo := sqlitedb.NewTradeRepository(db)
+		priceFeed := pricefeed.NewCoinGecko()
+		tradeListener := application.NewTradeListener(tradeRepo, log)
+
+		plugin := banco.NewPlugin(banco.Config{
+			SolverClient:    arkClient,
+			Introspector:    introspector,
+			PairsRepository: pairRepo,
+			PriceFeed:       priceFeed,
+			Listener:        tradeListener,
+			Log:             log,
+		})
+		s := solver.New(plugin).WithLogger(log)
+
+		takerSvc = application.NewTakerService(s, pairRepo, tradeRepo, arkClient, arkClient.Indexer(), log)
+		takerSvc.Start()
+		log.Info("banco plugin started")
+
+		srv = grpcservice.NewServer(takerSvc, cfg.GRPCPort, cfg.HTTPPort, log)
+		if err := srv.Start(); err != nil {
+			log.WithError(err).Fatal("failed to start server")
+		}
+	}
+
+	if cfg.BountyEnabled {
+		bountySvc, err = application.NewBountyService(ctx, application.BountyServiceConfig{
+			ArkClient:    arkClient,
+			Introspector: introspector,
+			BatchSize:    cfg.BountyBatchSize,
+			BatchTimeout: cfg.BountyBatchTimeout,
+			Log:          log,
+		})
+		if err != nil {
+			log.WithError(err).Fatal("failed to create bounty service")
+		}
+		if err := bountySvc.Start(); err != nil {
+			log.WithError(err).Fatal("failed to start bounty service")
+		}
+		log.WithField("batch_size", cfg.BountyBatchSize).
+			WithField("batch_timeout", cfg.BountyBatchTimeout).
+			Info("bounty plugin started")
+	}
+
+	log.WithField("version", Version).
+		WithField("banco", cfg.BancoEnabled).
+		WithField("bounty", cfg.BountyEnabled).
+		Info("bancod started")
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
 
 	log.Info("shutting down...")
-	takerSvc.Stop()
-	srv.Stop()
+	if bountySvc != nil {
+		bountySvc.Stop()
+	}
+	if takerSvc != nil {
+		takerSvc.Stop()
+	}
+	if srv != nil {
+		srv.Stop()
+	}
 	log.Info("bancod stopped")
+}
+
+// optionalSqliteDB opens the sqlite DB iff at least one plugin needs it
+// (currently only banco does).
+func optionalSqliteDB(cfg *config.Config, log logrus.FieldLogger) *sql.DB {
+	if !cfg.BancoEnabled {
+		return nil
+	}
+	db, err := sqlitedb.OpenDB(cfg.Datadir)
+	if err != nil {
+		log.WithError(err).Fatal("failed to open database")
+	}
+	return db
 }
