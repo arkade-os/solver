@@ -24,27 +24,41 @@ const maxRequestBodySize = 1 << 20 // 1 MB
 
 // Server manages the gRPC server and HTTP REST gateway.
 type Server struct {
-	grpcServer *grpc.Server
-	httpServer *http.Server
-	grpcConn   *grpc.ClientConn
-	handler    bancov1.BancoServiceServer
-	grpcPort   int
-	httpPort   int
-	log        logrus.FieldLogger
+	grpcServer      *grpc.Server
+	httpServer      *http.Server
+	grpcConn        *grpc.ClientConn
+	handler         bancov1.BancoServiceServer  // nil when banco is disabled
+	preimageHandler bancov1.PreimageServiceServer // nil when preimage is disabled
+	grpcPort        int
+	httpPort        int
+	log             logrus.FieldLogger
 }
 
-// NewServer creates a new Server that serves both gRPC and HTTP.
+// NewServer creates a new Server that serves both gRPC and HTTP. svc may be
+// nil when the banco plugin is disabled.
 func NewServer(
 	svc *application.TakerService,
 	grpcPort, httpPort int,
 	log logrus.FieldLogger,
 ) *Server {
-	return &Server{
-		handler:  newHandler(svc),
+	s := &Server{
 		grpcPort: grpcPort,
 		httpPort: httpPort,
 		log:      log,
 	}
+	if svc != nil {
+		s.handler = newHandler(svc)
+	}
+	return s
+}
+
+// WithPreimageService attaches the preimage handler so its RPCs are exposed
+// alongside the banco handler. Pass nil to leave it disabled.
+func (s *Server) WithPreimageService(svc *application.PreimageService) *Server {
+	if svc != nil {
+		s.preimageHandler = newPreimageHandler(svc)
+	}
+	return s
 }
 
 // Start starts both the gRPC server and the HTTP gateway.
@@ -56,7 +70,12 @@ func (s *Server) Start() error {
 	}
 
 	s.grpcServer = grpc.NewServer()
-	bancov1.RegisterBancoServiceServer(s.grpcServer, s.handler)
+	if s.handler != nil {
+		bancov1.RegisterBancoServiceServer(s.grpcServer, s.handler)
+	}
+	if s.preimageHandler != nil {
+		bancov1.RegisterPreimageServiceServer(s.grpcServer, s.preimageHandler)
+	}
 
 	go func() {
 		s.log.Infof("gRPC server listening on :%d", s.grpcPort)
@@ -77,7 +96,7 @@ func (s *Server) Start() error {
 	s.grpcConn = conn
 
 	mux := http.NewServeMux()
-	gwHandler := newHTTPGateway(conn, s.handler)
+	gwHandler := newHTTPGateway(conn, s.handler, s.preimageHandler)
 	mux.Handle("/v1/", gwHandler)
 	mux.Handle("/", web.Handler())
 
@@ -117,11 +136,27 @@ func (s *Server) Stop() {
 }
 
 // newHTTPGateway creates a simple HTTP handler that routes REST requests
-// to the gRPC handler. This is a lightweight alternative to grpc-gateway
+// to the gRPC handlers. This is a lightweight alternative to grpc-gateway
 // that avoids the full protobuf dependency for hand-written types.
-func newHTTPGateway(_ *grpc.ClientConn, svc bancov1.BancoServiceServer) http.Handler {
+//
+// Either service may be nil; routes are registered only for the services
+// that are present.
+func newHTTPGateway(
+	_ *grpc.ClientConn,
+	svc bancov1.BancoServiceServer,
+	preimageSvc bancov1.PreimageServiceServer,
+) http.Handler {
 	mux := http.NewServeMux()
+	if svc != nil {
+		registerBancoRoutes(mux, svc)
+	}
+	if preimageSvc != nil {
+		registerPreimageRoutes(mux, preimageSvc)
+	}
+	return mux
+}
 
+func registerBancoRoutes(mux *http.ServeMux, svc bancov1.BancoServiceServer) {
 	mux.HandleFunc("POST /v1/pair", func(w http.ResponseWriter, r *http.Request) {
 		var req bancov1.AddPairRequest
 		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
@@ -212,8 +247,42 @@ func newHTTPGateway(_ *grpc.ClientConn, svc bancov1.BancoServiceServer) http.Han
 		}
 		jsonResponse(w, resp)
 	})
+}
 
-	return mux
+func registerPreimageRoutes(mux *http.ServeMux, svc bancov1.PreimageServiceServer) {
+	mux.HandleFunc("POST /v1/preimage/claim", func(w http.ResponseWriter, r *http.Request) {
+		var req bancov1.RegisterClaimRequest
+		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpError(w, fmt.Errorf("invalid request body: %w", err), http.StatusBadRequest)
+			return
+		}
+		resp, err := svc.RegisterClaim(r.Context(), &req)
+		if err != nil {
+			httpGRPCError(w, err)
+			return
+		}
+		jsonResponse(w, resp)
+	})
+
+	mux.HandleFunc("GET /v1/preimage/claims", func(w http.ResponseWriter, r *http.Request) {
+		resp, err := svc.ListClaims(r.Context(), &bancov1.ListClaimsRequest{})
+		if err != nil {
+			httpGRPCError(w, err)
+			return
+		}
+		jsonResponse(w, resp)
+	})
+
+	mux.HandleFunc("DELETE /v1/preimage/claim/{claim_address}", func(w http.ResponseWriter, r *http.Request) {
+		addr := r.PathValue("claim_address")
+		resp, err := svc.DeleteClaim(r.Context(), &bancov1.DeleteClaimRequest{ClaimAddress: addr})
+		if err != nil {
+			httpGRPCError(w, err)
+			return
+		}
+		jsonResponse(w, resp)
+	})
 }
 
 func jsonResponse(w http.ResponseWriter, v interface{}) {

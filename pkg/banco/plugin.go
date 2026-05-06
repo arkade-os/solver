@@ -11,7 +11,7 @@ import (
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/sirupsen/logrus"
 
-	"github.com/arkade-os/bancod/pkg/contract"
+	"github.com/arkade-os/bancod/pkg/banco/contract"
 	"github.com/arkade-os/bancod/pkg/solver"
 	"github.com/arkade-os/bancod/pkg/solver/builder"
 )

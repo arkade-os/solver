@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/arkade-os/bancod/pkg/contract"
+	"github.com/arkade-os/bancod/pkg/banco/contract"
 )
 
 // ---------------------------------------------------------------------------

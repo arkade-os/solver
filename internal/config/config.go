@@ -5,18 +5,15 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"time"
 )
 
 const (
-	defaultDatadir            = ".bancod"
-	defaultGRPCPort           = 7070
-	defaultHTTPPort           = 7071
-	defaultLogLevel           = 4 // logrus.InfoLevel
-	defaultBancoEnabled       = true
-	defaultBountyEnabled      = false
-	defaultBountyBatchSize    = 10
-	defaultBountyBatchTimeout = 5 * time.Second
+	defaultDatadir         = ".bancod"
+	defaultGRPCPort        = 7070
+	defaultHTTPPort        = 7071
+	defaultLogLevel        = 4 // logrus.InfoLevel
+	defaultBancoEnabled    = true
+	defaultPreimageEnabled = false
 )
 
 // Config holds all configuration for the bancod server.
@@ -31,12 +28,8 @@ type Config struct {
 	LogLevel        int
 
 	// Plugin toggles. At least one must be enabled.
-	BancoEnabled  bool
-	BountyEnabled bool
-
-	// Bounty plugin tuning (ignored when BountyEnabled is false).
-	BountyBatchSize    int
-	BountyBatchTimeout time.Duration
+	BancoEnabled    bool
+	PreimageEnabled bool
 }
 
 // LoadConfig reads BANCOD_* environment variables and returns a Config
@@ -109,51 +102,25 @@ func LoadConfig() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	bountyEnabled, err := parseBool("BANCOD_BOUNTY_ENABLED", defaultBountyEnabled)
+	preimageEnabled, err := parseBool("BANCOD_PREIMAGE_ENABLED", defaultPreimageEnabled)
 	if err != nil {
 		return nil, err
 	}
-	if !bancoEnabled && !bountyEnabled {
-		return nil, fmt.Errorf("at least one plugin must be enabled (BANCOD_BANCO_ENABLED or BANCOD_BOUNTY_ENABLED)")
-	}
-
-	bountyBatchSize := defaultBountyBatchSize
-	if v := os.Getenv("BANCOD_BOUNTY_BATCH_SIZE"); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil {
-			return nil, fmt.Errorf("invalid BANCOD_BOUNTY_BATCH_SIZE: %w", err)
-		}
-		if n <= 0 {
-			return nil, fmt.Errorf("BANCOD_BOUNTY_BATCH_SIZE must be > 0")
-		}
-		bountyBatchSize = n
-	}
-
-	bountyBatchTimeout := defaultBountyBatchTimeout
-	if v := os.Getenv("BANCOD_BOUNTY_BATCH_TIMEOUT"); v != "" {
-		d, err := time.ParseDuration(v)
-		if err != nil {
-			return nil, fmt.Errorf("invalid BANCOD_BOUNTY_BATCH_TIMEOUT: %w", err)
-		}
-		if d <= 0 {
-			return nil, fmt.Errorf("BANCOD_BOUNTY_BATCH_TIMEOUT must be > 0")
-		}
-		bountyBatchTimeout = d
+	if !bancoEnabled && !preimageEnabled {
+		return nil, fmt.Errorf("at least one plugin must be enabled (BANCOD_BANCO_ENABLED or BANCOD_PREIMAGE_ENABLED)")
 	}
 
 	return &Config{
-		Datadir:            datadir,
-		ArkURL:             arkURL,
-		WalletSeed:         walletSeed,
-		WalletPassword:     walletPassword,
-		IntrospectorURL:    introspectorURL,
-		GRPCPort:           grpcPort,
-		HTTPPort:           httpPort,
-		LogLevel:           logLevel,
-		BancoEnabled:       bancoEnabled,
-		BountyEnabled:      bountyEnabled,
-		BountyBatchSize:    bountyBatchSize,
-		BountyBatchTimeout: bountyBatchTimeout,
+		Datadir:         datadir,
+		ArkURL:          arkURL,
+		WalletSeed:      walletSeed,
+		WalletPassword:  walletPassword,
+		IntrospectorURL: introspectorURL,
+		GRPCPort:        grpcPort,
+		HTTPPort:        httpPort,
+		LogLevel:        logLevel,
+		BancoEnabled:    bancoEnabled,
+		PreimageEnabled: preimageEnabled,
 	}, nil
 }
 

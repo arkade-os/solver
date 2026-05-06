@@ -66,15 +66,14 @@ for a taker bot.
 - `SubscribeArkd` — helper that returns a `<-chan *psbt.Packet` from arkd's
   transaction stream, suitable for feeding into `Solver.Run`.
 
-### `pkg/solver/bounty`
+### `pkg/preimage`
 
-A second solver plugin: PoW-gated payment bounties. Alice posts a bounty
-(`difficulty + receiverPkScript + amount`), the bot mines a claim transaction
-whose own txid begins with `difficulty` zero bytes, the introspector enforces
-both the PoW and a covenant that pays `amount - 100` sats to the receiver
-(the bot keeps the 100-sat tip, aggregated across batched claims). See
-[`pkg/solver/bounty/README.md`](pkg/solver/bounty/README.md) for the full
-contract and wire format.
+A second solver plugin: preimage-gated VTXO claims. A maker registers
+`(preimage, arkade_script, taptree)` via the `PreimageService` gRPC API; the
+bot computes the claim address, stores the credentials in SQLite (with an
+in-memory cache for the hot path), watches arkd's tx stream, and auto-claims
+the moment a tx funds the registered address. v1 only supports the
+`enforcePayTo` arkade-script shape (single-output, full-amount-to-receiver).
 
 All `pkg/` packages are intended to be importable by other projects and do not
 depend on any `internal/` code.
@@ -99,13 +98,10 @@ web UI. Configured entirely through environment variables:
 | `BANCOD_HTTP_PORT` | | `7071` | HTTP REST + web UI listener |
 | `BANCOD_LOG_LEVEL` | | `4` (Info) | logrus level |
 | `BANCOD_BANCO_ENABLED` | | `true` | enable the banco swap plugin |
-| `BANCOD_BOUNTY_ENABLED` | | `false` | enable the bounty (PoW) plugin |
-| `BANCOD_BOUNTY_BATCH_SIZE` | | `10` | bounty: per-difficulty size trigger |
-| `BANCOD_BOUNTY_BATCH_TIMEOUT` | | `5s` | bounty: time trigger (Go duration) |
+| `BANCOD_PREIMAGE_ENABLED` | | `false` | enable the preimage-claim plugin |
 
-At least one plugin must be enabled. The bounty plugin can run alone (no
-SQLite, no gRPC API), or alongside banco — each owns its own solver and arkd
-subscription.
+At least one plugin must be enabled. Each enabled plugin owns its own solver
+and arkd subscription.
 
 ### `banco`
 

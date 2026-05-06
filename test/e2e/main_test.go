@@ -21,9 +21,22 @@ import (
 	"github.com/arkade-os/bancod/internal/core/application"
 	"github.com/arkade-os/bancod/internal/core/ports"
 	sqlitedb "github.com/arkade-os/bancod/internal/infrastructure/db/sqlite"
+	grpcservice "github.com/arkade-os/bancod/internal/interface/grpc"
 	"github.com/arkade-os/bancod/pkg/banco"
 	"github.com/arkade-os/bancod/pkg/solver"
 )
+
+const (
+	// e2eGRPCPort + e2eHTTPPort are the ports the e2e gRPC server binds to.
+	// They're separate from cmd/bancod's defaults (7070/7071) so a developer
+	// can run both in parallel.
+	e2eGRPCPort = 17070
+	e2eHTTPPort = 17071
+)
+
+// e2eGRPCAddr is the address tests dial to act as a real client of the bot's
+// gRPC API.
+var e2eGRPCAddr = fmt.Sprintf("localhost:%d", e2eGRPCPort)
 
 // mockPriceFeed always returns a fixed price of 1.0.
 // This makes any offer with roughly 1:1 ratio pass the 1% margin check.
@@ -35,6 +48,7 @@ func (m *mockPriceFeed) Fetch(_ context.Context, _ string) (float64, error) {
 
 var (
 	takerSvc    *application.TakerService
+	preimageSvc *application.PreimageService
 	pairRepo    ports.PairRepository
 	takerClient arksdk.ArkClient
 )
@@ -97,6 +111,38 @@ func TestMain(m *testing.M) {
 	takerSvc = application.NewTakerService(s, pairRepo, tradeRepo, takerClient, takerClient.Indexer(), log.StandardLogger())
 	takerSvc.Start()
 	defer takerSvc.Stop()
+
+	// Preimage service: backed by the same SQLite DB, runs its own solver loop
+	// subscribed to arkd's tx stream alongside the banco taker.
+	preimageRepo, err := sqlitedb.NewPreimageRepository(ctx, db)
+	if err != nil {
+		log.Fatalf("failed to create preimage repository: %s", err)
+	}
+	preimageSvc, err = application.NewPreimageService(ctx, application.PreimageServiceConfig{
+		ArkClient:    takerClient,
+		Introspector: introClient,
+		Repository:   preimageRepo,
+		Log:          log.StandardLogger(),
+	})
+	if err != nil {
+		log.Fatalf("failed to create preimage service: %s", err)
+	}
+	if err := preimageSvc.Start(); err != nil {
+		log.Fatalf("failed to start preimage service: %s", err)
+	}
+	defer preimageSvc.Stop()
+
+	// Start the real gRPC + HTTP gateway server hosting both takerSvc and
+	// preimageSvc. e2e tests dial this server as a real client would, rather
+	// than calling application services directly.
+	srv := grpcservice.NewServer(takerSvc, e2eGRPCPort, e2eHTTPPort, log.StandardLogger()).
+		WithPreimageService(preimageSvc)
+	if err := srv.Start(); err != nil {
+		log.Fatalf("failed to start grpc server: %s", err)
+	}
+	defer srv.Stop()
+	// Give the listeners a moment to come up before tests dial.
+	time.Sleep(500 * time.Millisecond)
 
 	os.Exit(m.Run())
 }

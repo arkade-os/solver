@@ -18,6 +18,36 @@ func (q *Queries) DeletePair(ctx context.Context, pair string) error {
 	return err
 }
 
+const deletePreimageClaim = `-- name: DeletePreimageClaim :execrows
+DELETE FROM preimage_claim WHERE pk_script = ?
+`
+
+func (q *Queries) DeletePreimageClaim(ctx context.Context, pkScript []byte) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deletePreimageClaim, pkScript)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const getPreimageClaim = `-- name: GetPreimageClaim :one
+SELECT pk_script, claim_address, preimage, arkade_script, taptree, created_at FROM preimage_claim WHERE pk_script = ?
+`
+
+func (q *Queries) GetPreimageClaim(ctx context.Context, pkScript []byte) (PreimageClaim, error) {
+	row := q.db.QueryRowContext(ctx, getPreimageClaim, pkScript)
+	var i PreimageClaim
+	err := row.Scan(
+		&i.PkScript,
+		&i.ClaimAddress,
+		&i.Preimage,
+		&i.ArkadeScript,
+		&i.Taptree,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const insertPair = `-- name: InsertPair :exec
 INSERT INTO banco_pair (pair, min_amount, max_amount, base_decimals, quote_decimals, price_feed, invert_price)
 VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -42,6 +72,38 @@ func (q *Queries) InsertPair(ctx context.Context, arg InsertPairParams) error {
 		arg.QuoteDecimals,
 		arg.PriceFeed,
 		arg.InvertPrice,
+	)
+	return err
+}
+
+const insertPreimageClaim = `-- name: InsertPreimageClaim :exec
+INSERT INTO preimage_claim (pk_script, claim_address, preimage, arkade_script, taptree, created_at)
+VALUES (?, ?, ?, ?, ?, ?)
+ON CONFLICT(pk_script) DO UPDATE SET
+    claim_address = excluded.claim_address,
+    preimage = excluded.preimage,
+    arkade_script = excluded.arkade_script,
+    taptree = excluded.taptree,
+    created_at = excluded.created_at
+`
+
+type InsertPreimageClaimParams struct {
+	PkScript     []byte
+	ClaimAddress string
+	Preimage     []byte
+	ArkadeScript []byte
+	Taptree      []byte
+	CreatedAt    int64
+}
+
+func (q *Queries) InsertPreimageClaim(ctx context.Context, arg InsertPreimageClaimParams) error {
+	_, err := q.db.ExecContext(ctx, insertPreimageClaim,
+		arg.PkScript,
+		arg.ClaimAddress,
+		arg.Preimage,
+		arg.ArkadeScript,
+		arg.Taptree,
+		arg.CreatedAt,
 	)
 	return err
 }
@@ -76,6 +138,40 @@ func (q *Queries) InsertTrade(ctx context.Context, arg InsertTradeParams) error 
 	return err
 }
 
+const listAllPreimageClaims = `-- name: ListAllPreimageClaims :many
+SELECT pk_script, claim_address, preimage, arkade_script, taptree, created_at FROM preimage_claim ORDER BY created_at DESC
+`
+
+func (q *Queries) ListAllPreimageClaims(ctx context.Context) ([]PreimageClaim, error) {
+	rows, err := q.db.QueryContext(ctx, listAllPreimageClaims)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PreimageClaim
+	for rows.Next() {
+		var i PreimageClaim
+		if err := rows.Scan(
+			&i.PkScript,
+			&i.ClaimAddress,
+			&i.Preimage,
+			&i.ArkadeScript,
+			&i.Taptree,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPairs = `-- name: ListPairs :many
 SELECT pair, min_amount, max_amount, base_decimals, quote_decimals, price_feed, invert_price FROM banco_pair
 `
@@ -98,6 +194,38 @@ func (q *Queries) ListPairs(ctx context.Context) ([]BancoPair, error) {
 			&i.PriceFeed,
 			&i.InvertPrice,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPreimageClaims = `-- name: ListPreimageClaims :many
+SELECT pk_script, claim_address FROM preimage_claim ORDER BY created_at DESC
+`
+
+type ListPreimageClaimsRow struct {
+	PkScript     []byte
+	ClaimAddress string
+}
+
+func (q *Queries) ListPreimageClaims(ctx context.Context) ([]ListPreimageClaimsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPreimageClaims)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPreimageClaimsRow
+	for rows.Next() {
+		var i ListPreimageClaimsRow
+		if err := rows.Scan(&i.PkScript, &i.ClaimAddress); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

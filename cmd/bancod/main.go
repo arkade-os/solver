@@ -65,10 +65,10 @@ func main() {
 	defer arkClient.Stop()
 
 	var (
-		takerSvc  *application.TakerService
-		bountySvc *application.BountyService
-		srv       *grpcservice.Server
-		db        = optionalSqliteDB(cfg, log)
+		takerSvc    *application.TakerService
+		preimageSvc *application.PreimageService
+		srv         *grpcservice.Server
+		db          = optionalSqliteDB(cfg, log)
 	)
 	if db != nil {
 		// nolint:errcheck
@@ -97,35 +97,43 @@ func main() {
 		takerSvc = application.NewTakerService(s, pairRepo, tradeRepo, arkClient, arkClient.Indexer(), log)
 		takerSvc.Start()
 		log.Info("banco plugin started")
+	}
 
-		srv = grpcservice.NewServer(takerSvc, cfg.GRPCPort, cfg.HTTPPort, log)
+	if cfg.PreimageEnabled {
+		if db == nil {
+			log.Fatal("preimage plugin requires sqlite datadir")
+		}
+		preimageRepo, err := sqlitedb.NewPreimageRepository(ctx, db)
+		if err != nil {
+			log.WithError(err).Fatal("failed to create preimage repository")
+		}
+		preimageSvc, err = application.NewPreimageService(ctx, application.PreimageServiceConfig{
+			ArkClient:    arkClient,
+			Introspector: introspector,
+			Repository:   preimageRepo,
+			Log:          log,
+		})
+		if err != nil {
+			log.WithError(err).Fatal("failed to create preimage service")
+		}
+		if err := preimageSvc.Start(); err != nil {
+			log.WithError(err).Fatal("failed to start preimage service")
+		}
+		log.Info("preimage plugin started")
+	}
+
+	// One gRPC + HTTP server hosts whichever services are enabled.
+	if cfg.BancoEnabled || cfg.PreimageEnabled {
+		srv = grpcservice.NewServer(takerSvc, cfg.GRPCPort, cfg.HTTPPort, log).
+			WithPreimageService(preimageSvc)
 		if err := srv.Start(); err != nil {
 			log.WithError(err).Fatal("failed to start server")
 		}
 	}
 
-	if cfg.BountyEnabled {
-		bountySvc, err = application.NewBountyService(ctx, application.BountyServiceConfig{
-			ArkClient:    arkClient,
-			Introspector: introspector,
-			BatchSize:    cfg.BountyBatchSize,
-			BatchTimeout: cfg.BountyBatchTimeout,
-			Log:          log,
-		})
-		if err != nil {
-			log.WithError(err).Fatal("failed to create bounty service")
-		}
-		if err := bountySvc.Start(); err != nil {
-			log.WithError(err).Fatal("failed to start bounty service")
-		}
-		log.WithField("batch_size", cfg.BountyBatchSize).
-			WithField("batch_timeout", cfg.BountyBatchTimeout).
-			Info("bounty plugin started")
-	}
-
 	log.WithField("version", Version).
 		WithField("banco", cfg.BancoEnabled).
-		WithField("bounty", cfg.BountyEnabled).
+		WithField("preimage", cfg.PreimageEnabled).
 		Info("bancod started")
 
 	sigCh := make(chan os.Signal, 1)
@@ -133,8 +141,8 @@ func main() {
 	<-sigCh
 
 	log.Info("shutting down...")
-	if bountySvc != nil {
-		bountySvc.Stop()
+	if preimageSvc != nil {
+		preimageSvc.Stop()
 	}
 	if takerSvc != nil {
 		takerSvc.Stop()
@@ -146,9 +154,9 @@ func main() {
 }
 
 // optionalSqliteDB opens the sqlite DB iff at least one plugin needs it
-// (currently only banco does).
+// (banco and preimage both require it).
 func optionalSqliteDB(cfg *config.Config, log logrus.FieldLogger) *sql.DB {
-	if !cfg.BancoEnabled {
+	if !cfg.BancoEnabled && !cfg.PreimageEnabled {
 		return nil
 	}
 	db, err := sqlitedb.OpenDB(cfg.Datadir)

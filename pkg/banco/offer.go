@@ -8,7 +8,7 @@ import (
 	"github.com/arkade-os/arkd/pkg/ark-lib/extension"
 	"github.com/btcsuite/btcd/wire"
 
-	"github.com/arkade-os/bancod/pkg/contract"
+	"github.com/arkade-os/bancod/pkg/banco/contract"
 )
 
 type Offer struct {

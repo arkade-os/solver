@@ -1,0 +1,53 @@
+syntax = "proto3";
+package bancod.v1;
+option go_package = "github.com/arkade-os/bancod/api-spec/protobuf/gen/go/bancod/v1";
+
+import "google/api/annotations.proto";
+
+// PreimageService lets a maker register the credentials needed to spend a
+// preimage-gated VTXO. The bot watches arkd's tx stream and, when a tx funds
+// any registered claim_address, auto-spends the VTXO using the supplied
+// credentials. v1 only supports the enforcePayTo arkade-script shape; other
+// shapes are rejected at registration time.
+service PreimageService {
+  // RegisterClaim stores claim credentials for a VTXO the maker is about to fund.
+  // Returns the V0 ark address the maker should fund.
+  rpc RegisterClaim(RegisterClaimRequest) returns (RegisterClaimResponse) {
+    option (google.api.http) = { post: "/v1/preimage/claim" body: "*" };
+  }
+
+  // ListClaims returns the addresses of all currently-registered claims.
+  // Does NOT return secret material.
+  rpc ListClaims(ListClaimsRequest) returns (ListClaimsResponse) {
+    option (google.api.http) = { get: "/v1/preimage/claims" };
+  }
+
+  // DeleteClaim cancels a registration. Returns NotFound if the claim doesn't exist.
+  rpc DeleteClaim(DeleteClaimRequest) returns (DeleteClaimResponse) {
+    option (google.api.http) = { delete: "/v1/preimage/claim/{claim_address}" };
+  }
+}
+
+message RegisterClaimRequest {
+  bytes preimage = 1;
+  bytes arkade_script = 2;
+  // Hex-encoded closure scripts produced by TapscriptsVtxoScript.Encode().
+  // Same shape as offchain.VtxoInput.RevealedTapscripts.
+  repeated string taptree = 3;
+}
+message RegisterClaimResponse {
+  string claim_address = 1;
+}
+
+message ClaimInfo {
+  string claim_address = 1;
+}
+message ListClaimsRequest {}
+message ListClaimsResponse {
+  repeated ClaimInfo claims = 1;
+}
+
+message DeleteClaimRequest {
+  string claim_address = 1;
+}
+message DeleteClaimResponse {}

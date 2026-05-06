@@ -19,9 +19,11 @@ import (
 	"github.com/arkade-os/arkd/pkg/ark-lib/asset"
 	"github.com/arkade-os/arkd/pkg/ark-lib/extension"
 	clientlib "github.com/arkade-os/arkd/pkg/client-lib"
+	"github.com/arkade-os/arkd/pkg/client-lib/indexer"
 	clientTypes "github.com/arkade-os/arkd/pkg/client-lib/types"
 	arksdk "github.com/arkade-os/go-sdk"
 	"github.com/btcsuite/btcd/btcec/v2"
+	"github.com/btcsuite/btcd/txscript"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -203,4 +205,54 @@ func waitForCondition(t *testing.T, timeout time.Duration, interval time.Duratio
 		time.Sleep(interval)
 	}
 	t.Fatal("condition not met within timeout")
+}
+
+// fetchIntroPubkey returns the introspector signer pubkey, parsed.
+func fetchIntroPubkey(t *testing.T, introClient introclient.TransportClient) *btcec.PublicKey {
+	t.Helper()
+	info, err := introClient.GetInfo(t.Context())
+	require.NoError(t, err)
+	raw, err := hex.DecodeString(info.SignerPublicKey)
+	require.NoError(t, err)
+	pub, err := btcec.ParsePubKey(raw)
+	require.NoError(t, err)
+	return pub
+}
+
+// freshTaprootPkScript returns a fresh 34-byte P2TR script for a throwaway key.
+func freshTaprootPkScript(t *testing.T) []byte {
+	t.Helper()
+	priv, err := btcec.NewPrivateKey()
+	require.NoError(t, err)
+	pkScript, err := txscript.PayToTaprootScript(priv.PubKey())
+	require.NoError(t, err)
+	return pkScript
+}
+
+// indexerVtxo is a small projection of the bot indexer's GetVtxos response —
+// just the fields tests need.
+type indexerVtxo struct {
+	Txid   string
+	VOut   uint32
+	Amount uint64
+}
+
+// pollForVtxoAt polls the indexer for any spendable VTXO at the given pkScript.
+// Returns the first match or fails the test on timeout.
+func pollForVtxoAt(t *testing.T, ctx context.Context, idx indexer.Indexer, pkScript []byte, timeout time.Duration) indexerVtxo {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		resp, err := idx.GetVtxos(ctx,
+			indexer.WithScripts([]string{hex.EncodeToString(pkScript)}),
+			indexer.WithSpendableOnly(),
+		)
+		if err == nil && len(resp.Vtxos) > 0 {
+			v := resp.Vtxos[0]
+			return indexerVtxo{Txid: v.Txid, VOut: v.VOut, Amount: v.Amount}
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	t.Fatalf("no VTXO appeared at pkScript %s within %v", hex.EncodeToString(pkScript), timeout)
+	return indexerVtxo{}
 }
