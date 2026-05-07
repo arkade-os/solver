@@ -29,10 +29,15 @@ const api = {
   updatePair: (pair) => api._req("PUT", "/v1/pair", { pair }),
   removePair: (name) => api._req("DELETE", `/v1/pair/${encodeURIComponent(name)}`),
   status: () => api._req("GET", "/v1/status"),
+  plugins: () => api._req("GET", "/v1/plugins"),
   balance: () => api._req("GET", "/v1/balance"),
   address: () => api._req("GET", "/v1/address"),
   listTrades: (limit = 100) =>
     api._req("GET", `/v1/trades?limit=${encodeURIComponent(limit)}`),
+  listClaims: () => api._req("GET", "/v1/preimage/claims"),
+  registerClaim: (body) => api._req("POST", "/v1/preimage/claim", body),
+  deleteClaim: (addr) =>
+    api._req("DELETE", `/v1/preimage/claim/${encodeURIComponent(addr)}`),
 };
 
 // -------- toast --------
@@ -85,6 +90,23 @@ function displayPair(name) {
   return `${truncMid(base)} / ${truncMid(quote)}`;
 }
 
+// pairWantAsset returns the want-side asset of a pair name.
+// In a base/quote pair the deposit is base and the want is quote.
+function pairWantAsset(name) {
+  if (!name) return "";
+  const i = name.indexOf("/");
+  return i < 0 ? "" : name.slice(i + 1);
+}
+
+// fmtPairAmount formats a min/max value using the pair's want-side asset:
+// BTC → satoshi count + BTC label, asset → raw count + truncated id.
+function fmtPairAmount(raw, pairName) {
+  if (raw == null) return "—";
+  const want = pairWantAsset(pairName);
+  if (want === "BTC") return `${Number(raw).toLocaleString("en-US")} sats`;
+  return `${Number(raw).toLocaleString("en-US")} · ${truncMid(want, 6, 4)}`;
+}
+
 async function copy(text) {
   try {
     await navigator.clipboard.writeText(text);
@@ -108,6 +130,7 @@ function setSection(name) {
   if (name === "balance") loadBalance();
   if (name === "pairs") loadPairs();
   if (name === "history") loadTrades();
+  if (name === "preimage") loadClaims();
 }
 
 $("#nav").addEventListener("click", (e) => {
@@ -117,21 +140,36 @@ $("#nav").addEventListener("click", (e) => {
 
 // -------- status polling --------
 
+function setPluginChip(name, info) {
+  const chip = $(`#plugin-${name}`);
+  const stateEl = $(`#plugin-${name}-state`);
+  if (!chip || !stateEl) return;
+  if (!info || !info.enabled) {
+    chip.dataset.state = "disabled";
+    stateEl.textContent = "disabled";
+    return;
+  }
+  chip.dataset.state = info.running ? "running" : "stopped";
+  stateEl.textContent = info.running ? "running" : "stopped";
+}
+
+function setPluginsOffline() {
+  ["banco", "preimage"].forEach((name) => {
+    const chip = $(`#plugin-${name}`);
+    const stateEl = $(`#plugin-${name}-state`);
+    if (!chip || !stateEl) return;
+    chip.dataset.state = "stopped";
+    stateEl.textContent = "offline";
+  });
+}
+
 async function refreshStatus() {
-  const pill = $("#status-pill");
-  const txt = $("#status-text");
   try {
-    const s = await api.status();
-    if (s.running) {
-      pill.className = "status-pill running";
-      txt.textContent = "Running";
-    } else {
-      pill.className = "status-pill stopped";
-      txt.textContent = "Stopped";
-    }
+    const p = await api.plugins();
+    setPluginChip("banco", p.banco);
+    setPluginChip("preimage", p.preimage);
   } catch (err) {
-    pill.className = "status-pill stopped";
-    txt.textContent = "Offline";
+    setPluginsOffline();
   }
 }
 
@@ -167,8 +205,8 @@ function renderPairs(pairs) {
     tr.dataset.pair = p.pair;
     tr.innerHTML = `
       <td><span class="mono" title="${escapeAttr(p.pair)}">${escapeHTML(displayPair(p.pair))}</span></td>
-      <td>${fmtSats(p.min_amount)}</td>
-      <td>${fmtSats(p.max_amount)}</td>
+      <td>${escapeHTML(fmtPairAmount(p.min_amount, p.pair))}</td>
+      <td>${escapeHTML(fmtPairAmount(p.max_amount, p.pair))}</td>
       <td><a href="${escapeAttr(safeHref(p.price_feed))}" target="_blank" rel="noreferrer noopener" class="mono trunc">${escapeHTML(p.price_feed)}</a></td>
       <td>${p.invert_price ? '<span class="badge on">Yes</span>' : '<span class="badge">No</span>'}</td>
       <td class="actions-col">
@@ -294,7 +332,6 @@ async function loadBalance() {
 }
 
 $("#btn-refresh-balance").addEventListener("click", loadBalance);
-$("#btn-new-addresses").addEventListener("click", loadBalance);
 
 // -------- history --------
 
@@ -341,12 +378,128 @@ function fmtTime(unixSec) {
 
 function fmtAmount(raw, asset) {
   if (raw == null) return "—";
-  const n = Number(raw).toLocaleString("en-US");
-  const label = asset === "BTC" || !asset ? "BTC" : truncMid(asset, 6, 4);
-  return `${n} · ${label}`;
+  if (asset === "BTC" || !asset) {
+    return `${(Number(raw) / 1e8).toFixed(8)} BTC (${Number(raw).toLocaleString("en-US")} sats)`;
+  }
+  // Asset decimals aren't exposed by the API; show raw count + truncated asset id.
+  return `${Number(raw).toLocaleString("en-US")} · ${truncMid(asset, 6, 4)}`;
 }
 
 $("#btn-refresh-trades").addEventListener("click", loadTrades);
+
+// -------- preimage claims --------
+
+let claimsCache = [];
+
+async function loadClaims() {
+  const body = $("#claims-body");
+  const empty = $("#claims-empty");
+  try {
+    const data = await api.listClaims();
+    claimsCache = data.claims || [];
+    if (!claimsCache.length) {
+      body.innerHTML = "";
+      empty.hidden = false;
+      return;
+    }
+    empty.hidden = true;
+    body.innerHTML = "";
+    for (const c of claimsCache) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><code class="mono trunc" title="${escapeAttr(c.claim_address)}">${escapeHTML(c.claim_address)}</code></td>
+        <td class="actions-col">
+          <div class="row-actions">
+            <button class="btn btn-ghost" data-copy-claim>Copy</button>
+            <button class="btn btn-ghost btn-danger" data-del-claim>Delete</button>
+          </div>
+        </td>`;
+      tr.querySelector("[data-copy-claim]").addEventListener("click", () => copy(c.claim_address));
+      tr.querySelector("[data-del-claim]").addEventListener("click", () => deleteClaim(c.claim_address));
+      body.appendChild(tr);
+    }
+  } catch (err) {
+    toast(err.message, "error");
+    body.innerHTML = "";
+    empty.hidden = false;
+  }
+}
+
+function hexToBase64(hex) {
+  let s = String(hex || "").trim().toLowerCase();
+  if (s.startsWith("0x")) s = s.slice(2);
+  if (s.length === 0) throw new Error("hex string is empty");
+  if (s.length % 2 !== 0) throw new Error("hex string must have even length");
+  if (!/^[0-9a-f]+$/.test(s)) throw new Error("invalid hex characters");
+  let bin = "";
+  for (let i = 0; i < s.length; i += 2) {
+    bin += String.fromCharCode(parseInt(s.slice(i, i + 2), 16));
+  }
+  return btoa(bin);
+}
+
+const claimDialog = $("#claim-dialog");
+const claimForm = $("#claim-form");
+
+function openAddClaim() {
+  claimForm.reset();
+  claimDialog.showModal();
+  claimForm.elements.preimage.focus();
+}
+
+$("#btn-add-claim").addEventListener("click", openAddClaim);
+$("#btn-add-first-claim").addEventListener("click", openAddClaim);
+$$("#claim-dialog [data-close]").forEach((b) =>
+  b.addEventListener("click", () => claimDialog.close())
+);
+
+claimForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const fd = new FormData(claimForm);
+  const submit = $("#claim-submit");
+  submit.disabled = true;
+  try {
+    const taptreeLines = String(fd.get("taptree") || "")
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    if (!taptreeLines.length) throw new Error("taptree must contain at least one closure");
+    // Validate each closure is hex.
+    taptreeLines.forEach((l) => {
+      if (!/^(0x)?[0-9a-fA-F]+$/.test(l)) {
+        throw new Error(`taptree line is not hex: ${l.slice(0, 16)}…`);
+      }
+    });
+    const body = {
+      preimage: hexToBase64(fd.get("preimage")),
+      arkade_script: hexToBase64(fd.get("arkade_script")),
+      taptree: taptreeLines.map((l) => l.replace(/^0x/i, "")),
+    };
+    const resp = await api.registerClaim(body);
+    toast(`Claim registered: ${truncMid(resp.claim_address, 10, 10)}`, "success");
+    claimDialog.close();
+    await loadClaims();
+  } catch (err) {
+    toast(err.message, "error");
+  } finally {
+    submit.disabled = false;
+  }
+});
+
+async function deleteClaim(address) {
+  if (!confirm(`Delete claim ${address}?`)) return;
+  const prev = claimsCache.slice();
+  claimsCache = claimsCache.filter((c) => c.claim_address !== address);
+  try {
+    await api.deleteClaim(address);
+    toast("Claim deleted", "success");
+    await loadClaims();
+  } catch (err) {
+    claimsCache = prev;
+    toast(err.message, "error");
+    await loadClaims();
+  }
+}
 
 // delegate copy buttons
 document.addEventListener("click", (e) => {

@@ -17,6 +17,9 @@
         <button class="nav-item" data-section="pairs" aria-current="page">
           <span class="nav-icon">◇</span> Pairs
         </button>
+        <button class="nav-item" data-section="preimage">
+          <span class="nav-icon">⚿</span> Preimage
+        </button>
         <button class="nav-item" data-section="balance">
           <span class="nav-icon">◉</span> Balance
         </button>
@@ -25,10 +28,18 @@
         </button>
       </nav>
       <div class="sidebar-foot">
-        <span class="status-pill" id="status-pill">
-          <span class="dot"></span>
-          <span id="status-text">—</span>
-        </span>
+        <div class="plugin-list" id="plugin-list">
+          <span class="plugin-chip" id="plugin-banco" data-state="unknown">
+            <span class="dot"></span>
+            <span class="plugin-name">banco</span>
+            <span class="plugin-state" id="plugin-banco-state">—</span>
+          </span>
+          <span class="plugin-chip" id="plugin-preimage" data-state="unknown">
+            <span class="dot"></span>
+            <span class="plugin-name">preimage</span>
+            <span class="plugin-state" id="plugin-preimage-state">—</span>
+          </span>
+        </div>
       </div>
     </aside>
 
@@ -49,9 +60,9 @@
           <table class="table" id="pairs-table">
             <thead>
               <tr>
-                <th>Pair</th>
-                <th>Min</th>
-                <th>Max</th>
+                <th>Pair (base / quote)</th>
+                <th>Min (want)</th>
+                <th>Max (want)</th>
                 <th>Price feed</th>
                 <th>Invert</th>
                 <th class="actions-col"></th>
@@ -114,8 +125,37 @@
               <button class="btn btn-ghost" data-copy="#boarding-address">Copy</button>
             </div>
           </div>
-          <div class="card-row">
-            <button class="btn" id="btn-new-addresses">Get new addresses</button>
+        </div>
+      </section>
+
+      <!-- Preimage -->
+      <section class="view" id="view-preimage" hidden>
+        <header class="view-head">
+          <div>
+            <h1>Preimage claims</h1>
+            <p class="muted">Registered preimage-gated VTXOs the solver auto-claims when funded.</p>
+          </div>
+          <button class="btn btn-primary" id="btn-add-claim">
+            <span>＋</span> Register claim
+          </button>
+        </header>
+
+        <div class="card">
+          <table class="table" id="claims-table">
+            <thead>
+              <tr>
+                <th>Claim address</th>
+                <th class="actions-col"></th>
+              </tr>
+            </thead>
+            <tbody id="claims-body">
+              <tr class="skeleton-row"><td colspan="2"><div class="skeleton"></div></td></tr>
+              <tr class="skeleton-row"><td colspan="2"><div class="skeleton"></div></td></tr>
+            </tbody>
+          </table>
+          <div class="empty" id="claims-empty" hidden>
+            <p>No claims registered.</p>
+            <button class="btn btn-primary" id="btn-add-first-claim">Register your first claim</button>
           </div>
         </div>
       </section>
@@ -173,14 +213,15 @@
 
         <div class="field-row">
           <label class="field">
-            <span>Min (sats)</span>
+            <span>Min</span>
             <input name="min_amount" type="number" min="1" required />
           </label>
           <label class="field">
-            <span>Max (sats)</span>
+            <span>Max</span>
             <input name="max_amount" type="number" min="1" required />
           </label>
         </div>
+        <small class="muted">Bounds apply to the <strong>want side</strong> in its smallest unit (sats for BTC; raw units for an asset). For BTC dust ≥ 330 sats.</small>
 
         <label class="field">
           <span>Price feed URL</span>
@@ -195,6 +236,37 @@
         <footer class="dialog-foot">
           <button type="button" class="btn" data-close>Cancel</button>
           <button type="submit" class="btn btn-primary" id="pair-submit">Save</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <!-- Claim form dialog -->
+    <dialog id="claim-dialog" class="dialog">
+      <form method="dialog" id="claim-form" class="dialog-form">
+        <header class="dialog-head">
+          <h2>Register preimage claim</h2>
+          <button type="button" class="icon-btn" data-close aria-label="Close">✕</button>
+        </header>
+
+        <label class="field">
+          <span>Preimage (hex)</span>
+          <input name="preimage" type="text" pattern="(0x)?[0-9a-fA-F]+" placeholder="deadbeef…" required />
+        </label>
+
+        <label class="field">
+          <span>Arkade script (hex)</span>
+          <input name="arkade_script" type="text" pattern="(0x)?[0-9a-fA-F]+" placeholder="enforcePayTo script bytes" required />
+        </label>
+
+        <label class="field">
+          <span>Taptree (one hex closure per line)</span>
+          <textarea name="taptree" rows="4" placeholder="hex closure 1&#10;hex closure 2" required></textarea>
+          <small class="muted">Hex-encoded closure scripts (TapscriptsVtxoScript.Encode output).</small>
+        </label>
+
+        <footer class="dialog-foot">
+          <button type="button" class="btn" data-close>Cancel</button>
+          <button type="submit" class="btn btn-primary" id="claim-submit">Register</button>
         </footer>
       </form>
     </dialog>

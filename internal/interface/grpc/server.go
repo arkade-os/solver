@@ -29,6 +29,8 @@ type Server struct {
 	grpcConn        *grpc.ClientConn
 	handler         bancov1.BancoServiceServer  // nil when banco is disabled
 	preimageHandler bancov1.PreimageServiceServer // nil when preimage is disabled
+	bancoSvc        *application.TakerService    // nil when banco is disabled
+	preimageSvc     *application.PreimageService // nil when preimage is disabled
 	grpcPort        int
 	httpPort        int
 	log             logrus.FieldLogger
@@ -48,6 +50,7 @@ func NewServer(
 	}
 	if svc != nil {
 		s.handler = newHandler(svc)
+		s.bancoSvc = svc
 	}
 	return s
 }
@@ -57,6 +60,7 @@ func NewServer(
 func (s *Server) WithPreimageService(svc *application.PreimageService) *Server {
 	if svc != nil {
 		s.preimageHandler = newPreimageHandler(svc)
+		s.preimageSvc = svc
 	}
 	return s
 }
@@ -97,6 +101,7 @@ func (s *Server) Start() error {
 
 	mux := http.NewServeMux()
 	gwHandler := newHTTPGateway(conn, s.handler, s.preimageHandler)
+	mux.Handle("/v1/plugins", s.pluginsHandler())
 	mux.Handle("/v1/", gwHandler)
 	mux.Handle("/", web.Handler())
 
@@ -280,6 +285,34 @@ func registerPreimageRoutes(mux *http.ServeMux, svc bancov1.PreimageServiceServe
 		if err != nil {
 			httpGRPCError(w, err)
 			return
+		}
+		jsonResponse(w, resp)
+	})
+}
+
+// pluginsHandler reports which plugins are enabled and whether they are running.
+func (s *Server) pluginsHandler() http.Handler {
+	type pluginState struct {
+		Enabled bool `json:"enabled"`
+		Running bool `json:"running"`
+	}
+	type pluginsResponse struct {
+		Banco    pluginState `json:"banco"`
+		Preimage pluginState `json:"preimage"`
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			httpError(w, fmt.Errorf("method not allowed"), http.StatusMethodNotAllowed)
+			return
+		}
+		resp := pluginsResponse{}
+		if s.bancoSvc != nil {
+			resp.Banco.Enabled = true
+			resp.Banco.Running = s.bancoSvc.Status().Running
+		}
+		if s.preimageSvc != nil {
+			resp.Preimage.Enabled = true
+			resp.Preimage.Running = s.preimageSvc.Status().Running
 		}
 		jsonResponse(w, resp)
 	})

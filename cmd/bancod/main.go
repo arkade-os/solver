@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"os"
 	"os/signal"
 	"syscall"
 
 	introclient "github.com/ArkLabsHQ/introspector/pkg/client"
+	arkdclient "github.com/arkade-os/arkd/pkg/client-lib"
 	arksdk "github.com/arkade-os/go-sdk"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -50,14 +52,20 @@ func main() {
 	defer introConn.Close()
 	introspector := introclient.NewGRPCClient(introConn)
 
-	arkClient, err := arksdk.NewArkClient(cfg.Datadir)
-	if err != nil {
-		log.WithError(err).Fatal("failed to create ark client")
-	}
-
 	ctx := context.Background()
-	if err := arkClient.Init(ctx, cfg.ArkURL, cfg.WalletSeed, cfg.WalletPassword); err != nil {
-		log.WithError(err).Fatal("failed to init ark client")
+	arkClient, err := arksdk.LoadArkClient(cfg.Datadir)
+	if err != nil {
+		if !errors.Is(err, arkdclient.ErrNotInitialized) {
+			log.WithError(err).Fatal("failed to load ark client")
+		}
+		// Fresh datadir — create and initialize the wallet.
+		arkClient, err = arksdk.NewArkClient(cfg.Datadir)
+		if err != nil {
+			log.WithError(err).Fatal("failed to create ark client")
+		}
+		if err := arkClient.Init(ctx, cfg.ArkURL, cfg.WalletSeed, cfg.WalletPassword); err != nil {
+			log.WithError(err).Fatal("failed to init ark client")
+		}
 	}
 	if err := arkClient.Unlock(ctx, cfg.WalletPassword); err != nil {
 		log.WithError(err).Fatal("failed to unlock ark client")
