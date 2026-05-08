@@ -27,10 +27,10 @@ type Server struct {
 	grpcServer      *grpc.Server
 	httpServer      *http.Server
 	grpcConn        *grpc.ClientConn
-	handler         bancov1.BancoServiceServer  // nil when banco is disabled
+	handler         bancov1.BancoServiceServer    // nil when banco is disabled
 	preimageHandler bancov1.PreimageServiceServer // nil when preimage is disabled
-	bancoSvc        *application.TakerService    // nil when banco is disabled
-	preimageSvc     *application.PreimageService // nil when preimage is disabled
+	bancoSvc        *application.TakerService     // nil when banco is disabled
+	preimageSvc     *application.PreimageService  // nil when preimage is disabled
 	grpcPort        int
 	httpPort        int
 	log             logrus.FieldLogger
@@ -255,33 +255,8 @@ func registerBancoRoutes(mux *http.ServeMux, svc bancov1.BancoServiceServer) {
 }
 
 func registerPreimageRoutes(mux *http.ServeMux, svc bancov1.PreimageServiceServer) {
-	mux.HandleFunc("POST /v1/preimage/claim", func(w http.ResponseWriter, r *http.Request) {
-		var req bancov1.RegisterClaimRequest
-		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			httpError(w, fmt.Errorf("invalid request body: %w", err), http.StatusBadRequest)
-			return
-		}
-		resp, err := svc.RegisterClaim(r.Context(), &req)
-		if err != nil {
-			httpGRPCError(w, err)
-			return
-		}
-		jsonResponse(w, resp)
-	})
-
-	mux.HandleFunc("GET /v1/preimage/claims", func(w http.ResponseWriter, r *http.Request) {
-		resp, err := svc.ListClaims(r.Context(), &bancov1.ListClaimsRequest{})
-		if err != nil {
-			httpGRPCError(w, err)
-			return
-		}
-		jsonResponse(w, resp)
-	})
-
-	mux.HandleFunc("DELETE /v1/preimage/claim/{claim_address}", func(w http.ResponseWriter, r *http.Request) {
-		addr := r.PathValue("claim_address")
-		resp, err := svc.DeleteClaim(r.Context(), &bancov1.DeleteClaimRequest{ClaimAddress: addr})
+	mux.HandleFunc("GET /v1/preimage/solver-pubkey", func(w http.ResponseWriter, r *http.Request) {
+		resp, err := svc.GetSolverPubKey(r.Context(), &bancov1.GetSolverPubKeyRequest{})
 		if err != nil {
 			httpGRPCError(w, err)
 			return

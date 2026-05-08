@@ -24,7 +24,7 @@ func p2trWitnessProgram(pkScript []byte) ([]byte, error) {
 	return pkScript[2:], nil
 }
 
-// enforcePayTo assembles the arkade enforcement script the introspector
+// EnforcePayTo assembles the arkade enforcement script the introspector
 // evaluates for an HTLC claim input before signing. The script self-derives
 // the output index from OP_PUSHCURRENTINPUTINDEX, pinning output[i] to
 // receiverPkScript with output[i].value >= input[i].value.
@@ -38,7 +38,7 @@ func p2trWitnessProgram(pkScript []byte) ([]byte, error) {
 //	OP_INSPECTOUTPUTVALUE
 //	OP_PUSHCURRENTINPUTINDEX OP_INSPECTINPUTVALUE
 //	OP_GREATERTHANOREQUAL
-func enforcePayTo(receiverPkScript []byte) ([]byte, error) {
+func EnforcePayTo(receiverPkScript []byte) ([]byte, error) {
 	witnessProgram, err := p2trWitnessProgram(receiverPkScript)
 	if err != nil {
 		return nil, fmt.Errorf("invalid receiver pkScript: %w", err)
@@ -76,7 +76,7 @@ func preimageCondition(preimageHash []byte) ([]byte, error) {
 // introspector test's `claim` subtest (lines 99-116):
 //
 //	ConditionMultisigClosure{
-//	    MultisigClosure{ serverPubKey, IntrospectorTweaked(enforcePayTo) },
+//	    MultisigClosure{ serverPubKey, IntrospectorTweaked(EnforcePayTo) },
 //	    Condition: OP_HASH160 <preimageHash> OP_EQUAL,
 //	}
 //
@@ -94,7 +94,7 @@ func VtxoScript(
 	if introspectorPubKey == nil {
 		return nil, fmt.Errorf("introspector pubkey must not be nil")
 	}
-	enforcement, err := enforcePayTo(receiverPkScript)
+	enforcement, err := EnforcePayTo(receiverPkScript)
 	if err != nil {
 		return nil, err
 	}
@@ -141,18 +141,18 @@ func Address(
 }
 
 // ValidateArkadeScript accepts only the byte sequence produced by
-// enforcePayTo for some P2TR receiver. Returns the receiver pkScript on success.
+// EnforcePayTo for some P2TR receiver. Returns the receiver pkScript on success.
 func ValidateArkadeScript(arkadeScript []byte) ([]byte, error) {
 	receiver, err := parseReceiverFromArkadeScript(arkadeScript)
 	if err != nil {
 		return nil, err
 	}
-	expected, err := enforcePayTo(receiver)
+	expected, err := EnforcePayTo(receiver)
 	if err != nil {
 		return nil, err
 	}
 	if !bytes.Equal(arkadeScript, expected) {
-		return nil, fmt.Errorf("unsupported arkade_script shape: only enforcePayTo is accepted in v1")
+		return nil, fmt.Errorf("unsupported arkade_script shape: only EnforcePayTo is accepted in v1")
 	}
 	return receiver, nil
 }

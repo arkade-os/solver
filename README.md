@@ -68,12 +68,16 @@ for a taker bot.
 
 ### `pkg/preimage`
 
-A second solver plugin: preimage-gated VTXO claims. A maker registers
-`(preimage, arkade_script, taptree)` via the `PreimageService` gRPC API; the
-bot computes the claim address, stores the credentials in SQLite (with an
-in-memory cache for the hot path), watches arkd's tx stream, and auto-claims
-the moment a tx funds the registered address. v1 only supports the
-`enforcePayTo` arkade-script shape (single-output, full-amount-to-receiver).
+A second solver plugin: preimage-gated VTXO claims. The bot is **stateless**
+— a maker fetches the bot's encryption pubkey via the `GetSolverPubKey`
+RPC, ECIES-encrypts `(preimage || arkade_script)` to that key, and attaches
+the ciphertext + plaintext taptree as an Ark extension TLV packet
+(`PacketType = 0x04`) on the funding tx. The bot watches arkd's tx
+stream, parses the extension, decrypts on the fly, validates, and
+claims. No registration, no DB, no per-claim persistence. v1 only
+supports the `enforcePayTo` arkade-script shape (single-output,
+full-amount-to-receiver). The maker-side helper `preimage.CreateClaim`
+builds the address + packet from the local primitives.
 
 All `pkg/` packages are intended to be importable by other projects and do not
 depend on any `internal/` code.

@@ -112,17 +112,18 @@ func TestMain(m *testing.M) {
 	takerSvc.Start()
 	defer takerSvc.Stop()
 
-	// Preimage service: backed by the same SQLite DB, runs its own solver loop
-	// subscribed to arkd's tx stream alongside the banco taker.
-	preimageRepo, err := sqlitedb.NewPreimageRepository(ctx, db)
+	// Preimage service: stateless — the solver privkey is generated fresh for
+	// the test and the preimage plugin recovers credentials from the tx stream
+	// (no DB).
+	preimagePriv, err := btcec.NewPrivateKey()
 	if err != nil {
-		log.Fatalf("failed to create preimage repository: %s", err)
+		log.Fatalf("failed to generate preimage privkey: %s", err)
 	}
 	preimageSvc, err = application.NewPreimageService(ctx, application.PreimageServiceConfig{
-		ArkClient:    takerClient,
-		Introspector: introClient,
-		Repository:   preimageRepo,
-		Log:          log.StandardLogger(),
+		ArkClient:     takerClient,
+		Introspector:  introClient,
+		SolverPrivKey: preimagePriv,
+		Log:           log.StandardLogger(),
 	})
 	if err != nil {
 		log.Fatalf("failed to create preimage service: %s", err)

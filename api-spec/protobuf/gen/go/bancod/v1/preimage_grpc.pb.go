@@ -19,29 +19,23 @@ import (
 const _ = grpc.SupportPackageIsVersion8
 
 const (
-	PreimageService_RegisterClaim_FullMethodName = "/bancod.v1.PreimageService/RegisterClaim"
-	PreimageService_ListClaims_FullMethodName    = "/bancod.v1.PreimageService/ListClaims"
-	PreimageService_DeleteClaim_FullMethodName   = "/bancod.v1.PreimageService/DeleteClaim"
+	PreimageService_GetSolverPubKey_FullMethodName = "/bancod.v1.PreimageService/GetSolverPubKey"
 )
 
 // PreimageServiceClient is the client API for PreimageService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// PreimageService lets a maker register the credentials needed to spend a
-// preimage-gated VTXO. The bot watches arkd's tx stream and, when a tx funds
-// any registered claim_address, auto-spends the VTXO using the supplied
-// credentials. v1 only supports the enforcePayTo arkade-script shape; other
-// shapes are rejected at registration time.
+// PreimageService exposes the bot's encryption pubkey. Clients ECIES-encrypt
+// preimage claim credentials to this key and attach the ciphertext (along with
+// the taptree) inside an Ark extension TLV packet (type 0x04). The bot picks
+// up the funding tx from the arkd stream and decrypts on the fly — no
+// per-claim registration or persistence.
 type PreimageServiceClient interface {
-	// RegisterClaim stores claim credentials for a VTXO the maker is about to fund.
-	// Returns the V0 ark address the maker should fund.
-	RegisterClaim(ctx context.Context, in *RegisterClaimRequest, opts ...grpc.CallOption) (*RegisterClaimResponse, error)
-	// ListClaims returns the addresses of all currently-registered claims.
-	// Does NOT return secret material.
-	ListClaims(ctx context.Context, in *ListClaimsRequest, opts ...grpc.CallOption) (*ListClaimsResponse, error)
-	// DeleteClaim cancels a registration. Returns NotFound if the claim doesn't exist.
-	DeleteClaim(ctx context.Context, in *DeleteClaimRequest, opts ...grpc.CallOption) (*DeleteClaimResponse, error)
+	// GetSolverPubKey returns the hex-encoded compressed secp256k1 pubkey
+	// (33 bytes / 66 hex chars) that clients must use to encrypt the secret
+	// payload.
+	GetSolverPubKey(ctx context.Context, in *GetSolverPubKeyRequest, opts ...grpc.CallOption) (*GetSolverPubKeyResponse, error)
 }
 
 type preimageServiceClient struct {
@@ -52,30 +46,10 @@ func NewPreimageServiceClient(cc grpc.ClientConnInterface) PreimageServiceClient
 	return &preimageServiceClient{cc}
 }
 
-func (c *preimageServiceClient) RegisterClaim(ctx context.Context, in *RegisterClaimRequest, opts ...grpc.CallOption) (*RegisterClaimResponse, error) {
+func (c *preimageServiceClient) GetSolverPubKey(ctx context.Context, in *GetSolverPubKeyRequest, opts ...grpc.CallOption) (*GetSolverPubKeyResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(RegisterClaimResponse)
-	err := c.cc.Invoke(ctx, PreimageService_RegisterClaim_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *preimageServiceClient) ListClaims(ctx context.Context, in *ListClaimsRequest, opts ...grpc.CallOption) (*ListClaimsResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListClaimsResponse)
-	err := c.cc.Invoke(ctx, PreimageService_ListClaims_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *preimageServiceClient) DeleteClaim(ctx context.Context, in *DeleteClaimRequest, opts ...grpc.CallOption) (*DeleteClaimResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(DeleteClaimResponse)
-	err := c.cc.Invoke(ctx, PreimageService_DeleteClaim_FullMethodName, in, out, cOpts...)
+	out := new(GetSolverPubKeyResponse)
+	err := c.cc.Invoke(ctx, PreimageService_GetSolverPubKey_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -86,34 +60,24 @@ func (c *preimageServiceClient) DeleteClaim(ctx context.Context, in *DeleteClaim
 // All implementations should embed UnimplementedPreimageServiceServer
 // for forward compatibility
 //
-// PreimageService lets a maker register the credentials needed to spend a
-// preimage-gated VTXO. The bot watches arkd's tx stream and, when a tx funds
-// any registered claim_address, auto-spends the VTXO using the supplied
-// credentials. v1 only supports the enforcePayTo arkade-script shape; other
-// shapes are rejected at registration time.
+// PreimageService exposes the bot's encryption pubkey. Clients ECIES-encrypt
+// preimage claim credentials to this key and attach the ciphertext (along with
+// the taptree) inside an Ark extension TLV packet (type 0x04). The bot picks
+// up the funding tx from the arkd stream and decrypts on the fly — no
+// per-claim registration or persistence.
 type PreimageServiceServer interface {
-	// RegisterClaim stores claim credentials for a VTXO the maker is about to fund.
-	// Returns the V0 ark address the maker should fund.
-	RegisterClaim(context.Context, *RegisterClaimRequest) (*RegisterClaimResponse, error)
-	// ListClaims returns the addresses of all currently-registered claims.
-	// Does NOT return secret material.
-	ListClaims(context.Context, *ListClaimsRequest) (*ListClaimsResponse, error)
-	// DeleteClaim cancels a registration. Returns NotFound if the claim doesn't exist.
-	DeleteClaim(context.Context, *DeleteClaimRequest) (*DeleteClaimResponse, error)
+	// GetSolverPubKey returns the hex-encoded compressed secp256k1 pubkey
+	// (33 bytes / 66 hex chars) that clients must use to encrypt the secret
+	// payload.
+	GetSolverPubKey(context.Context, *GetSolverPubKeyRequest) (*GetSolverPubKeyResponse, error)
 }
 
 // UnimplementedPreimageServiceServer should be embedded to have forward compatible implementations.
 type UnimplementedPreimageServiceServer struct {
 }
 
-func (UnimplementedPreimageServiceServer) RegisterClaim(context.Context, *RegisterClaimRequest) (*RegisterClaimResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RegisterClaim not implemented")
-}
-func (UnimplementedPreimageServiceServer) ListClaims(context.Context, *ListClaimsRequest) (*ListClaimsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListClaims not implemented")
-}
-func (UnimplementedPreimageServiceServer) DeleteClaim(context.Context, *DeleteClaimRequest) (*DeleteClaimResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteClaim not implemented")
+func (UnimplementedPreimageServiceServer) GetSolverPubKey(context.Context, *GetSolverPubKeyRequest) (*GetSolverPubKeyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSolverPubKey not implemented")
 }
 
 // UnsafePreimageServiceServer may be embedded to opt out of forward compatibility for this service.
@@ -127,56 +91,20 @@ func RegisterPreimageServiceServer(s grpc.ServiceRegistrar, srv PreimageServiceS
 	s.RegisterService(&PreimageService_ServiceDesc, srv)
 }
 
-func _PreimageService_RegisterClaim_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RegisterClaimRequest)
+func _PreimageService_GetSolverPubKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSolverPubKeyRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(PreimageServiceServer).RegisterClaim(ctx, in)
+		return srv.(PreimageServiceServer).GetSolverPubKey(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: PreimageService_RegisterClaim_FullMethodName,
+		FullMethod: PreimageService_GetSolverPubKey_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PreimageServiceServer).RegisterClaim(ctx, req.(*RegisterClaimRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _PreimageService_ListClaims_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListClaimsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(PreimageServiceServer).ListClaims(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: PreimageService_ListClaims_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PreimageServiceServer).ListClaims(ctx, req.(*ListClaimsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _PreimageService_DeleteClaim_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteClaimRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(PreimageServiceServer).DeleteClaim(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: PreimageService_DeleteClaim_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PreimageServiceServer).DeleteClaim(ctx, req.(*DeleteClaimRequest))
+		return srv.(PreimageServiceServer).GetSolverPubKey(ctx, req.(*GetSolverPubKeyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -189,16 +117,8 @@ var PreimageService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*PreimageServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "RegisterClaim",
-			Handler:    _PreimageService_RegisterClaim_Handler,
-		},
-		{
-			MethodName: "ListClaims",
-			Handler:    _PreimageService_ListClaims_Handler,
-		},
-		{
-			MethodName: "DeleteClaim",
-			Handler:    _PreimageService_DeleteClaim_Handler,
+			MethodName: "GetSolverPubKey",
+			Handler:    _PreimageService_GetSolverPubKey_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

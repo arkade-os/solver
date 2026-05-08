@@ -4,50 +4,21 @@ option go_package = "github.com/arkade-os/bancod/api-spec/protobuf/gen/go/bancod
 
 import "google/api/annotations.proto";
 
-// PreimageService lets a maker register the credentials needed to spend a
-// preimage-gated VTXO. The bot watches arkd's tx stream and, when a tx funds
-// any registered claim_address, auto-spends the VTXO using the supplied
-// credentials. v1 only supports the enforcePayTo arkade-script shape; other
-// shapes are rejected at registration time.
+// PreimageService exposes the bot's encryption pubkey. Clients ECIES-encrypt
+// preimage claim credentials to this key and attach the ciphertext (along with
+// the taptree) inside an Ark extension TLV packet (type 0x04). The bot picks
+// up the funding tx from the arkd stream and decrypts on the fly — no
+// per-claim registration or persistence.
 service PreimageService {
-  // RegisterClaim stores claim credentials for a VTXO the maker is about to fund.
-  // Returns the V0 ark address the maker should fund.
-  rpc RegisterClaim(RegisterClaimRequest) returns (RegisterClaimResponse) {
-    option (google.api.http) = { post: "/v1/preimage/claim" body: "*" };
-  }
-
-  // ListClaims returns the addresses of all currently-registered claims.
-  // Does NOT return secret material.
-  rpc ListClaims(ListClaimsRequest) returns (ListClaimsResponse) {
-    option (google.api.http) = { get: "/v1/preimage/claims" };
-  }
-
-  // DeleteClaim cancels a registration. Returns NotFound if the claim doesn't exist.
-  rpc DeleteClaim(DeleteClaimRequest) returns (DeleteClaimResponse) {
-    option (google.api.http) = { delete: "/v1/preimage/claim/{claim_address}" };
+  // GetSolverPubKey returns the hex-encoded compressed secp256k1 pubkey
+  // (33 bytes / 66 hex chars) that clients must use to encrypt the secret
+  // payload.
+  rpc GetSolverPubKey(GetSolverPubKeyRequest) returns (GetSolverPubKeyResponse) {
+    option (google.api.http) = { get: "/v1/preimage/solver-pubkey" };
   }
 }
 
-message RegisterClaimRequest {
-  bytes preimage = 1;
-  bytes arkade_script = 2;
-  // Hex-encoded closure scripts produced by TapscriptsVtxoScript.Encode().
-  // Same shape as offchain.VtxoInput.RevealedTapscripts.
-  repeated string taptree = 3;
+message GetSolverPubKeyRequest {}
+message GetSolverPubKeyResponse {
+  string solver_pub_key = 1;
 }
-message RegisterClaimResponse {
-  string claim_address = 1;
-}
-
-message ClaimInfo {
-  string claim_address = 1;
-}
-message ListClaimsRequest {}
-message ListClaimsResponse {
-  repeated ClaimInfo claims = 1;
-}
-
-message DeleteClaimRequest {
-  string claim_address = 1;
-}
-message DeleteClaimResponse {}

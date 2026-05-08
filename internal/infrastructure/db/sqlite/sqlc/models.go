@@ -14,15 +14,6 @@ type BancoPair struct {
 	InvertPrice   int64
 }
 
-type PreimageClaim struct {
-	PkScript     []byte
-	ClaimAddress string
-	Preimage     []byte
-	ArkadeScript []byte
-	Taptree      []byte
-	CreatedAt    int64
-}
-
 type Trade struct {
 	ID            int64
 	Pair          string

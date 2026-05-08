@@ -1,12 +1,16 @@
 package preimage
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"fmt"
 
+	"github.com/ArkLabsHQ/introspector/pkg/arkade"
 	introclient "github.com/ArkLabsHQ/introspector/pkg/client"
 	arklib "github.com/arkade-os/arkd/pkg/ark-lib"
+	"github.com/arkade-os/arkd/pkg/ark-lib/extension"
+	"github.com/arkade-os/arkd/pkg/ark-lib/script"
 	"github.com/arkade-os/arkd/pkg/client-lib/indexer"
 	arksdk "github.com/arkade-os/go-sdk"
 	"github.com/btcsuite/btcd/btcec/v2"
@@ -19,9 +23,9 @@ import (
 )
 
 type Config struct {
-	ArkClient    arksdk.ArkClient
-	Introspector introclient.TransportClient
-	Repository   Repository
+	ArkClient     arksdk.ArkClient
+	Introspector  introclient.TransportClient
+	SolverPrivKey *btcec.PrivateKey
 
 	IntrospectorPubKey  *btcec.PublicKey
 	ServerPubKey        *btcec.PublicKey
@@ -37,8 +41,8 @@ func NewPlugin(_ context.Context, cfg Config) (solver.Plugin, error) {
 	if cfg.Introspector == nil {
 		return nil, fmt.Errorf("introspector client must not be nil")
 	}
-	if cfg.Repository == nil {
-		return nil, fmt.Errorf("repository must not be nil")
+	if cfg.SolverPrivKey == nil {
+		return nil, fmt.Errorf("solver privkey must not be nil")
 	}
 	if cfg.IntrospectorPubKey == nil {
 		return nil, fmt.Errorf("introspector pubkey must not be nil")
@@ -52,11 +56,9 @@ func NewPlugin(_ context.Context, cfg Config) (solver.Plugin, error) {
 	if cfg.Log == nil {
 		cfg.Log = logrus.New()
 	}
-
 	p := &plugin{cfg: cfg, log: cfg.Log}
 
-	return builder.For[*MatchedClaim]().
-		Decode(p.decode).
+	return builder.ForExtension(p.decode).
 		Validate(p.checkVtxoSpendable).
 		Solve(p.claim).
 		WithLogger(p.log).
@@ -68,24 +70,75 @@ type plugin struct {
 	log logrus.FieldLogger
 }
 
-func (p *plugin) decode(ctx context.Context, tx *psbt.Packet) (*MatchedClaim, error) {
+func (p *plugin) decode(
+	_ context.Context, tx *psbt.Packet, ext extension.Extension,
+) (*MatchedClaim, error) {
 	if tx == nil || tx.UnsignedTx == nil {
 		return nil, builder.ErrSkip
 	}
+
+	pkt, err := FindClaim(ext)
+	if err != nil {
+		p.log.WithError(err).Debug("preimage extension parse failed")
+		return nil, builder.ErrSkip
+	}
+	if pkt == nil {
+		return nil, builder.ErrSkip
+	}
+
+	plaintext, err := Decrypt(p.cfg.SolverPrivKey, pkt.Ciphertext)
+	if err != nil {
+		p.log.WithError(err).Debug("preimage decrypt failed")
+		return nil, builder.ErrSkip
+	}
+	preimg, arkadeScript, err := SplitSecretPayload(plaintext)
+	if err != nil {
+		p.log.WithError(err).Debug("preimage payload parse failed")
+		return nil, builder.ErrSkip
+	}
+	if _, err := ValidateArkadeScript(arkadeScript); err != nil {
+		p.log.WithError(err).Debug("preimage arkade script invalid")
+		return nil, builder.ErrSkip
+	}
+
+	vtxoScript := &script.TapscriptsVtxoScript{}
+	if err := vtxoScript.Decode(pkt.Taptree); err != nil {
+		p.log.WithError(err).Debug("preimage taptree decode failed")
+		return nil, builder.ErrSkip
+	}
+	expectedTweaked := arkade.ComputeArkadeScriptPublicKey(
+		p.cfg.IntrospectorPubKey, arkade.ArkadeScriptHash(arkadeScript),
+	)
+	if _, err := findClaimClosure(vtxoScript, p.cfg.ServerPubKey, expectedTweaked); err != nil {
+		p.log.WithError(err).Debug("preimage taptree missing expected closure")
+		return nil, builder.ErrSkip
+	}
+
+	tapKey, _, err := vtxoScript.TapTree()
+	if err != nil {
+		p.log.WithError(err).Debug("preimage taptree taproot key failed")
+		return nil, builder.ErrSkip
+	}
+	expectedPk, err := script.P2TRScript(tapKey)
+	if err != nil {
+		p.log.WithError(err).Debug("preimage P2TR script failed")
+		return nil, builder.ErrSkip
+	}
+
 	for i, out := range tx.UnsignedTx.TxOut {
-		creds, ok, err := p.cfg.Repository.Get(ctx, out.PkScript)
-		if err != nil {
-			p.log.WithError(err).Debug("preimage repository Get errored, skipping output")
-			continue
-		}
-		if !ok {
+		if !bytes.Equal(out.PkScript, expectedPk) {
 			continue
 		}
 		hash := tx.UnsignedTx.TxHash()
 		return &MatchedClaim{
-			Outpoint:    wire.OutPoint{Hash: hash, Index: uint32(i)},
-			Amount:      uint64(out.Value),
-			Credentials: creds,
+			Outpoint: wire.OutPoint{Hash: hash, Index: uint32(i)},
+			Amount:   uint64(out.Value),
+			Credentials: ClaimCredentials{
+				Preimage:     preimg,
+				ArkadeScript: arkadeScript,
+				Taptree:      pkt.Taptree,
+				PkScript:     expectedPk,
+			},
 		}, nil
 	}
 	return nil, builder.ErrSkip
@@ -124,20 +177,4 @@ func (p *plugin) claim(ctx context.Context, m *MatchedClaim) {
 		WithField("amount", m.Amount).
 		WithField("txid", txid).
 		Info("preimage claim submitted")
-
-	if delErr := p.removeFromRepo(ctx, m.Credentials.PkScript); delErr != nil {
-		p.log.WithError(delErr).WithField("outpoint", m.Outpoint.String()).
-			Warn("preimage registry delete failed (claim already submitted)")
-	}
-}
-
-// removeFromRepo type-asserts to a deleter; no-op for read-only repos (tests).
-func (p *plugin) removeFromRepo(ctx context.Context, pkScript []byte) error {
-	deleter, ok := p.cfg.Repository.(interface {
-		Delete(ctx context.Context, pkScript []byte) error
-	})
-	if !ok {
-		return nil
-	}
-	return deleter.Delete(ctx, pkScript)
 }

@@ -2,8 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,6 +15,7 @@ import (
 	introclient "github.com/ArkLabsHQ/introspector/pkg/client"
 	arkdclient "github.com/arkade-os/arkd/pkg/client-lib"
 	arksdk "github.com/arkade-os/go-sdk"
+	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -108,18 +113,15 @@ func main() {
 	}
 
 	if cfg.PreimageEnabled {
-		if db == nil {
-			log.Fatal("preimage plugin requires sqlite datadir")
-		}
-		preimageRepo, err := sqlitedb.NewPreimageRepository(ctx, db)
+		solverPriv, err := deriveSolverPrivKey(cfg.WalletSeed)
 		if err != nil {
-			log.WithError(err).Fatal("failed to create preimage repository")
+			log.WithError(err).Fatal("failed to derive preimage solver privkey")
 		}
 		preimageSvc, err = application.NewPreimageService(ctx, application.PreimageServiceConfig{
-			ArkClient:    arkClient,
-			Introspector: introspector,
-			Repository:   preimageRepo,
-			Log:          log,
+			ArkClient:     arkClient,
+			Introspector:  introspector,
+			SolverPrivKey: solverPriv,
+			Log:           log,
 		})
 		if err != nil {
 			log.WithError(err).Fatal("failed to create preimage service")
@@ -161,10 +163,9 @@ func main() {
 	log.Info("bancod stopped")
 }
 
-// optionalSqliteDB opens the sqlite DB iff at least one plugin needs it
-// (banco and preimage both require it).
+// optionalSqliteDB opens the sqlite DB iff banco plugin is enabled
 func optionalSqliteDB(cfg *config.Config, log logrus.FieldLogger) *sql.DB {
-	if !cfg.BancoEnabled && !cfg.PreimageEnabled {
+	if !cfg.BancoEnabled {
 		return nil
 	}
 	db, err := sqlitedb.OpenDB(cfg.Datadir)
@@ -172,4 +173,20 @@ func optionalSqliteDB(cfg *config.Config, log logrus.FieldLogger) *sql.DB {
 		log.WithError(err).Fatal("failed to open database")
 	}
 	return db
+}
+
+const preimageKeyDomain = "bancod/preimage-plugin/v1"
+
+// deriveSolverPrivKey derives the preimage-plugin's encryption privkey from
+// the wallet seed via HMAC-SHA256(seed, domain). Stable across restarts as
+// long as the seed is unchanged.
+func deriveSolverPrivKey(seedHex string) (*btcec.PrivateKey, error) {
+	seed, err := hex.DecodeString(seedHex)
+	if err != nil {
+		return nil, fmt.Errorf("decode wallet seed: %w", err)
+	}
+	mac := hmac.New(sha256.New, seed)
+	mac.Write([]byte(preimageKeyDomain))
+	priv, _ := btcec.PrivKeyFromBytes(mac.Sum(nil))
+	return priv, nil
 }

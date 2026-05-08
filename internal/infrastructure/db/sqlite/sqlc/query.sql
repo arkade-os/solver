@@ -19,25 +19,3 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: ListTrades :many
 SELECT * FROM trade ORDER BY created_at DESC, id DESC LIMIT ?;
-
--- name: InsertPreimageClaim :exec
-INSERT INTO preimage_claim (pk_script, claim_address, preimage, arkade_script, taptree, created_at)
-VALUES (?, ?, ?, ?, ?, ?)
-ON CONFLICT(pk_script) DO UPDATE SET
-    claim_address = excluded.claim_address,
-    preimage = excluded.preimage,
-    arkade_script = excluded.arkade_script,
-    taptree = excluded.taptree,
-    created_at = excluded.created_at;
-
--- name: GetPreimageClaim :one
-SELECT * FROM preimage_claim WHERE pk_script = ?;
-
--- name: DeletePreimageClaim :execrows
-DELETE FROM preimage_claim WHERE pk_script = ?;
-
--- name: ListPreimageClaims :many
-SELECT pk_script, claim_address FROM preimage_claim ORDER BY created_at DESC;
-
--- name: ListAllPreimageClaims :many
-SELECT * FROM preimage_claim ORDER BY created_at DESC;

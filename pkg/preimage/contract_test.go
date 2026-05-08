@@ -36,23 +36,23 @@ func fixedReceiver(t *testing.T) []byte {
 
 func TestEnforcePayTo_Determinism(t *testing.T) {
 	receiver := fixedReceiver(t)
-	a, err := enforcePayTo(receiver)
+	a, err := EnforcePayTo(receiver)
 	require.NoError(t, err)
-	b, err := enforcePayTo(receiver)
+	b, err := EnforcePayTo(receiver)
 	require.NoError(t, err)
 	assert.Equal(t, a, b)
 }
 
 func TestEnforcePayTo_RejectsNonP2TR(t *testing.T) {
 	t.Run("wrong length", func(t *testing.T) {
-		_, err := enforcePayTo([]byte{0x51, 0x20})
+		_, err := EnforcePayTo([]byte{0x51, 0x20})
 		assert.Error(t, err)
 	})
 	t.Run("wrong prefix", func(t *testing.T) {
 		bad := make([]byte, 34)
 		bad[0] = txscript.OP_0
 		bad[1] = 0x20
-		_, err := enforcePayTo(bad)
+		_, err := EnforcePayTo(bad)
 		assert.Error(t, err)
 	})
 }
@@ -124,7 +124,7 @@ func TestAddress_RoundTrips(t *testing.T) {
 
 func TestValidateArkadeScript_RoundTrip(t *testing.T) {
 	receiver := fixedReceiver(t)
-	arkadeScript, err := enforcePayTo(receiver)
+	arkadeScript, err := EnforcePayTo(receiver)
 	require.NoError(t, err)
 
 	parsed, err := ValidateArkadeScript(arkadeScript)
@@ -154,7 +154,7 @@ func TestValidateArkadeScript_RejectsBadInput(t *testing.T) {
 	})
 
 	t.Run("right OP_DATA_32 push but other bytes differ", func(t *testing.T) {
-		good, err := enforcePayTo(fixedReceiver(t))
+		good, err := EnforcePayTo(fixedReceiver(t))
 		require.NoError(t, err)
 		corrupted := append([]byte{}, good...)
 		// Flip the last byte (OP_GREATERTHANOREQUAL) — corrupting a trailing
@@ -170,7 +170,7 @@ func TestValidateArkadeScript_RejectsBadInput(t *testing.T) {
 		// Plausible "two-output" arkade script: pin output[0] AND output[1] to
 		// the same receiver. Contains exactly one OP_DATA_32 push (so
 		// parseReceiverFromArkadeScript would succeed in isolation), but the
-		// surrounding opcodes don't match enforcePayTo's exact byte sequence.
+		// surrounding opcodes don't match EnforcePayTo's exact byte sequence.
 		// ValidateArkadeScript must reject it.
 		receiver := fixedReceiver(t)
 		witnessProgram := receiver[2:]
