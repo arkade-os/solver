@@ -7,6 +7,7 @@ import (
 
 	"github.com/arkade-os/arkd/pkg/ark-lib/extension"
 	"github.com/arkade-os/arkd/pkg/ark-lib/script"
+	"github.com/arkade-os/arkd/pkg/ark-lib/txutils"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/btcutil/psbt"
@@ -19,7 +20,6 @@ import (
 	"github.com/arkade-os/bancod/pkg/solver/builder"
 )
 
-// fixture bundles every key + the artifacts a maker would produce.
 type fixture struct {
 	t            *testing.T
 	solverPriv   *btcec.PrivateKey
@@ -49,8 +49,9 @@ func newFixture(t *testing.T) *fixture {
 	require.NoError(t, err)
 
 	preimageHash := btcutil.Hash160(preimg)
-	vtxoScript, err := VtxoScript(preimageHash, receiverPk, serverPriv.PubKey(), introPriv.PubKey())
+	closure, err := CovenantClaimClosure(preimageHash, receiverPk, serverPriv.PubKey(), introPriv.PubKey())
 	require.NoError(t, err)
+	vtxoScript := &script.TapscriptsVtxoScript{Closures: []script.Closure{closure}}
 	taptree, err := vtxoScript.Encode()
 	require.NoError(t, err)
 	tapKey, _, err := vtxoScript.TapTree()
@@ -98,26 +99,28 @@ func freshTaprootScript(t *testing.T) []byte {
 	return out
 }
 
+func (f *fixture) goodPacket() extension.Packet {
+	ct, err := Encrypt(f.solverPriv.PubKey(), f.preimg)
+	require.NoError(f.t, err)
+	pkt, err := (&ClaimPacket{Ciphertext: ct, ArkadeScript: f.arkadeScript}).ToPacket()
+	require.NoError(f.t, err)
+	return pkt
+}
+
 func (f *fixture) makeClaimTx(packet extension.Packet) (*psbt.Packet, extension.Extension) {
 	tx := wire.NewMsgTx(2)
 	tx.AddTxOut(&wire.TxOut{Value: 1234, PkScript: bytes.Repeat([]byte{0x99}, 34)})
 	tx.AddTxOut(&wire.TxOut{Value: 5000, PkScript: f.expectedPk})
 	p, err := psbt.NewFromUnsignedTx(tx)
 	require.NoError(f.t, err)
+	encoded, err := txutils.TapTree(f.taptree).Encode()
+	require.NoError(f.t, err)
+	p.Outputs[1].TaprootTapTree = encoded
 	ext := extension.Extension{}
 	if packet != nil {
 		ext = append(ext, packet)
 	}
 	return p, ext
-}
-
-func (f *fixture) goodPacket() extension.Packet {
-	plaintext := buildSecretPayload(f.preimg, f.arkadeScript)
-	ct, err := Encrypt(f.solverPriv.PubKey(), plaintext)
-	require.NoError(f.t, err)
-	pkt, err := (&ClaimPacket{Ciphertext: ct, Taptree: f.taptree}).ToPacket()
-	require.NoError(f.t, err)
-	return pkt
 }
 
 func TestPluginDecode_Match(t *testing.T) {
@@ -150,7 +153,10 @@ func TestPluginDecode_WrongPacketType(t *testing.T) {
 
 func TestPluginDecode_DecryptFails(t *testing.T) {
 	f := newFixture(t)
-	junk, err := (&ClaimPacket{Ciphertext: bytes.Repeat([]byte{0x00}, 80), Taptree: f.taptree}).ToPacket()
+	junk, err := (&ClaimPacket{
+		Ciphertext:   bytes.Repeat([]byte{0x00}, 80),
+		ArkadeScript: f.arkadeScript,
+	}).ToPacket()
 	require.NoError(t, err)
 	tx, ext := f.makeClaimTx(junk)
 	_, err = f.plugin.decode(context.Background(), tx, ext)
@@ -164,6 +170,9 @@ func TestPluginDecode_OutputMismatch(t *testing.T) {
 	tx.AddTxOut(&wire.TxOut{Value: 1234, PkScript: bytes.Repeat([]byte{0x99}, 34)})
 	p, err := psbt.NewFromUnsignedTx(tx)
 	require.NoError(t, err)
+	encoded, err := txutils.TapTree(f.taptree).Encode()
+	require.NoError(t, err)
+	p.Outputs[0].TaprootTapTree = encoded
 	_, err = f.plugin.decode(context.Background(), p, extension.Extension{pkt})
 	require.ErrorIs(t, err, builder.ErrSkip)
 }
@@ -172,10 +181,9 @@ func TestPluginDecode_ArkadeScriptMismatch(t *testing.T) {
 	f := newFixture(t)
 	bad := append([]byte{}, f.arkadeScript...)
 	bad = append(bad, txscript.OP_NOP)
-	plaintext := buildSecretPayload(f.preimg, bad)
-	ct, err := Encrypt(f.solverPriv.PubKey(), plaintext)
+	ct, err := Encrypt(f.solverPriv.PubKey(), f.preimg)
 	require.NoError(t, err)
-	pkt, err := (&ClaimPacket{Ciphertext: ct, Taptree: f.taptree}).ToPacket()
+	pkt, err := (&ClaimPacket{Ciphertext: ct, ArkadeScript: bad}).ToPacket()
 	require.NoError(t, err)
 	tx, ext := f.makeClaimTx(pkt)
 	_, err = f.plugin.decode(context.Background(), tx, ext)
@@ -184,21 +192,39 @@ func TestPluginDecode_ArkadeScriptMismatch(t *testing.T) {
 
 func TestPluginDecode_TaptreeMismatch(t *testing.T) {
 	f := newFixture(t)
-	plaintext := buildSecretPayload(f.preimg, f.arkadeScript)
-	ct, err := Encrypt(f.solverPriv.PubKey(), plaintext)
+	ct, err := Encrypt(f.solverPriv.PubKey(), f.preimg)
+	require.NoError(t, err)
+	pkt, err := (&ClaimPacket{Ciphertext: ct, ArkadeScript: f.arkadeScript}).ToPacket()
 	require.NoError(t, err)
 	wrongIntro, err := btcec.NewPrivateKey()
 	require.NoError(t, err)
-	wrongVtxo, err := VtxoScript(
+	wrongClosure, err := CovenantClaimClosure(
 		btcutil.Hash160(f.preimg), f.receiverPk,
 		f.serverPriv.PubKey(), wrongIntro.PubKey(),
 	)
 	require.NoError(t, err)
+	wrongVtxo := &script.TapscriptsVtxoScript{Closures: []script.Closure{wrongClosure}}
 	wrongTaptree, err := wrongVtxo.Encode()
 	require.NoError(t, err)
-	pkt, err := (&ClaimPacket{Ciphertext: ct, Taptree: wrongTaptree}).ToPacket()
+	wrongEncoded, err := txutils.TapTree(wrongTaptree).Encode()
 	require.NoError(t, err)
-	tx, ext := f.makeClaimTx(pkt)
-	_, err = f.plugin.decode(context.Background(), tx, ext)
+	tx := wire.NewMsgTx(2)
+	tx.AddTxOut(&wire.TxOut{Value: 1234, PkScript: bytes.Repeat([]byte{0x99}, 34)})
+	tx.AddTxOut(&wire.TxOut{Value: 5000, PkScript: f.expectedPk})
+	p, err := psbt.NewFromUnsignedTx(tx)
+	require.NoError(t, err)
+	p.Outputs[1].TaprootTapTree = wrongEncoded
+	_, err = f.plugin.decode(context.Background(), p, extension.Extension{pkt})
+	require.ErrorIs(t, err, builder.ErrSkip)
+}
+
+func TestPluginDecode_MissingTaprootTapTree(t *testing.T) {
+	f := newFixture(t)
+	pkt := f.goodPacket()
+	tx := wire.NewMsgTx(2)
+	tx.AddTxOut(&wire.TxOut{Value: 5000, PkScript: f.expectedPk})
+	p, err := psbt.NewFromUnsignedTx(tx)
+	require.NoError(t, err)
+	_, err = f.plugin.decode(context.Background(), p, extension.Extension{pkt})
 	require.ErrorIs(t, err, builder.ErrSkip)
 }

@@ -16,14 +16,20 @@ import (
 	introclient "github.com/ArkLabsHQ/introspector/pkg/client"
 	"reflect"
 
+	arklib "github.com/arkade-os/arkd/pkg/ark-lib"
 	"github.com/arkade-os/arkd/pkg/ark-lib/asset"
 	"github.com/arkade-os/arkd/pkg/ark-lib/extension"
+	"github.com/arkade-os/arkd/pkg/ark-lib/offchain"
+	"github.com/arkade-os/arkd/pkg/ark-lib/script"
 	clientlib "github.com/arkade-os/arkd/pkg/client-lib"
 	"github.com/arkade-os/arkd/pkg/client-lib/indexer"
 	clientTypes "github.com/arkade-os/arkd/pkg/client-lib/types"
 	arksdk "github.com/arkade-os/go-sdk"
 	"github.com/btcsuite/btcd/btcec/v2"
+	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
+	"github.com/btcsuite/btcd/wire"
+	"github.com/btcsuite/btcwallet/waddrmgr"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -131,17 +137,151 @@ func setupArkClient(t *testing.T) arksdk.ArkClient {
 	return arkClient
 }
 
-// sendOffChainWithExtension funds an address with a receiver while attaching
-// an arbitrary extension packet to the ark transaction's OP_RETURN. go-sdk's
-// SendOffChain wrapper does not pass options through to the underlying
-// client-lib, so we extract the embedded client.ArkClient and call it
-// directly. Reflection is used because the wrapping struct is unexported.
-func sendOffChainWithExtension(
+// sendOffChainToVHTLC funds claimAddr while attaching pkt as the OP_RETURN
+// extension AND setting encodedTapTree on the funding output's
+// POutput.TaprootTapTree. clientlib's SendOption surface does not expose
+// the latter, so this bypasses SendOffChain and goes through
+// offchain.BuildTxs + Transport().SubmitTx + Transport().FinalizeTx
+// directly. It assumes one suitable spendable VTXO and BTC-only payment
+// (no asset routing).
+func sendOffChainToVHTLC(
 	t *testing.T,
 	c arksdk.ArkClient,
-	receiver clientTypes.Receiver,
+	claimAddr string,
+	amount uint64,
+	encodedTapTree []byte,
 	pkt extension.Packet,
 ) {
+	t.Helper()
+	ctx := t.Context()
+	inner := innerArkClient(t, c)
+
+	cfgData, err := inner.GetConfigData(ctx)
+	require.NoError(t, err)
+
+	_, offchainAddrs, _, _, err := inner.Wallet().GetAddresses(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, offchainAddrs)
+
+	spendable, _, err := inner.ListVtxos(ctx)
+	require.NoError(t, err)
+
+	var (
+		chosen     clientTypes.Vtxo
+		tapscripts []string
+		found      bool
+	)
+	for _, v := range spendable {
+		if v.IsRecoverable() || v.Spent {
+			continue
+		}
+		if v.Amount < amount+cfgData.Dust {
+			continue
+		}
+		vtxoAddr, err := v.Address(cfgData.SignerPubKey, cfgData.Network)
+		require.NoError(t, err)
+		for _, oa := range offchainAddrs {
+			if oa.Address == vtxoAddr {
+				chosen = v
+				tapscripts = oa.Tapscripts
+				found = true
+				break
+			}
+		}
+		if found {
+			break
+		}
+	}
+	require.True(t, found, "no spendable VTXO with sufficient amount (need %d)", amount)
+
+	vs, err := script.ParseVtxoScript(tapscripts)
+	require.NoError(t, err)
+	forfeitClosures := vs.ForfeitClosures()
+	require.NotEmpty(t, forfeitClosures)
+	forfeitScript, err := forfeitClosures[0].Script()
+	require.NoError(t, err)
+	leafHash := txscript.NewBaseTapLeaf(forfeitScript).TapHash()
+
+	_, tapTree, err := vs.TapTree()
+	require.NoError(t, err)
+	merkleProof, err := tapTree.GetTaprootMerkleProof(leafHash)
+	require.NoError(t, err)
+	controlBlock, err := txscript.ParseControlBlock(merkleProof.ControlBlock)
+	require.NoError(t, err)
+
+	txidHash, err := chainhash.NewHashFromStr(chosen.Txid)
+	require.NoError(t, err)
+	in := offchain.VtxoInput{
+		Outpoint: &wire.OutPoint{Hash: *txidHash, Index: chosen.VOut},
+		Amount:   int64(chosen.Amount),
+		Tapscript: &waddrmgr.Tapscript{
+			ControlBlock:   controlBlock,
+			RevealedScript: forfeitScript,
+		},
+		RevealedTapscripts: tapscripts,
+	}
+
+	vhtlcArk, err := arklib.DecodeAddressV0(claimAddr)
+	require.NoError(t, err)
+	vhtlcPkScript, err := script.P2TRScript(vhtlcArk.VtxoTapKey)
+	require.NoError(t, err)
+
+	outputs := []*wire.TxOut{{Value: int64(amount), PkScript: vhtlcPkScript}}
+
+	if change := chosen.Amount - amount; change > 0 {
+		myArk, err := arklib.DecodeAddressV0(offchainAddrs[0].Address)
+		require.NoError(t, err)
+		myPkScript, err := script.P2TRScript(myArk.VtxoTapKey)
+		require.NoError(t, err)
+		outputs = append(outputs, &wire.TxOut{Value: int64(change), PkScript: myPkScript})
+	}
+
+	ext, err := extension.NewExtensionFromPackets(pkt)
+	require.NoError(t, err)
+	extTxOut, err := ext.TxOut()
+	require.NoError(t, err)
+	outputs = append(outputs, extTxOut)
+
+	arkTx, checkpointTxs, err := offchain.BuildTxs(
+		[]offchain.VtxoInput{in}, outputs, cfgData.CheckpointExitPath(),
+	)
+	require.NoError(t, err)
+
+	vhtlcIdx := -1
+	for i, out := range arkTx.UnsignedTx.TxOut {
+		if bytes.Equal(out.PkScript, vhtlcPkScript) {
+			vhtlcIdx = i
+			break
+		}
+	}
+	require.GreaterOrEqual(t, vhtlcIdx, 0, "VHTLC output not found in built ark tx")
+	arkTx.Outputs[vhtlcIdx].TaprootTapTree = encodedTapTree
+
+	arkB64, err := arkTx.B64Encode()
+	require.NoError(t, err)
+	signedArk, err := inner.SignTransaction(ctx, arkB64)
+	require.NoError(t, err)
+
+	cpB64s := make([]string, len(checkpointTxs))
+	for i, cp := range checkpointTxs {
+		b64, err := cp.B64Encode()
+		require.NoError(t, err)
+		cpB64s[i] = b64
+	}
+
+	arkTxid, _, serverSignedCps, err := inner.Transport().SubmitTx(ctx, signedArk, cpB64s)
+	require.NoError(t, err)
+
+	finalCps := make([]string, len(serverSignedCps))
+	for i, cp := range serverSignedCps {
+		sig, err := inner.SignTransaction(ctx, cp)
+		require.NoError(t, err)
+		finalCps[i] = sig
+	}
+	require.NoError(t, inner.Transport().FinalizeTx(ctx, arkTxid, finalCps))
+}
+
+func innerArkClient(t *testing.T, c arksdk.ArkClient) clientlib.ArkClient {
 	t.Helper()
 	v := reflect.ValueOf(c)
 	for v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface {
@@ -151,7 +291,21 @@ func sendOffChainWithExtension(
 	require.True(t, field.IsValid(), "go-sdk arkClient.ArkClient field not found")
 	inner, ok := field.Interface().(clientlib.ArkClient)
 	require.True(t, ok, "embedded ArkClient does not implement clientlib.ArkClient")
-	_, err := inner.SendOffChain(
+	return inner
+}
+
+// sendOffChainWithExtension funds an address with a receiver while attaching
+// an arbitrary extension packet to the ark transaction's OP_RETURN. go-sdk's
+// SendOffChain wrapper does not pass options through to the underlying
+// client-lib, so we extract the embedded client.ArkClient and call it directly.
+func sendOffChainWithExtension(
+	t *testing.T,
+	c arksdk.ArkClient,
+	receiver clientTypes.Receiver,
+	pkt extension.Packet,
+) {
+	t.Helper()
+	_, err := innerArkClient(t, c).SendOffChain(
 		t.Context(),
 		[]clientTypes.Receiver{receiver},
 		clientlib.WithExtraPacket(pkt),

@@ -2,16 +2,20 @@ package e2e_test
 
 import (
 	"context"
-	"encoding/binary"
 	"encoding/hex"
 	"sync"
 	"testing"
 	"time"
 
+	arklib "github.com/arkade-os/arkd/pkg/ark-lib"
+	"github.com/arkade-os/arkd/pkg/ark-lib/extension"
+	"github.com/arkade-os/arkd/pkg/ark-lib/script"
+	"github.com/arkade-os/arkd/pkg/ark-lib/txutils"
 	"github.com/arkade-os/arkd/pkg/client-lib/indexer"
 	clientTypes "github.com/arkade-os/arkd/pkg/client-lib/types"
 	arksdk "github.com/arkade-os/go-sdk"
 	"github.com/btcsuite/btcd/btcec/v2"
+	"github.com/btcsuite/btcd/btcutil"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -57,15 +61,10 @@ func TestPreimageFundAndClaim(t *testing.T) {
 	receiverPk := freshTaprootPkScript(t)
 	preimg := freshPreimage(t)
 
-	res, err := preimage.CreateClaim(preimage.CreateClaimParams{
-		Preimage:     preimg,
-		ReceiverPk:   receiverPk,
-		SolverPubKey: solverPub,
-		ServerPubKey: cfgData.SignerPubKey,
-		IntroPubKey:  introPub,
-		Network:      cfgData.Network,
-	})
-	require.NoError(t, err)
+	claimAddr, claimPacket, encodedTapTree := buildPreimageVTXO(
+		t, preimg, receiverPk, solverPub,
+		cfgData.SignerPubKey, introPub, cfgData.Network,
+	)
 
 	const amount uint64 = 10_000
 
@@ -74,13 +73,10 @@ func TestPreimageFundAndClaim(t *testing.T) {
 	var incomingErr error
 	go func() {
 		defer wg.Done()
-		_, incomingErr = maker.NotifyIncomingFunds(ctx, res.ClaimAddress)
+		_, incomingErr = maker.NotifyIncomingFunds(ctx, claimAddr)
 	}()
 
-	sendOffChainWithExtension(t, maker, clientTypes.Receiver{
-		To:     res.ClaimAddress,
-		Amount: amount,
-	}, res.Packet)
+	sendOffChainToVHTLC(t, maker, claimAddr, amount, encodedTapTree, claimPacket)
 	wg.Wait()
 	require.NoError(t, incomingErr)
 
@@ -107,27 +103,19 @@ func TestPreimageInvalidArkadeScript(t *testing.T) {
 	receiverPk := freshTaprootPkScript(t)
 	preimg := freshPreimage(t)
 
-	res, err := preimage.CreateClaim(preimage.CreateClaimParams{
-		Preimage:     preimg,
-		ReceiverPk:   receiverPk,
-		SolverPubKey: solverPub,
-		ServerPubKey: cfgData.SignerPubKey,
-		IntroPubKey:  introPub,
-		Network:      cfgData.Network,
-	})
-	require.NoError(t, err)
+	claimAddr, claimPacket, encodedTapTree := buildPreimageVTXO(
+		t, preimg, receiverPk, solverPub,
+		cfgData.SignerPubKey, introPub, cfgData.Network,
+	)
 
-	body, err := res.Packet.Serialize()
+	// The new packet shape carries the arkade_script in plaintext, so
+	// "invalid arkade script" testing is a plaintext swap — no
+	// re-encryption needed.
+	body, err := claimPacket.Serialize()
 	require.NoError(t, err)
 	pkt, err := preimage.DeserializeClaim(body)
 	require.NoError(t, err)
-	badScript := []byte{0xde, 0xad, 0xbe, 0xef}
-	plaintext := append([]byte{}, preimg...)
-	plaintext = appendVarintLen(plaintext, len(badScript))
-	plaintext = append(plaintext, badScript...)
-	tamperedCt, err := preimage.Encrypt(solverPub, plaintext)
-	require.NoError(t, err)
-	pkt.Ciphertext = tamperedCt
+	pkt.ArkadeScript = []byte{0xde, 0xad, 0xbe, 0xef}
 	tamperedPacket, err := pkt.ToPacket()
 	require.NoError(t, err)
 
@@ -138,18 +126,45 @@ func TestPreimageInvalidArkadeScript(t *testing.T) {
 	var incomingErr error
 	go func() {
 		defer wg.Done()
-		_, incomingErr = maker.NotifyIncomingFunds(ctx, res.ClaimAddress)
+		_, incomingErr = maker.NotifyIncomingFunds(ctx, claimAddr)
 	}()
-	sendOffChainWithExtension(t, maker, clientTypes.Receiver{
-		To:     res.ClaimAddress,
-		Amount: amount,
-	}, tamperedPacket)
+	sendOffChainToVHTLC(t, maker, claimAddr, amount, encodedTapTree, tamperedPacket)
 	wg.Wait()
 	require.NoError(t, incomingErr)
 
 	time.Sleep(15 * time.Second)
 	require.Empty(t, vtxosForScript(t, ctx, maker, receiverPk),
 		"tampered arkade script must not result in a claim")
+}
+
+func buildPreimageVTXO(
+	t *testing.T,
+	preimg []byte,
+	receiverPk []byte,
+	solverPub, serverPub, introPub *btcec.PublicKey,
+	network arklib.Network,
+) (string, extension.Packet, []byte) {
+	t.Helper()
+	closure, err := preimage.CovenantClaimClosure(
+		btcutil.Hash160(preimg), receiverPk, serverPub, introPub,
+	)
+	require.NoError(t, err)
+	pkt, err := preimage.BuildPacket(preimg, solverPub, receiverPk)
+	require.NoError(t, err)
+	vs := &script.TapscriptsVtxoScript{Closures: []script.Closure{closure}}
+	tapscripts, err := vs.Encode()
+	require.NoError(t, err)
+	tapKey, _, err := vs.TapTree()
+	require.NoError(t, err)
+	encodedTapTree, err := txutils.TapTree(tapscripts).Encode()
+	require.NoError(t, err)
+	addr, err := (&arklib.Address{
+		HRP:        network.Addr,
+		Signer:     serverPub,
+		VtxoTapKey: tapKey,
+	}).EncodeV0()
+	require.NoError(t, err)
+	return addr, pkt, encodedTapTree
 }
 
 func freshPreimage(t *testing.T) []byte {
@@ -159,12 +174,6 @@ func freshPreimage(t *testing.T) []byte {
 	out := priv.Serialize()
 	require.Len(t, out, 32)
 	return out
-}
-
-func appendVarintLen(buf []byte, n int) []byte {
-	tmp := make([]byte, binary.MaxVarintLen64)
-	written := binary.PutUvarint(tmp, uint64(n))
-	return append(buf, tmp[:written]...)
 }
 
 func vtxosForScript(t *testing.T, ctx context.Context, c arksdk.ArkClient, pk []byte) []clientTypes.Vtxo {

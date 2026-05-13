@@ -3,7 +3,6 @@ package preimage_test
 import (
 	"testing"
 
-	arklib "github.com/arkade-os/arkd/pkg/ark-lib"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/stretchr/testify/assert"
@@ -25,12 +24,8 @@ func freshP2TR(t *testing.T) []byte {
 	return out
 }
 
-func TestCreateClaim_RoundTrip(t *testing.T) {
+func TestBuildPacket_RoundTrip(t *testing.T) {
 	solver, err := btcec.NewPrivateKey()
-	require.NoError(t, err)
-	server, err := btcec.NewPrivateKey()
-	require.NoError(t, err)
-	intro, err := btcec.NewPrivateKey()
 	require.NoError(t, err)
 
 	preimg := make([]byte, 32)
@@ -39,33 +34,40 @@ func TestCreateClaim_RoundTrip(t *testing.T) {
 	}
 	receiver := freshP2TR(t)
 
-	res, err := preimage.CreateClaim(preimage.CreateClaimParams{
-		Preimage:     preimg,
-		ReceiverPk:   receiver,
-		SolverPubKey: solver.PubKey(),
-		ServerPubKey: server.PubKey(),
-		IntroPubKey:  intro.PubKey(),
-		Network:      arklib.BitcoinRegTest,
-	})
+	pkt, err := preimage.BuildPacket(preimg, solver.PubKey(), receiver)
 	require.NoError(t, err)
-	require.NotEmpty(t, res.ClaimAddress)
-	require.NotNil(t, res.Packet)
-	assert.Equal(t, preimage.PacketType, res.Packet.Type())
+	require.Equal(t, preimage.PacketType, pkt.Type())
 
-	body, err := res.Packet.Serialize()
-	require.NoError(t, err)
-	pkt, err := preimage.DeserializeClaim(body)
+	body, err := pkt.Serialize()
 	require.NoError(t, err)
 
-	plaintext, err := preimage.Decrypt(solver, pkt.Ciphertext)
+	decoded, err := preimage.DeserializeClaim(body)
 	require.NoError(t, err)
 
-	gotPreimage, gotScript, err := preimage.SplitSecretPayload(plaintext)
+	plaintext, err := preimage.Decrypt(solver, decoded.Ciphertext)
 	require.NoError(t, err)
-	assert.Equal(t, preimg, gotPreimage)
+	assert.Equal(t, preimg, plaintext)
+
 	expectedScript, err := preimage.EnforcePayTo(receiver)
 	require.NoError(t, err)
-	assert.Equal(t, expectedScript, gotScript)
+	assert.Equal(t, expectedScript, decoded.ArkadeScript)
+}
 
-	require.Greater(t, len(pkt.Taptree), 0)
+func TestBuildPacket_ValidatesInputs(t *testing.T) {
+	solver, err := btcec.NewPrivateKey()
+	require.NoError(t, err)
+	receiver := freshP2TR(t)
+
+	t.Run("preimage wrong length", func(t *testing.T) {
+		_, err := preimage.BuildPacket(make([]byte, 31), solver.PubKey(), receiver)
+		assert.Error(t, err)
+	})
+	t.Run("solver pubkey nil", func(t *testing.T) {
+		_, err := preimage.BuildPacket(make([]byte, 32), nil, receiver)
+		assert.Error(t, err)
+	})
+	t.Run("receiver wrong length", func(t *testing.T) {
+		_, err := preimage.BuildPacket(make([]byte, 32), solver.PubKey(), []byte{0x01})
+		assert.Error(t, err)
+	})
 }

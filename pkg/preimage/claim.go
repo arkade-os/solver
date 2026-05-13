@@ -54,9 +54,7 @@ func BuildClaim(
 	if err := vtxoScript.Decode(creds.Taptree); err != nil {
 		return nil, nil, fmt.Errorf("decode taptree: %w", err)
 	}
-	expectedTweaked := arkade.ComputeArkadeScriptPublicKey(
-		introspectorPubKey, arkade.ArkadeScriptHash(creds.ArkadeScript),
-	)
+	expectedTweaked := introspectorTweakedKey(creds.ArkadeScript, introspectorPubKey)
 	claimClosure, err := findClaimClosure(vtxoScript, serverPubKey, expectedTweaked)
 	if err != nil {
 		return nil, nil, fmt.Errorf("find claim closure: %w", err)

@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/ArkLabsHQ/introspector/pkg/arkade"
-	arklib "github.com/arkade-os/arkd/pkg/ark-lib"
 	"github.com/arkade-os/arkd/pkg/ark-lib/script"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/txscript"
@@ -72,22 +71,22 @@ func preimageCondition(preimageHash []byte) ([]byte, error) {
 		Script()
 }
 
-// VtxoScript returns the single-closure HTLC VTXO script. Mirrors the
-// introspector test's `claim` subtest (lines 99-116):
+// CovenantClaimClosure returns the ConditionMultisigClosure that gates a
+// preimage-locked, covenant-enforced claim. Drop it into any
+// TapscriptsVtxoScript alongside other closures the caller wants in the
+// tree (refund paths, escape hatches, etc.).
+//
+// The closure shape:
 //
 //	ConditionMultisigClosure{
 //	    MultisigClosure{ serverPubKey, IntrospectorTweaked(EnforcePayTo) },
 //	    Condition: OP_HASH160 <preimageHash> OP_EQUAL,
 //	}
-//
-// The introspector's tweaked key is unspendable unless the arkade enforcement
-// script passes during introspector evaluation. The Condition gates the entire
-// closure on the witness revealing a preimage that hashes to preimageHash.
-func VtxoScript(
+func CovenantClaimClosure(
 	preimageHash []byte,
 	receiverPkScript []byte,
 	serverPubKey, introspectorPubKey *btcec.PublicKey,
-) (*script.TapscriptsVtxoScript, error) {
+) (script.Closure, error) {
 	if serverPubKey == nil {
 		return nil, fmt.Errorf("server pubkey must not be nil")
 	}
@@ -102,42 +101,25 @@ func VtxoScript(
 	if err != nil {
 		return nil, err
 	}
-	tweakedKey := arkade.ComputeArkadeScriptPublicKey(
-		introspectorPubKey,
-		arkade.ArkadeScriptHash(enforcement),
-	)
-	return &script.TapscriptsVtxoScript{
-		Closures: []script.Closure{
-			&script.ConditionMultisigClosure{
-				MultisigClosure: script.MultisigClosure{
-					PubKeys: []*btcec.PublicKey{serverPubKey, tweakedKey},
-				},
-				Condition: condition,
+	return &script.ConditionMultisigClosure{
+		MultisigClosure: script.MultisigClosure{
+			PubKeys: []*btcec.PublicKey{
+				serverPubKey,
+				introspectorTweakedKey(enforcement, introspectorPubKey),
 			},
 		},
+		Condition: condition,
 	}, nil
 }
 
-// Address derives the HTLC ark address (V0).
-func Address(
-	preimageHash []byte,
-	receiverPkScript []byte,
-	serverPubKey, introspectorPubKey *btcec.PublicKey,
-	network arklib.Network,
-) (string, error) {
-	vtxoScript, err := VtxoScript(preimageHash, receiverPkScript, serverPubKey, introspectorPubKey)
-	if err != nil {
-		return "", err
-	}
-	tapKey, _, err := vtxoScript.TapTree()
-	if err != nil {
-		return "", fmt.Errorf("build taptree: %w", err)
-	}
-	return (&arklib.Address{
-		HRP:        network.Addr,
-		Signer:     serverPubKey,
-		VtxoTapKey: tapKey,
-	}).EncodeV0()
+// introspectorTweakedKey derives the introspector pubkey tweaked by an arkade
+// script. It's the second pubkey in a CovenantClaimClosure's multisig and the
+// one the plugin matches against to identify a claim closure in a funder's
+// taptree.
+func introspectorTweakedKey(arkadeScript []byte, introspectorPubKey *btcec.PublicKey) *btcec.PublicKey {
+	return arkade.ComputeArkadeScriptPublicKey(
+		introspectorPubKey, arkade.ArkadeScriptHash(arkadeScript),
+	)
 }
 
 // ValidateArkadeScript accepts only the byte sequence produced by

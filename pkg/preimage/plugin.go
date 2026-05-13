@@ -6,11 +6,11 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/ArkLabsHQ/introspector/pkg/arkade"
 	introclient "github.com/ArkLabsHQ/introspector/pkg/client"
 	arklib "github.com/arkade-os/arkd/pkg/ark-lib"
 	"github.com/arkade-os/arkd/pkg/ark-lib/extension"
 	"github.com/arkade-os/arkd/pkg/ark-lib/script"
+	"github.com/arkade-os/arkd/pkg/ark-lib/txutils"
 	"github.com/arkade-os/arkd/pkg/client-lib/indexer"
 	arksdk "github.com/arkade-os/go-sdk"
 	"github.com/btcsuite/btcd/btcec/v2"
@@ -86,57 +86,63 @@ func (p *plugin) decode(
 		return nil, builder.ErrSkip
 	}
 
-	plaintext, err := Decrypt(p.cfg.SolverPrivKey, pkt.Ciphertext)
+	preimg, err := Decrypt(p.cfg.SolverPrivKey, pkt.Ciphertext)
 	if err != nil {
 		p.log.WithError(err).Debug("preimage decrypt failed")
 		return nil, builder.ErrSkip
 	}
-	preimg, arkadeScript, err := SplitSecretPayload(plaintext)
-	if err != nil {
-		p.log.WithError(err).Debug("preimage payload parse failed")
+	if len(preimg) != 32 {
+		p.log.Debugf("decrypted preimage has wrong length %d (want 32)", len(preimg))
 		return nil, builder.ErrSkip
 	}
-	if _, err := ValidateArkadeScript(arkadeScript); err != nil {
+	if _, err := ValidateArkadeScript(pkt.ArkadeScript); err != nil {
 		p.log.WithError(err).Debug("preimage arkade script invalid")
 		return nil, builder.ErrSkip
 	}
-
-	vtxoScript := &script.TapscriptsVtxoScript{}
-	if err := vtxoScript.Decode(pkt.Taptree); err != nil {
-		p.log.WithError(err).Debug("preimage taptree decode failed")
-		return nil, builder.ErrSkip
-	}
-	expectedTweaked := arkade.ComputeArkadeScriptPublicKey(
-		p.cfg.IntrospectorPubKey, arkade.ArkadeScriptHash(arkadeScript),
-	)
-	if _, err := findClaimClosure(vtxoScript, p.cfg.ServerPubKey, expectedTweaked); err != nil {
-		p.log.WithError(err).Debug("preimage taptree missing expected closure")
-		return nil, builder.ErrSkip
-	}
-
-	tapKey, _, err := vtxoScript.TapTree()
-	if err != nil {
-		p.log.WithError(err).Debug("preimage taptree taproot key failed")
-		return nil, builder.ErrSkip
-	}
-	expectedPk, err := script.P2TRScript(tapKey)
-	if err != nil {
-		p.log.WithError(err).Debug("preimage P2TR script failed")
-		return nil, builder.ErrSkip
-	}
+	expectedTweaked := introspectorTweakedKey(pkt.ArkadeScript, p.cfg.IntrospectorPubKey)
 
 	for i, out := range tx.UnsignedTx.TxOut {
+		if i >= len(tx.Outputs) {
+			break
+		}
+		po := tx.Outputs[i]
+		if len(po.TaprootTapTree) == 0 {
+			continue
+		}
+
+		scripts, err := txutils.DecodeTapTree(po.TaprootTapTree)
+		if err != nil {
+			p.log.WithError(err).Debug("preimage taptree decode failed")
+			continue
+		}
+
+		vs := &script.TapscriptsVtxoScript{}
+		if err := vs.Decode(scripts); err != nil {
+			p.log.WithError(err).Debug("preimage taptree.Decode failed")
+			continue
+		}
+		if _, err := findClaimClosure(vs, p.cfg.ServerPubKey, expectedTweaked); err != nil {
+			continue
+		}
+		tapKey, _, err := vs.TapTree()
+		if err != nil {
+			continue
+		}
+		expectedPk, err := script.P2TRScript(tapKey)
+		if err != nil {
+			continue
+		}
 		if !bytes.Equal(out.PkScript, expectedPk) {
 			continue
 		}
-		hash := tx.UnsignedTx.TxHash()
+
 		return &MatchedClaim{
-			Outpoint: wire.OutPoint{Hash: hash, Index: uint32(i)},
+			Outpoint: wire.OutPoint{Hash: tx.UnsignedTx.TxHash(), Index: uint32(i)},
 			Amount:   uint64(out.Value),
 			Credentials: ClaimCredentials{
 				Preimage:     preimg,
-				ArkadeScript: arkadeScript,
-				Taptree:      pkt.Taptree,
+				ArkadeScript: pkt.ArkadeScript,
+				Taptree:      scripts,
 				PkScript:     expectedPk,
 			},
 		}, nil

@@ -146,3 +146,9 @@ func (svc *PreimageService) setRunning(v bool) {
 func (svc *PreimageService) SolverPubKey() *btcec.PublicKey {
 	return svc.cfg.SolverPrivKey.PubKey()
 }
+
+// IntrospectorPubKey returns the bot's configured introspector pubkey,
+// fetched at service construction time via Introspector.GetInfo().
+func (svc *PreimageService) IntrospectorPubKey() *btcec.PublicKey {
+	return svc.introspectorPubkey
+}

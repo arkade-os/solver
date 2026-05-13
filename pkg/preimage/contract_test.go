@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	arkade "github.com/ArkLabsHQ/introspector/pkg/arkade"
-	arklib "github.com/arkade-os/arkd/pkg/ark-lib"
+	"github.com/arkade-os/arkd/pkg/ark-lib/script"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/txscript"
@@ -79,47 +79,58 @@ func TestPreimageCondition_RejectsBadLength(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestVtxoScript_Determinism(t *testing.T) {
+func TestCovenantClaimClosure_Determinism(t *testing.T) {
 	receiver := fixedReceiver(t)
 	server := fixedPub(t, strings.Repeat("02", 32))
 	intro := fixedPub(t, strings.Repeat("03", 32))
 	preimageHash := btcutil.Hash160(bytes.Repeat([]byte{0x42}, 32))
 
-	a, err := VtxoScript(preimageHash, receiver, server, intro)
+	a, err := CovenantClaimClosure(preimageHash, receiver, server, intro)
 	require.NoError(t, err)
-	b, err := VtxoScript(preimageHash, receiver, server, intro)
+	b, err := CovenantClaimClosure(preimageHash, receiver, server, intro)
 	require.NoError(t, err)
 
-	keyA, _, err := a.TapTree()
+	scriptA, err := a.Script()
 	require.NoError(t, err)
-	keyB, _, err := b.TapTree()
+	scriptB, err := b.Script()
 	require.NoError(t, err)
-	assert.True(t, keyA.IsEqual(keyB), "tap key must be deterministic for fixed inputs")
+	assert.Equal(t, scriptA, scriptB)
 }
 
-func TestVtxoScript_NilPubkeyRejected(t *testing.T) {
+func TestCovenantClaimClosure_NilPubkeyRejected(t *testing.T) {
 	receiver := fixedReceiver(t)
 	preimageHash := btcutil.Hash160(bytes.Repeat([]byte{0x42}, 32))
 
-	_, err := VtxoScript(preimageHash, receiver, nil, fixedPub(t, strings.Repeat("03", 32)))
+	_, err := CovenantClaimClosure(preimageHash, receiver, nil, fixedPub(t, strings.Repeat("03", 32)))
 	assert.Error(t, err)
-	_, err = VtxoScript(preimageHash, receiver, fixedPub(t, strings.Repeat("02", 32)), nil)
+	_, err = CovenantClaimClosure(preimageHash, receiver, fixedPub(t, strings.Repeat("02", 32)), nil)
 	assert.Error(t, err)
 }
 
-func TestAddress_RoundTrips(t *testing.T) {
+func TestCovenantClaimClosure_Shape(t *testing.T) {
 	receiver := fixedReceiver(t)
 	server := fixedPub(t, strings.Repeat("02", 32))
 	intro := fixedPub(t, strings.Repeat("03", 32))
 	preimageHash := btcutil.Hash160(bytes.Repeat([]byte{0x42}, 32))
 
-	addr, err := Address(preimageHash, receiver, server, intro, arklib.BitcoinRegTest)
+	c, err := CovenantClaimClosure(preimageHash, receiver, server, intro)
 	require.NoError(t, err)
-	require.NotEmpty(t, addr)
 
-	decoded, err := arklib.DecodeAddressV0(addr)
+	cmc, ok := c.(*script.ConditionMultisigClosure)
+	require.True(t, ok, "expected ConditionMultisigClosure, got %T", c)
+	require.Len(t, cmc.PubKeys, 2)
+
+	enforcement, err := EnforcePayTo(receiver)
 	require.NoError(t, err)
-	assert.True(t, decoded.Signer.IsEqual(server))
+	expectedTweaked := arkade.ComputeArkadeScriptPublicKey(
+		intro, arkade.ArkadeScriptHash(enforcement),
+	)
+	assert.True(t, cmc.PubKeys[0].IsEqual(server))
+	assert.True(t, cmc.PubKeys[1].IsEqual(expectedTweaked))
+
+	expectedCondition, err := preimageCondition(preimageHash)
+	require.NoError(t, err)
+	assert.Equal(t, expectedCondition, cmc.Condition)
 }
 
 func TestValidateArkadeScript_RoundTrip(t *testing.T) {
