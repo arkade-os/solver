@@ -18,20 +18,15 @@ import (
 	"github.com/arkade-os/arkd/pkg/ark-lib/script"
 	"github.com/arkade-os/arkd/pkg/client-lib/indexer"
 	clientTypes "github.com/arkade-os/arkd/pkg/client-lib/types"
-	"github.com/arkade-os/arkd/pkg/client-lib/wallet"
 	arksdk "github.com/arkade-os/go-sdk"
+	sdkcontract "github.com/arkade-os/go-sdk/contract"
+	sdkcontracttypes "github.com/arkade-os/go-sdk/types"
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcwallet/waddrmgr"
 )
-
-// walletProvider is satisfied by the go-sdk ArkClient concrete type,
-// which exposes the underlying WalletService for VTXO selection.
-type walletProvider interface {
-	Wallet() wallet.WalletService
-}
 
 // FulfillResult contains the result of a successful fulfillment.
 type FulfillResult struct {
@@ -43,7 +38,7 @@ type FulfillResult struct {
 func FulfillOffer(
 	ctx context.Context,
 	offer Offer,
-	arkClient arksdk.ArkClient,
+	arkClient arksdk.Wallet,
 	introClient introclient.TransportClient,
 ) (*FulfillResult, error) {
 	cfg, err := arkClient.GetConfigData(ctx)
@@ -87,11 +82,6 @@ func FulfillOffer(
 	}
 	swapVtxo := vtxosResp.Vtxos[0]
 
-	wp, ok := arkClient.(walletProvider)
-	if !ok {
-		return nil, fmt.Errorf("arkClient does not provide wallet access")
-	}
-
 	spendableVtxos, err := arkClient.ListSpendableVtxos(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list taker vtxos: %w", err)
@@ -100,30 +90,62 @@ func FulfillOffer(
 		return nil, fmt.Errorf("taker wallet has no VTXOs")
 	}
 
-	_, offchainAddrs, _, _, err := wp.Wallet().GetAddresses(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get offchain addresses: %w", err)
+	eligibleVtxos := make([]clientTypes.Vtxo, 0, len(spendableVtxos))
+	eligibleScripts := make([]string, 0, len(spendableVtxos))
+	for _, v := range spendableVtxos {
+		if v.IsRecoverable() {
+			// ignore recoverable vtxos
+			// TODO: fullfill in batch ?
+			continue
+		}
+		eligibleVtxos = append(eligibleVtxos, v)
+		eligibleScripts = append(eligibleScripts, v.Script)
+	}
+	if len(eligibleVtxos) == 0 {
+		return nil, fmt.Errorf("no taker VTXOs matched to offchain addresses")
 	}
 
-	takerVtxos := make([]clientTypes.VtxoWithTapTree, 0, len(spendableVtxos))
-	for _, addr := range offchainAddrs {
-		for _, v := range spendableVtxos {
-			if v.IsRecoverable() {
-				// ignore recoverable vtxos
-				// TODO: fullfill in batch ?
-				continue
-			}
-			vtxoAddr, err := v.Address(cfg.SignerPubKey, cfg.Network)
-			if err != nil {
-				continue
-			}
-			if vtxoAddr == addr.Address {
-				takerVtxos = append(takerVtxos, clientTypes.VtxoWithTapTree{
-					Vtxo:       v,
-					Tapscripts: addr.Tapscripts,
-				})
-			}
+	contractManager := arkClient.ContractManager()
+	contracts, err := contractManager.GetContracts(ctx, sdkcontract.WithScripts(eligibleScripts))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get taker contracts: %w", err)
+	}
+	contractsByScript := make(map[string]sdkcontracttypes.Contract, len(contracts))
+	for _, c := range contracts {
+		contractsByScript[c.Script] = c
+	}
+
+	takerVtxos := make([]clientTypes.VtxoWithTapTree, 0, len(eligibleVtxos))
+	// signingKeys maps every script the taker may need to sign (both the
+	// VTXO's original script AND its derived checkpoint script) to the
+	// owner keyId. offchain.BuildTxs spends a synthetic checkpoint VTXO,
+	// so the ark tx's input pkScripts are checkpoint scripts — they must
+	// be in this map for identity.SignTransaction to sign them.
+	signingKeys := make(map[string]string)
+	for _, v := range eligibleVtxos {
+		c, ok := contractsByScript[v.Script]
+		if !ok {
+			continue
 		}
+		handler, err := contractManager.GetHandler(ctx, c)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get contract handler for %s: %w", c.Script, err)
+		}
+		tapscripts, err := handler.GetTapscripts(c)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get tapscripts for %s: %w", c.Script, err)
+		}
+		keyRefs, err := handler.GetKeyRefs(c)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get key refs for %s: %w", c.Script, err)
+		}
+		for k, kid := range keyRefs {
+			signingKeys[k] = kid
+		}
+		takerVtxos = append(takerVtxos, clientTypes.VtxoWithTapTree{
+			Vtxo:       v,
+			Tapscripts: tapscripts,
+		})
 	}
 	if len(takerVtxos) == 0 {
 		return nil, fmt.Errorf("no taker VTXOs matched to offchain addresses")
@@ -298,7 +320,11 @@ func FulfillOffer(
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode ark tx: %w", err)
 	}
-	signedArkTxB64, err := arkClient.SignTransaction(ctx, arkTxB64)
+	// The ark tx's inputs reference checkpoint scripts (not the taker's
+	// contract scripts), so arkClient.SignTransaction's contract-based
+	// lookup silently no-ops. Sign via the identity directly with the
+	// keys map that covers both script flavors.
+	signedArkTxB64, err := arkClient.Identity().SignTransaction(ctx, arkTxB64, signingKeys)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign ark tx: %w", err)
 	}

@@ -22,7 +22,7 @@ import (
 // receives only successfully-parsed packets.
 func Subscribe(
 	ctx context.Context,
-	c arksdk.ArkClient,
+	c arksdk.Wallet,
 	log logrus.FieldLogger,
 ) <-chan *psbt.Packet {
 	if log == nil {

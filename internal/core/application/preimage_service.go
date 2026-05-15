@@ -19,7 +19,7 @@ import (
 )
 
 type PreimageServiceConfig struct {
-	ArkClient     arksdk.ArkClient
+	ArkClient     arksdk.Wallet
 	Introspector  introclient.TransportClient
 	SolverPrivKey *btcec.PrivateKey // ECIES decryption key (derived from wallet seed)
 	Log           logrus.FieldLogger

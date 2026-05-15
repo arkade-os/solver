@@ -3,7 +3,6 @@ package e2e_test
 import (
 	"context"
 	"encoding/hex"
-	"sync"
 	"testing"
 	"time"
 
@@ -43,6 +42,9 @@ func fetchSolverPubKey(t *testing.T, client bancov1.PreimageServiceClient) *btce
 	return pub
 }
 
+// TestPreimageFundAndClaim: maker funds a VHTLC at claimAddr with a valid
+// preimage packet. The preimage bot must observe the funding tx, claim by
+// revealing the preimage, and pay receiverPk.
 func TestPreimageFundAndClaim(t *testing.T) {
 	ctx := t.Context()
 
@@ -68,23 +70,19 @@ func TestPreimageFundAndClaim(t *testing.T) {
 
 	const amount uint64 = 10_000
 
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	var incomingErr error
-	go func() {
-		defer wg.Done()
-		_, incomingErr = maker.NotifyIncomingFunds(ctx, claimAddr)
-	}()
-
+	// sendOffChainToVHTLC builds + finalizes the funding tx synchronously
+	// via Client().SubmitTx + FinalizeTx, so after it returns the swap
+	// VTXO is observable on arkd. No need to subscribe to maker events:
+	// the maker is the SENDER, not the receiver.
 	sendOffChainToVHTLC(t, maker, claimAddr, amount, encodedTapTree, claimPacket)
-	wg.Wait()
-	require.NoError(t, incomingErr)
 
 	v := pollForVtxoAt(t, ctx, maker.Indexer(), receiverPk, 30*time.Second)
 	require.Equal(t, amount, v.Amount, "receiver should be paid the full input value")
-	t.Log("preimage claim: receiver paid")
 }
 
+// TestPreimageInvalidArkadeScript: same setup as above but the arkade_script
+// in the packet is tampered. The bot must NOT claim — the receiver pkScript
+// must remain empty after a grace period.
 func TestPreimageInvalidArkadeScript(t *testing.T) {
 	ctx := t.Context()
 
@@ -121,17 +119,9 @@ func TestPreimageInvalidArkadeScript(t *testing.T) {
 
 	const amount uint64 = 10_000
 
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	var incomingErr error
-	go func() {
-		defer wg.Done()
-		_, incomingErr = maker.NotifyIncomingFunds(ctx, claimAddr)
-	}()
 	sendOffChainToVHTLC(t, maker, claimAddr, amount, encodedTapTree, tamperedPacket)
-	wg.Wait()
-	require.NoError(t, incomingErr)
 
+	// Grace period: give the bot enough time to attempt + fail a claim.
 	time.Sleep(15 * time.Second)
 	require.Empty(t, vtxosForScript(t, ctx, maker, receiverPk),
 		"tampered arkade script must not result in a claim")
@@ -176,7 +166,7 @@ func freshPreimage(t *testing.T) []byte {
 	return out
 }
 
-func vtxosForScript(t *testing.T, ctx context.Context, c arksdk.ArkClient, pk []byte) []clientTypes.Vtxo {
+func vtxosForScript(t *testing.T, ctx context.Context, c arksdk.Wallet, pk []byte) []clientTypes.Vtxo {
 	t.Helper()
 	resp, err := c.Indexer().GetVtxos(ctx,
 		indexer.WithScripts([]string{hex.EncodeToString(pk)}),

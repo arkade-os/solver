@@ -2,7 +2,6 @@ package e2e_test
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"regexp"
@@ -13,6 +12,7 @@ import (
 
 	introclient "github.com/ArkLabsHQ/introspector/pkg/client"
 	arksdk "github.com/arkade-os/go-sdk"
+	sdktypes "github.com/arkade-os/go-sdk/types"
 	"github.com/btcsuite/btcd/btcec/v2"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -50,40 +50,58 @@ var (
 	takerSvc    *application.TakerService
 	preimageSvc *application.PreimageService
 	pairRepo    ports.PairRepository
-	takerClient arksdk.ArkClient
+	takerClient arksdk.Wallet
 )
 
 func TestMain(m *testing.M) {
+	os.Exit(runTests(m))
+}
+
+// runTests wraps the test setup so deferred cleanups (temp dirs, DB handles,
+// service stops) actually run before the process exits — os.Exit in TestMain
+// would skip them otherwise.
+func runTests(m *testing.M) int {
 	log.SetLevel(log.DebugLevel)
 	ctx := context.Background()
 
 	if err := refillArkd(ctx); err != nil {
-		log.Fatalf("failed to refill arkd: %s", err)
+		log.Errorf("failed to refill arkd: %s", err)
+		return 1
 	}
 
 	// Create taker's ArkClient
-	var err error
-	takerClient, err = setupTakerClient(ctx)
+	takerDatadir, err := os.MkdirTemp("", "bancod-e2e-taker-*")
 	if err != nil {
-		log.Fatalf("failed to setup taker client: %s", err)
+		log.Errorf("failed to create taker datadir: %s", err)
+		return 1
+	}
+	// nolint:errcheck
+	defer os.RemoveAll(takerDatadir)
+	takerClient, err = setupTakerClient(ctx, takerDatadir)
+	if err != nil {
+		log.Errorf("failed to setup taker client: %s", err)
+		return 1
 	}
 
 	// Fund taker with offchain BTC
 	if err := fundTaker(ctx, takerClient); err != nil {
-		log.Fatalf("failed to fund taker: %s", err)
+		log.Errorf("failed to fund taker: %s", err)
+		return 1
 	}
 
 	// SQLite pair repo in temp dir
 	tmpDir, err := os.MkdirTemp("", "bancod-e2e-*")
 	if err != nil {
-		log.Fatalf("failed to create temp dir: %s", err)
+		log.Errorf("failed to create temp dir: %s", err)
+		return 1
 	}
 	// nolint:errcheck
 	defer os.RemoveAll(tmpDir)
 
 	db, err := sqlitedb.OpenDB(tmpDir)
 	if err != nil {
-		log.Fatalf("failed to open db: %s", err)
+		log.Errorf("failed to open db: %s", err)
+		return 1
 	}
 	// nolint:errcheck
 	defer db.Close()
@@ -94,7 +112,8 @@ func TestMain(m *testing.M) {
 	// Introspector client
 	introConn, err := grpc.NewClient(introspectorAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Fatalf("failed to connect to introspector: %s", err)
+		log.Errorf("failed to connect to introspector: %s", err)
+		return 1
 	}
 	introClient := introclient.NewGRPCClient(introConn)
 
@@ -117,7 +136,8 @@ func TestMain(m *testing.M) {
 	// (no DB).
 	preimagePriv, err := btcec.NewPrivateKey()
 	if err != nil {
-		log.Fatalf("failed to generate preimage privkey: %s", err)
+		log.Errorf("failed to generate preimage privkey: %s", err)
+		return 1
 	}
 	preimageSvc, err = application.NewPreimageService(ctx, application.PreimageServiceConfig{
 		ArkClient:     takerClient,
@@ -126,10 +146,12 @@ func TestMain(m *testing.M) {
 		Log:           log.StandardLogger(),
 	})
 	if err != nil {
-		log.Fatalf("failed to create preimage service: %s", err)
+		log.Errorf("failed to create preimage service: %s", err)
+		return 1
 	}
 	if err := preimageSvc.Start(); err != nil {
-		log.Fatalf("failed to start preimage service: %s", err)
+		log.Errorf("failed to start preimage service: %s", err)
+		return 1
 	}
 	defer preimageSvc.Stop()
 
@@ -139,44 +161,46 @@ func TestMain(m *testing.M) {
 	srv := grpcservice.NewServer(takerSvc, e2eGRPCPort, e2eHTTPPort, log.StandardLogger()).
 		WithPreimageService(preimageSvc)
 	if err := srv.Start(); err != nil {
-		log.Fatalf("failed to start grpc server: %s", err)
+		log.Errorf("failed to start grpc server: %s", err)
+		return 1
 	}
 	defer srv.Stop()
 	// Give the listeners a moment to come up before tests dial.
 	time.Sleep(500 * time.Millisecond)
 
-	os.Exit(m.Run())
+	return m.Run()
 }
 
-func setupTakerClient(ctx context.Context) (arksdk.ArkClient, error) {
-	client, err := arksdk.NewArkClient("")
+// setupTakerClient builds, inits, and unlocks the bot's wallet. Same flow as
+// utils_test.go setupArkClient but adapted for TestMain (no *testing.T) and
+// with a caller-managed datadir whose lifetime spans the whole test run.
+func setupTakerClient(ctx context.Context, datadir string) (arksdk.Wallet, error) {
+	// Auto-settle disabled: the bot spends its VTXOs to fulfill offers,
+	// which races the scheduler and floods logs with VTXO_ALREADY_SPENT.
+	client, err := arksdk.NewWallet(datadir, arksdk.WithoutAutoSettle())
 	if err != nil {
 		return nil, err
 	}
-	privkey, err := btcec.NewPrivateKey()
-	if err != nil {
+	if err := client.Init(ctx, arkdURL, "", password); err != nil {
 		return nil, err
 	}
-	if err := client.Init(ctx, arkdURL, hex.EncodeToString(privkey.Serialize()), "pass"); err != nil {
+	if err := client.Unlock(ctx, password); err != nil {
 		return nil, err
 	}
-	if err := client.Unlock(ctx, "pass"); err != nil {
-		return nil, err
+	synced := <-client.IsSynced(ctx)
+	if synced.Err != nil {
+		return nil, fmt.Errorf("taker client sync: %w", synced.Err)
 	}
-	syncCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	select {
-	case ev, ok := <-client.IsSynced(syncCtx):
-		if !ok || !ev.Synced {
-			return nil, fmt.Errorf("taker client failed to sync")
-		}
-	case <-syncCtx.Done():
-		return nil, fmt.Errorf("taker client sync timed out")
+	if !synced.Synced {
+		return nil, fmt.Errorf("taker client failed to sync")
 	}
 	return client, nil
 }
 
-func fundTaker(ctx context.Context, client arksdk.ArkClient) error {
+// fundTaker tops up the bot's offchain balance via an admin-issued note, using
+// the wallet's vtxo event channel as the wait barrier — same pattern as
+// go-sdk's test/e2e faucetOffchain.
+func fundTaker(ctx context.Context, client arksdk.Wallet) error {
 	bal, err := client.Balance(ctx)
 	if err != nil {
 		return err
@@ -185,33 +209,44 @@ func fundTaker(ctx context.Context, client arksdk.ArkClient) error {
 		return nil // already funded
 	}
 
-	// Use the offchain note-based funding (same as faucetOffchain but without *testing.T).
-	offchainAddr, err := client.NewOffchainAddress(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get offchain address: %w", err)
-	}
-
 	note, err := generateNoteCtx(ctx, 200000) // 200k sats
 	if err != nil {
 		return fmt.Errorf("failed to generate note: %w", err)
 	}
 
-	done := make(chan error, 1)
+	vtxoCh := client.GetVtxoEventChannel(ctx)
+
+	waitCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	done := make(chan struct{})
 	go func() {
-		_, err := client.NotifyIncomingFunds(ctx, offchainAddr)
-		done <- err
+		defer close(done)
+		for {
+			select {
+			case <-waitCtx.Done():
+				return
+			case ev, ok := <-vtxoCh:
+				if !ok {
+					return
+				}
+				if ev.Type == sdktypes.VtxosAdded && len(ev.Vtxos) > 0 {
+					return
+				}
+			}
+		}
 	}()
 
 	if _, err := client.RedeemNotes(ctx, []string{note}); err != nil {
 		return fmt.Errorf("failed to redeem note: %w", err)
 	}
 
-	if err := <-done; err != nil {
-		return fmt.Errorf("notify incoming funds failed: %w", err)
+	select {
+	case <-done:
+		return nil
+	case <-waitCtx.Done():
+		return fmt.Errorf("fundTaker: timed out waiting for VtxosAdded event")
 	}
-
-	time.Sleep(2 * time.Second)
-	return nil
 }
 
 func refillArkd(ctx context.Context) error {

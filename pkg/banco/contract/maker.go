@@ -43,7 +43,7 @@ type OfferStatus struct {
 func CreateOffer(
 	ctx context.Context,
 	params CreateOfferParams,
-	arkClient arksdk.ArkClient,
+	arkClient arksdk.Wallet,
 	introClient introclient.TransportClient,
 ) (*CreateOfferResult, error) {
 	// TODO cancel and exit needs a way to get the wallet public key

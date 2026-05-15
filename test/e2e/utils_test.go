@@ -9,22 +9,21 @@ import (
 	"net/http"
 	"os/exec"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	introclient "github.com/ArkLabsHQ/introspector/pkg/client"
-	"reflect"
 
 	arklib "github.com/arkade-os/arkd/pkg/ark-lib"
 	"github.com/arkade-os/arkd/pkg/ark-lib/asset"
 	"github.com/arkade-os/arkd/pkg/ark-lib/extension"
 	"github.com/arkade-os/arkd/pkg/ark-lib/offchain"
 	"github.com/arkade-os/arkd/pkg/ark-lib/script"
-	clientlib "github.com/arkade-os/arkd/pkg/client-lib"
 	"github.com/arkade-os/arkd/pkg/client-lib/indexer"
 	clientTypes "github.com/arkade-os/arkd/pkg/client-lib/types"
 	arksdk "github.com/arkade-os/go-sdk"
+	sdkcontract "github.com/arkade-os/go-sdk/contract"
+	sdktypes "github.com/arkade-os/go-sdk/types"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
@@ -36,28 +35,99 @@ import (
 )
 
 const (
+	password         = "secret"
 	arkdURL          = "localhost:7170"
 	arkdHTTPURL      = "http://localhost:7171"
 	introspectorAddr = "localhost:7173"
 )
 
-func runCommand(ctx context.Context, command string) (string, error) {
-	cmd := exec.CommandContext(ctx, "sh", "-c", command)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("%s: %s", err, strings.TrimSpace(string(out)))
+// setupArkClient builds, inits, and unlocks a fresh ark wallet on a temp
+// datadir. Mirrors go-sdk's test/e2e setupClient.
+//
+// Auto-settle is disabled by default: e2e flows immediately spend every
+// VTXO (fund swap → fulfill → claim), so the scheduler racing those
+// spends only produces VTXO_ALREADY_SPENT noise in the logs without
+// affecting correctness.
+func setupArkClient(t *testing.T, opts ...arksdk.WalletOption) arksdk.Wallet {
+	t.Helper()
+
+	opts = append([]arksdk.WalletOption{arksdk.WithoutAutoSettle()}, opts...)
+	arkClient, err := arksdk.NewWallet(t.TempDir(), opts...)
+	require.NoError(t, err)
+
+	err = arkClient.Init(t.Context(), arkdURL, "", password)
+	require.NoError(t, err)
+
+	err = arkClient.Unlock(t.Context(), password)
+	require.NoError(t, err)
+
+	synced := <-arkClient.IsSynced(t.Context())
+	require.Nil(t, synced.Err)
+	require.True(t, synced.Synced)
+
+	t.Cleanup(arkClient.Stop)
+
+	return arkClient
+}
+
+// faucetOffchain redeems a fresh admin-note for the wallet and waits for the
+// resulting VTXO via the wallet's vtxo event channel. Mirrors go-sdk's
+// test/e2e faucetOffchain.
+func faucetOffchain(t *testing.T, client arksdk.Wallet, amount float64) clientTypes.Vtxo {
+	t.Helper()
+	ctx := t.Context()
+
+	note := generateNote(t, uint64(amount*1e8))
+
+	vtxoCh := client.GetVtxoEventChannel(ctx)
+
+	vtxoCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	done := make(chan clientTypes.Vtxo, 1)
+	go func() {
+		for {
+			select {
+			case <-vtxoCtx.Done():
+				return
+			case event, ok := <-vtxoCh:
+				if !ok {
+					return
+				}
+				if event.Type != sdktypes.VtxosAdded || len(event.Vtxos) == 0 {
+					continue
+				}
+				done <- event.Vtxos[0]
+				return
+			}
+		}
+	}()
+
+	txid, err := client.RedeemNotes(ctx, []string{note})
+	require.NoError(t, err)
+	require.NotEmpty(t, txid)
+
+	select {
+	case v := <-done:
+		return v
+	case <-vtxoCtx.Done():
+		t.Fatal("faucetOffchain: timed out waiting for VtxosAdded event")
+		return clientTypes.Vtxo{}
 	}
-	return strings.TrimSpace(string(out)), nil
 }
 
-func faucet(ctx context.Context, address string, amount float64) error {
-	command := fmt.Sprintf("nigiri faucet %s %.8f", address, amount)
-	_, err := runCommand(ctx, command)
-	return err
+// generateNote requests a fresh admin note from arkd for `amount` sats.
+func generateNote(t *testing.T, amount uint64) string {
+	t.Helper()
+	note, err := generateNoteCtx(t.Context(), amount)
+	require.NoError(t, err)
+	return note
 }
 
+// generateNoteCtx is the context-aware variant used from non-test setup
+// helpers (e.g. TestMain).
 func generateNoteCtx(_ context.Context, amount uint64) (string, error) {
-	client := &http.Client{Timeout: 15 * time.Second}
+	httpClient := &http.Client{Timeout: 15 * time.Second}
 	reqBody := bytes.NewReader([]byte(fmt.Sprintf(`{"amount": "%d"}`, amount)))
 	req, err := http.NewRequest("POST", arkdHTTPURL+"/v1/admin/note", reqBody)
 	if err != nil {
@@ -65,7 +135,7 @@ func generateNoteCtx(_ context.Context, amount uint64) (string, error) {
 	}
 	req.Header.Set("Authorization", "Basic YWRtaW46YWRtaW4=")
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -83,70 +153,30 @@ func generateNoteCtx(_ context.Context, amount uint64) (string, error) {
 	return noteResp.Notes[0], nil
 }
 
-func generateNote(t *testing.T, amount uint64) string {
-	t.Helper()
-	note, err := generateNoteCtx(t.Context(), amount)
-	require.NoError(t, err)
-	return note
-}
-
-func faucetOffchain(t *testing.T, client arksdk.ArkClient, amount float64) clientTypes.Vtxo {
-	t.Helper()
-	offchainAddr, err := client.NewOffchainAddress(t.Context())
-	require.NoError(t, err)
-	note := generateNote(t, uint64(amount*1e8))
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	var incomingFunds []clientTypes.Vtxo
-	var incomingErr error
-	go func() {
-		incomingFunds, incomingErr = client.NotifyIncomingFunds(t.Context(), offchainAddr)
-		wg.Done()
-	}()
-	txid, err := client.RedeemNotes(t.Context(), []string{note})
-	require.NoError(t, err)
-	require.NotEmpty(t, txid)
-	wg.Wait()
-	require.NoError(t, incomingErr)
-	require.NotEmpty(t, incomingFunds)
-	time.Sleep(time.Second)
-	return incomingFunds[0]
-}
-
-func setupArkClient(t *testing.T) arksdk.ArkClient {
-	t.Helper()
-	arkClient, err := arksdk.NewArkClient("")
-	require.NoError(t, err)
-	privkey, err := btcec.NewPrivateKey()
-	require.NoError(t, err)
-	err = arkClient.Init(t.Context(), arkdURL, hex.EncodeToString(privkey.Serialize()), "pass")
-	require.NoError(t, err)
-	err = arkClient.Unlock(t.Context(), "pass")
-	require.NoError(t, err)
-	syncCtx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
-	defer cancel()
-	select {
-	case ev, ok := <-arkClient.IsSynced(syncCtx):
-		require.True(t, ok)
-		require.NoError(t, ev.Err)
-		require.True(t, ev.Synced)
-	case <-syncCtx.Done():
-		t.Fatal("timed out waiting for sync")
+func runCommand(ctx context.Context, command string) (string, error) {
+	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("%s: %s", err, strings.TrimSpace(string(out)))
 	}
-	t.Cleanup(func() { arkClient.Stop() })
-	return arkClient
+	return strings.TrimSpace(string(out)), nil
+}
+
+func faucet(ctx context.Context, address string, amount float64) error {
+	command := fmt.Sprintf("nigiri faucet %s %.8f", address, amount)
+	_, err := runCommand(ctx, command)
+	return err
 }
 
 // sendOffChainToVHTLC funds claimAddr while attaching pkt as the OP_RETURN
 // extension AND setting encodedTapTree on the funding output's
-// POutput.TaprootTapTree. clientlib's SendOption surface does not expose
-// the latter, so this bypasses SendOffChain and goes through
-// offchain.BuildTxs + Transport().SubmitTx + Transport().FinalizeTx
-// directly. It assumes one suitable spendable VTXO and BTC-only payment
-// (no asset routing).
+// POutput.TaprootTapTree. go-sdk's SendOffChain wrapper does not expose
+// per-output TapTree, so this bypasses it and goes through
+// offchain.BuildTxs + Client().SubmitTx + Client().FinalizeTx directly.
+// It assumes one suitable spendable VTXO and BTC-only payment.
 func sendOffChainToVHTLC(
 	t *testing.T,
-	c arksdk.ArkClient,
+	c arksdk.Wallet,
 	claimAddr string,
 	amount uint64,
 	encodedTapTree []byte,
@@ -154,22 +184,19 @@ func sendOffChainToVHTLC(
 ) {
 	t.Helper()
 	ctx := t.Context()
-	inner := innerArkClient(t, c)
 
-	cfgData, err := inner.GetConfigData(ctx)
+	cfgData, err := c.GetConfigData(ctx)
 	require.NoError(t, err)
 
-	_, offchainAddrs, _, _, err := inner.Wallet().GetAddresses(ctx)
-	require.NoError(t, err)
-	require.NotEmpty(t, offchainAddrs)
-
-	spendable, _, err := inner.ListVtxos(ctx)
+	spendable, _, err := c.ListVtxos(ctx)
 	require.NoError(t, err)
 
+	cm := c.ContractManager()
 	var (
-		chosen     clientTypes.Vtxo
-		tapscripts []string
-		found      bool
+		chosen      clientTypes.Vtxo
+		tapscripts  []string
+		signingKeys map[string]string
+		found       bool
 	)
 	for _, v := range spendable {
 		if v.IsRecoverable() || v.Spent {
@@ -178,19 +205,26 @@ func sendOffChainToVHTLC(
 		if v.Amount < amount+cfgData.Dust {
 			continue
 		}
-		vtxoAddr, err := v.Address(cfgData.SignerPubKey, cfgData.Network)
+		contracts, err := cm.GetContracts(ctx, sdkcontract.WithScripts([]string{v.Script}))
 		require.NoError(t, err)
-		for _, oa := range offchainAddrs {
-			if oa.Address == vtxoAddr {
-				chosen = v
-				tapscripts = oa.Tapscripts
-				found = true
-				break
-			}
+		if len(contracts) == 0 {
+			continue
 		}
-		if found {
-			break
-		}
+		handler, err := cm.GetHandler(ctx, contracts[0])
+		require.NoError(t, err)
+		ts, err := handler.GetTapscripts(contracts[0])
+		require.NoError(t, err)
+		// GetKeyRefs returns BOTH the contract's original script and the
+		// derived checkpoint script keyed to the same keyId. The ark tx
+		// spends a synthetic checkpoint VTXO whose pkScript is the latter,
+		// so the keys map must cover it for identity.SignTransaction.
+		keys, err := handler.GetKeyRefs(contracts[0])
+		require.NoError(t, err)
+		chosen = v
+		tapscripts = ts
+		signingKeys = keys
+		found = true
+		break
 	}
 	require.True(t, found, "no spendable VTXO with sufficient amount (need %d)", amount)
 
@@ -229,7 +263,9 @@ func sendOffChainToVHTLC(
 	outputs := []*wire.TxOut{{Value: int64(amount), PkScript: vhtlcPkScript}}
 
 	if change := chosen.Amount - amount; change > 0 {
-		myArk, err := arklib.DecodeAddressV0(offchainAddrs[0].Address)
+		changeAddr, err := c.NewOffchainAddress(ctx)
+		require.NoError(t, err)
+		myArk, err := arklib.DecodeAddressV0(changeAddr)
 		require.NoError(t, err)
 		myPkScript, err := script.P2TRScript(myArk.VtxoTapKey)
 		require.NoError(t, err)
@@ -259,7 +295,11 @@ func sendOffChainToVHTLC(
 
 	arkB64, err := arkTx.B64Encode()
 	require.NoError(t, err)
-	signedArk, err := inner.SignTransaction(ctx, arkB64)
+	// The ark tx's input pkScript is the checkpoint script (not the
+	// original contract script), so c.SignTransaction's contract-based
+	// key lookup silently no-ops. Sign via the identity directly with
+	// the keys map that covers the checkpoint script (see GetKeyRefs).
+	signedArk, err := c.Identity().SignTransaction(ctx, arkB64, signingKeys)
 	require.NoError(t, err)
 
 	cpB64s := make([]string, len(checkpointTxs))
@@ -269,46 +309,31 @@ func sendOffChainToVHTLC(
 		cpB64s[i] = b64
 	}
 
-	arkTxid, _, serverSignedCps, err := inner.Transport().SubmitTx(ctx, signedArk, cpB64s)
+	arkTxid, _, serverSignedCps, err := c.Client().SubmitTx(ctx, signedArk, cpB64s)
 	require.NoError(t, err)
 
 	finalCps := make([]string, len(serverSignedCps))
 	for i, cp := range serverSignedCps {
-		sig, err := inner.SignTransaction(ctx, cp)
+		sig, err := c.SignTransaction(ctx, cp)
 		require.NoError(t, err)
 		finalCps[i] = sig
 	}
-	require.NoError(t, inner.Transport().FinalizeTx(ctx, arkTxid, finalCps))
-}
-
-func innerArkClient(t *testing.T, c arksdk.ArkClient) clientlib.ArkClient {
-	t.Helper()
-	v := reflect.ValueOf(c)
-	for v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface {
-		v = v.Elem()
-	}
-	field := v.FieldByName("ArkClient")
-	require.True(t, field.IsValid(), "go-sdk arkClient.ArkClient field not found")
-	inner, ok := field.Interface().(clientlib.ArkClient)
-	require.True(t, ok, "embedded ArkClient does not implement clientlib.ArkClient")
-	return inner
+	require.NoError(t, c.Client().FinalizeTx(ctx, arkTxid, finalCps))
 }
 
 // sendOffChainWithExtension funds an address with a receiver while attaching
-// an arbitrary extension packet to the ark transaction's OP_RETURN. go-sdk's
-// SendOffChain wrapper does not pass options through to the underlying
-// client-lib, so we extract the embedded client.ArkClient and call it directly.
+// an arbitrary extension packet to the ark transaction's OP_RETURN.
 func sendOffChainWithExtension(
 	t *testing.T,
-	c arksdk.ArkClient,
+	c arksdk.Wallet,
 	receiver clientTypes.Receiver,
 	pkt extension.Packet,
 ) {
 	t.Helper()
-	_, err := innerArkClient(t, c).SendOffChain(
+	_, err := c.SendOffChain(
 		t.Context(),
 		[]clientTypes.Receiver{receiver},
-		clientlib.WithExtraPacket(pkt),
+		arksdk.WithExtension(pkt),
 	)
 	require.NoError(t, err)
 }
@@ -320,7 +345,7 @@ func newIntroClient(t *testing.T) introclient.TransportClient {
 	return introclient.NewGRPCClient(conn)
 }
 
-func issueAsset(t *testing.T, client arksdk.ArkClient, supply uint64) string {
+func issueAsset(t *testing.T, client arksdk.Wallet, supply uint64) string {
 	t.Helper()
 	// bancod's pair validation looks up "decimals" metadata via the indexer,
 	// so every test asset must publish it (zero-decimal assets are fine).
@@ -330,35 +355,6 @@ func issueAsset(t *testing.T, client arksdk.ArkClient, supply uint64) string {
 	require.NoError(t, err)
 	require.Len(t, assetIds, 1)
 	return assetIds[0].String()
-}
-
-func listVtxosWithAsset(t *testing.T, client arksdk.ArkClient, assetID string) []clientTypes.Vtxo {
-	t.Helper()
-	vtxos, _, err := client.ListVtxos(t.Context())
-	require.NoError(t, err)
-	var result []clientTypes.Vtxo
-	for _, v := range vtxos {
-		for _, a := range v.Assets {
-			if a.AssetId == assetID {
-				result = append(result, v)
-				break
-			}
-		}
-	}
-	return result
-}
-
-// waitForCondition polls until fn returns true or timeout expires.
-func waitForCondition(t *testing.T, timeout time.Duration, interval time.Duration, fn func() bool) {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if fn() {
-			return
-		}
-		time.Sleep(interval)
-	}
-	t.Fatal("condition not met within timeout")
 }
 
 // fetchIntroPubkey returns the introspector signer pubkey, parsed.
@@ -392,7 +388,9 @@ type indexerVtxo struct {
 }
 
 // pollForVtxoAt polls the indexer for any spendable VTXO at the given pkScript.
-// Returns the first match or fails the test on timeout.
+// Returns the first match or fails the test on timeout. Used when the address
+// isn't owned by a wallet (e.g. preimage receiver pkScripts), so wallet event
+// channels can't be used.
 func pollForVtxoAt(t *testing.T, ctx context.Context, idx indexer.Indexer, pkScript []byte, timeout time.Duration) indexerVtxo {
 	t.Helper()
 	deadline := time.Now().Add(timeout)

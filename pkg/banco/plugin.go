@@ -27,7 +27,7 @@ type MatchedOffer struct {
 // plugin holds the runtime state shared across builder stages. It's
 // constructed by NewPlugin and never escapes the package.
 type plugin struct {
-	arkClient    arksdk.ArkClient
+	arkClient    arksdk.Wallet
 	introspector introclient.TransportClient
 	pairs        PairRepository
 	prices       *priceCache

@@ -139,7 +139,7 @@ func BuildClaim(
 // Returns the finalized ark txid.
 func SubmitClaim(
 	ctx context.Context,
-	arkClient arksdk.ArkClient,
+	arkClient arksdk.Wallet,
 	introClient introclient.TransportClient,
 	arkTx *psbt.Packet,
 	checkpoints []*psbt.Packet,
@@ -197,7 +197,7 @@ func hasExactlyTwoKeys(pubKeys []*btcec.PublicKey, a, b *btcec.PublicKey) bool {
 		(bytes.Equal(k0, wantB) && bytes.Equal(k1, wantA))
 }
 
-func signB64(ctx context.Context, arkClient arksdk.ArkClient, p *psbt.Packet) (string, error) {
+func signB64(ctx context.Context, arkClient arksdk.Wallet, p *psbt.Packet) (string, error) {
 	b64, err := p.B64Encode()
 	if err != nil {
 		return "", err

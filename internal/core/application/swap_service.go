@@ -31,7 +31,7 @@ type TakerService struct {
 	solver    *solver.Solver
 	pairRepo  ports.PairRepository
 	tradeRepo ports.TradeRepository
-	arkClient arksdk.ArkClient
+	arkClient arksdk.Wallet
 	indexer   indexer.Indexer
 	log       logrus.FieldLogger
 
@@ -47,7 +47,7 @@ func NewTakerService(
 	s *solver.Solver,
 	pairRepo ports.PairRepository,
 	tradeRepo ports.TradeRepository,
-	arkClient arksdk.ArkClient,
+	arkClient arksdk.Wallet,
 	idx indexer.Indexer,
 	log logrus.FieldLogger,
 ) *TakerService {

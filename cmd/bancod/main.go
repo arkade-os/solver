@@ -58,13 +58,13 @@ func main() {
 	introspector := introclient.NewGRPCClient(introConn)
 
 	ctx := context.Background()
-	arkClient, err := arksdk.LoadArkClient(cfg.Datadir)
+	arkClient, err := arksdk.LoadWallet(cfg.Datadir)
 	if err != nil {
 		if !errors.Is(err, arkdclient.ErrNotInitialized) {
 			log.WithError(err).Fatal("failed to load ark client")
 		}
 		// Fresh datadir — create and initialize the wallet.
-		arkClient, err = arksdk.NewArkClient(cfg.Datadir)
+		arkClient, err = arksdk.NewWallet(cfg.Datadir)
 		if err != nil {
 			log.WithError(err).Fatal("failed to create ark client")
 		}

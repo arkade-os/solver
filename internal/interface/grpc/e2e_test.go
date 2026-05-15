@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/arkade-os/arkd/pkg/ark-lib/asset"
-	clientlib "github.com/arkade-os/arkd/pkg/client-lib"
 	"github.com/arkade-os/arkd/pkg/client-lib/indexer"
 	arksdk "github.com/arkade-os/go-sdk"
+	sdktypes "github.com/arkade-os/go-sdk/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -19,9 +19,9 @@ import (
 	"github.com/arkade-os/bancod/pkg/solver"
 )
 
-// mockArkClient implements arksdk.ArkClient with stub methods for balance and address.
+// mockArkClient implements arksdk.Wallet with stub methods for balance and address.
 type mockArkClient struct {
-	arksdk.ArkClient // embed for nil stubs of unused methods
+	arksdk.Wallet // embed for nil stubs of unused methods
 }
 
 // mockIndexer returns pre-configured decimals for test asset IDs via asset metadata.
@@ -41,12 +41,12 @@ func (m *mockIndexer) GetAsset(_ context.Context, assetID string) (*indexer.Asse
 	}, nil
 }
 
-func (m *mockArkClient) Balance(_ context.Context) (*clientlib.Balance, error) {
-	return &clientlib.Balance{
-		OnchainBalance: clientlib.OnchainBalance{
+func (m *mockArkClient) Balance(_ context.Context) (*sdktypes.Balance, error) {
+	return &sdktypes.Balance{
+		OnchainBalance: sdktypes.OnchainBalance{
 			SpendableAmount: 100000,
 		},
-		OffchainBalance: clientlib.OffchainBalance{
+		OffchainBalance: sdktypes.OffchainBalance{
 			Total: 500000,
 		},
 	}, nil

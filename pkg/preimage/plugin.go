@@ -23,7 +23,7 @@ import (
 )
 
 type Config struct {
-	ArkClient     arksdk.ArkClient
+	ArkClient     arksdk.Wallet
 	Introspector  introclient.TransportClient
 	SolverPrivKey *btcec.PrivateKey
 

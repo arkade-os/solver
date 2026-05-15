@@ -13,7 +13,7 @@ const (
 )
 
 type Config struct {
-	SolverClient    arksdk.ArkClient
+	SolverClient    arksdk.Wallet
 	Introspector    introclient.TransportClient
 	PairsRepository PairRepository
 	PriceFeed       PriceFeed

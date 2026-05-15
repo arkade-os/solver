@@ -1,12 +1,13 @@
 package e2e_test
 
 import (
-	"sync"
+	"context"
 	"testing"
 	"time"
 
 	"github.com/arkade-os/arkd/pkg/ark-lib/asset"
 	clientTypes "github.com/arkade-os/arkd/pkg/client-lib/types"
+	sdktypes "github.com/arkade-os/go-sdk/types"
 	"github.com/stretchr/testify/require"
 
 	"github.com/arkade-os/bancod/pkg/banco"
@@ -22,23 +23,16 @@ const mockPriceFeedURL = "http://mock-price-feed"
 func TestBancoAssetToBTC(t *testing.T) {
 	ctx := t.Context()
 
-	// Create maker, fund with offchain BTC, issue asset
+	// Create maker, fund with offchain BTC, issue asset.
 	maker := setupArkClient(t)
 	faucetOffchain(t, maker, 0.0005)
 	assetID := issueAsset(t, maker, 500)
-	time.Sleep(3 * time.Second)
 
-	// Record maker BTC balance before
-	balBefore, err := maker.Balance(ctx)
-	require.NoError(t, err)
-	btcBefore := balBefore.OffchainBalance.Total
-
-	// Configure taker pair: asset/BTC. Both BTC deposit and BTC want now
-	// stringify as the literal "BTC", so findMatchingPair lines up against
-	// WantAssetStr(). We still write directly to pairRepo (instead of going
-	// through takerSvc.AddPair) so we can pin BaseDecimals=QuoteDecimals=0;
-	// AddPair would resolve BTC's quote decimals to 8 and the mock price
-	// feed (1.0) would no longer match the 500/500 offer ratio.
+	// Configure taker pair: asset/BTC. We write directly to pairRepo
+	// (instead of going through takerSvc.AddPair) so we can pin
+	// BaseDecimals=QuoteDecimals=0; AddPair would resolve BTC's quote
+	// decimals to 8 and the mock price feed (1.0) would no longer match
+	// the 500/500 offer ratio.
 	pair := banco.Pair{
 		Pair:          assetID + "/BTC",
 		MinAmount:     1,
@@ -47,11 +41,10 @@ func TestBancoAssetToBTC(t *testing.T) {
 		QuoteDecimals: 0,
 		PriceFeed:     mockPriceFeedURL,
 	}
-	err = pairRepo.Add(ctx, pair)
-	require.NoError(t, err)
+	require.NoError(t, pairRepo.Add(ctx, pair))
 	t.Cleanup(func() { _ = pairRepo.Remove(ctx, pair.Pair) })
 
-	// Maker creates offer: deposit asset, want 500 sats BTC
+	// Maker creates offer: deposit asset, want 500 sats BTC.
 	intro := newIntroClient(t)
 	offerResult, err := contract.CreateOffer(ctx, contract.CreateOfferParams{
 		WantAmount: 500,
@@ -59,34 +52,23 @@ func TestBancoAssetToBTC(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, offerResult.SwapAddress)
 
-	// Fund swap address with asset + offer packet
-	// Deposit 500 units of asset. The BTC amount (450) is just a dust carrier.
-	// The solver reads DepositAmount from the asset packet (=500).
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	var incomingErr error
-	go func() {
-		defer wg.Done()
-		_, incomingErr = maker.NotifyIncomingFunds(ctx, offerResult.SwapAddress)
-	}()
+	// Subscribe to the maker's vtxo events BEFORE funding the swap so we
+	// catch the fulfill VTXO that lands at the maker's address after the
+	// taker bot picks up the offer.
+	makerVtxoCh := maker.GetVtxoEventChannel(ctx)
 
+	// Fund swap address with asset + offer packet. Deposit 500 units of
+	// asset; the BTC amount (450) is just a dust carrier. The solver reads
+	// DepositAmount from the asset packet (=500).
 	sendOffChainWithExtension(t, maker, clientTypes.Receiver{
 		To:     offerResult.SwapAddress,
 		Amount: 450,
 		Assets: []clientTypes.Asset{{AssetId: assetID, Amount: 500}},
 	}, offerResult.Packet)
-	wg.Wait()
-	require.NoError(t, incomingErr)
 
-	// Wait for taker bot to fulfill — maker's BTC balance should increase
-	waitForCondition(t, 30*time.Second, 2*time.Second, func() bool {
-		bal, err := maker.Balance(ctx)
-		if err != nil {
-			return false
-		}
-		return bal.OffchainBalance.Total > btcBefore
-	})
-	t.Log("asset->BTC: taker fulfilled successfully")
+	// Wait for taker bot to fulfill — the BTC payout lands as a new VTXO
+	// at the maker's makerPkScript.
+	requireFulfillment(t, ctx, makerVtxoCh, 60*time.Second)
 }
 
 // TestBancoBTCToAsset: maker deposits BTC, wants asset.
@@ -96,33 +78,26 @@ func TestBancoAssetToBTC(t *testing.T) {
 func TestBancoBTCToAsset(t *testing.T) {
 	ctx := t.Context()
 
-	// Issue asset and send to taker bot
+	// Issue asset on a temp wallet and send it to the taker bot, so the
+	// taker has asset balance to fulfill the maker's offer.
 	tempClient := setupArkClient(t)
 	faucetOffchain(t, tempClient, 0.001)
 	assetID := issueAsset(t, tempClient, 1000)
-	time.Sleep(3 * time.Second)
 
-	// Send asset to taker's wallet and notify
 	takerAddr, err := takerSvc.GetAddress(ctx)
 	require.NoError(t, err)
 
-	wgFund := &sync.WaitGroup{}
-	wgFund.Add(1)
-	go func() {
-		defer wgFund.Done()
-		_, _ = takerClient.NotifyIncomingFunds(ctx, takerAddr.OffchainAddress)
-	}()
-
+	takerVtxoCh := takerClient.GetVtxoEventChannel(ctx)
 	_, err = tempClient.SendOffChain(ctx, []clientTypes.Receiver{{
 		To:     takerAddr.OffchainAddress,
 		Amount: 1000,
 		Assets: []clientTypes.Asset{{AssetId: assetID, Amount: 1000}},
 	}})
 	require.NoError(t, err)
-	wgFund.Wait()
-	time.Sleep(3 * time.Second)
+	// Wait for the taker wallet to see the incoming asset VTXO.
+	waitForVtxoAdded(t, ctx, takerVtxoCh, 30*time.Second)
 
-	// Configure pair: BTC/asset with both decimals=0
+	// Configure pair: BTC/asset with both decimals=0.
 	pair := banco.Pair{
 		Pair:          "BTC/" + assetID,
 		MinAmount:     1,
@@ -131,11 +106,10 @@ func TestBancoBTCToAsset(t *testing.T) {
 		QuoteDecimals: 0,
 		PriceFeed:     mockPriceFeedURL,
 	}
-	err = pairRepo.Add(ctx, pair)
-	require.NoError(t, err)
+	require.NoError(t, pairRepo.Add(ctx, pair))
 	t.Cleanup(func() { _ = pairRepo.Remove(ctx, pair.Pair) })
 
-	// Maker creates offer: deposit BTC, want 500 units of asset
+	// Maker creates offer: deposit BTC, want 500 units of asset.
 	maker := setupArkClient(t)
 	faucetOffchain(t, maker, 0.0005)
 
@@ -148,29 +122,19 @@ func TestBancoBTCToAsset(t *testing.T) {
 	}, maker, intro)
 	require.NoError(t, err)
 
-	// Fund swap address with 500 sats BTC + offer packet.
-	// Deposit must equal WantAmount for price=1.0 with decimals=0.
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	var incomingErr error
-	go func() {
-		defer wg.Done()
-		_, incomingErr = maker.NotifyIncomingFunds(ctx, offerResult.SwapAddress)
-	}()
+	// Subscribe to maker vtxo events before funding the swap.
+	makerVtxoCh := maker.GetVtxoEventChannel(ctx)
 
+	// Fund swap address with 500 sats BTC + offer packet. Deposit must
+	// equal WantAmount for price=1.0 with decimals=0.
 	sendOffChainWithExtension(t, maker, clientTypes.Receiver{
 		To:     offerResult.SwapAddress,
 		Amount: 500,
 	}, offerResult.Packet)
-	wg.Wait()
-	require.NoError(t, incomingErr)
 
-	// Wait for maker to receive asset
-	waitForCondition(t, 30*time.Second, 2*time.Second, func() bool {
-		vtxos := listVtxosWithAsset(t, maker, assetID)
-		return len(vtxos) > 0
-	})
-	t.Log("BTC->asset: taker fulfilled successfully")
+	// Wait for the taker's fulfill: the maker should observe an asset
+	// VTXO landing at their address.
+	requireAssetFulfillment(t, ctx, makerVtxoCh, assetID, 60*time.Second)
 }
 
 // TestBancoAssetToAsset: maker deposits assetA, wants assetB.
@@ -180,37 +144,27 @@ func TestBancoBTCToAsset(t *testing.T) {
 func TestBancoAssetToAsset(t *testing.T) {
 	ctx := t.Context()
 
-	// Create maker, fund, issue assetA
 	maker := setupArkClient(t)
 	faucetOffchain(t, maker, 0.0005)
 	assetA := issueAsset(t, maker, 500)
 
-	// Issue assetB and send to taker
+	// Fund taker bot with assetB.
 	tempClient := setupArkClient(t)
 	faucetOffchain(t, tempClient, 0.001)
 	assetB := issueAsset(t, tempClient, 1000)
-	time.Sleep(3 * time.Second)
 
 	takerAddr, err := takerSvc.GetAddress(ctx)
 	require.NoError(t, err)
 
-	wgFund := &sync.WaitGroup{}
-	wgFund.Add(1)
-	go func() {
-		defer wgFund.Done()
-		_, _ = takerClient.NotifyIncomingFunds(ctx, takerAddr.OffchainAddress)
-	}()
-
+	takerVtxoCh := takerClient.GetVtxoEventChannel(ctx)
 	_, err = tempClient.SendOffChain(ctx, []clientTypes.Receiver{{
 		To:     takerAddr.OffchainAddress,
 		Amount: 1000,
 		Assets: []clientTypes.Asset{{AssetId: assetB, Amount: 1000}},
 	}})
 	require.NoError(t, err)
-	wgFund.Wait()
-	time.Sleep(3 * time.Second)
+	waitForVtxoAdded(t, ctx, takerVtxoCh, 30*time.Second)
 
-	// Configure pair: assetA/assetB
 	pair := banco.Pair{
 		Pair:          assetA + "/" + assetB,
 		MinAmount:     1,
@@ -219,11 +173,9 @@ func TestBancoAssetToAsset(t *testing.T) {
 		QuoteDecimals: 0,
 		PriceFeed:     mockPriceFeedURL,
 	}
-	err = pairRepo.Add(ctx, pair)
-	require.NoError(t, err)
+	require.NoError(t, pairRepo.Add(ctx, pair))
 	t.Cleanup(func() { _ = pairRepo.Remove(ctx, pair.Pair) })
 
-	// Maker creates offer: deposit assetA, want assetB
 	intro := newIntroClient(t)
 	wantAssetID, err := asset.NewAssetIdFromString(assetB)
 	require.NoError(t, err)
@@ -233,27 +185,97 @@ func TestBancoAssetToAsset(t *testing.T) {
 	}, maker, intro)
 	require.NoError(t, err)
 
-	// Fund swap address with assetA + offer packet
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	var incomingErr error
-	go func() {
-		defer wg.Done()
-		_, incomingErr = maker.NotifyIncomingFunds(ctx, offerResult.SwapAddress)
-	}()
+	makerVtxoCh := maker.GetVtxoEventChannel(ctx)
 
 	sendOffChainWithExtension(t, maker, clientTypes.Receiver{
 		To:     offerResult.SwapAddress,
 		Amount: 450,
 		Assets: []clientTypes.Asset{{AssetId: assetA, Amount: 500}},
 	}, offerResult.Packet)
-	wg.Wait()
-	require.NoError(t, incomingErr)
 
-	// Wait for maker to receive assetB
-	waitForCondition(t, 30*time.Second, 2*time.Second, func() bool {
-		vtxos := listVtxosWithAsset(t, maker, assetB)
-		return len(vtxos) > 0
-	})
-	t.Log("assetA->assetB: taker fulfilled successfully")
+	requireAssetFulfillment(t, ctx, makerVtxoCh, assetB, 60*time.Second)
+}
+
+// waitForVtxoAdded blocks until vtxoCh delivers a VtxosAdded event or the
+// timeout expires.
+func waitForVtxoAdded(
+	t *testing.T,
+	ctx context.Context, // see below
+	vtxoCh <-chan sdktypes.VtxoEvent,
+	timeout time.Duration,
+) []clientTypes.Vtxo {
+	t.Helper()
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			t.Fatalf("context cancelled while waiting for VtxosAdded: %v", ctx.Err())
+			return nil
+		case <-deadline.C:
+			t.Fatalf("timed out waiting for VtxosAdded within %v", timeout)
+			return nil
+		case ev, ok := <-vtxoCh:
+			if !ok {
+				t.Fatal("vtxo event channel closed while waiting for VtxosAdded")
+				return nil
+			}
+			if ev.Type == sdktypes.VtxosAdded && len(ev.Vtxos) > 0 {
+				return ev.Vtxos
+			}
+		}
+	}
+}
+
+// requireFulfillment waits for ANY VtxosAdded event on the maker's vtxo
+// channel — used for asset->BTC where the maker's wanted side is plain BTC.
+func requireFulfillment(
+	t *testing.T,
+	ctx context.Context,
+	vtxoCh <-chan sdktypes.VtxoEvent,
+	timeout time.Duration,
+) {
+	t.Helper()
+	vtxos := waitForVtxoAdded(t, ctx, vtxoCh, timeout)
+	require.NotEmpty(t, vtxos, "expected fulfilled VTXO at maker")
+}
+
+// requireAssetFulfillment waits for a VtxosAdded event on the maker's vtxo
+// channel whose VTXOs carry the given asset ID. Used when the maker is
+// receiving an asset (not plain BTC).
+func requireAssetFulfillment(
+	t *testing.T,
+	ctx context.Context,
+	vtxoCh <-chan sdktypes.VtxoEvent,
+	assetID string,
+	timeout time.Duration,
+) {
+	t.Helper()
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			t.Fatalf("context cancelled while waiting for asset %s fulfillment: %v", assetID, ctx.Err())
+			return
+		case <-deadline.C:
+			t.Fatalf("timed out waiting for asset %s fulfillment within %v", assetID, timeout)
+			return
+		case ev, ok := <-vtxoCh:
+			if !ok {
+				t.Fatalf("vtxo event channel closed while waiting for asset %s", assetID)
+				return
+			}
+			if ev.Type != sdktypes.VtxosAdded {
+				continue
+			}
+			for _, v := range ev.Vtxos {
+				for _, a := range v.Assets {
+					if a.AssetId == assetID {
+						return
+					}
+				}
+			}
+		}
+	}
 }

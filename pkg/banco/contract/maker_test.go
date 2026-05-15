@@ -29,11 +29,11 @@ func (m *mockIntroClient) GetInfo(ctx context.Context) (*introclient.Info, error
 }
 
 // ---------------------------------------------------------------------------
-// Mock: arksdk.ArkClient (only methods used by CreateOffer)
+// Mock: arksdk.Wallet (only methods used by CreateOffer)
 // ---------------------------------------------------------------------------
 
 type mockArkClient struct {
-	arksdk.ArkClient     // embed for unimplemented methods
+	arksdk.Wallet        // embed for unimplemented methods
 	getConfigDataFn      func(ctx context.Context) (*clientTypes.Config, error)
 	newOffchainAddressFn func(ctx context.Context) (string, error)
 }
