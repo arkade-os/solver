@@ -202,7 +202,7 @@ func (p *plugin) claim(ctx context.Context, m *MatchedClaim) {
 		WithField("unsigned_checkpoints_b64", cpB64).
 		Debug("preimage claim: built ark tx + checkpoints")
 
-	txid, err := SubmitClaim(ctx, p.cfg.ArkClient, p.cfg.Introspector, arkTx, checkpoints, p.log)
+	txid, err := SubmitClaim(ctx, p.cfg.ArkClient, p.cfg.Introspector, arkTx, checkpoints)
 	if err != nil {
 		log.WithError(err).
 			WithField("ark_txid", arkTx.UnsignedTx.TxHash().String()).
