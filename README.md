@@ -6,6 +6,45 @@ A *maker* posts a swap offer as a VTXO on an Ark network. The solver bot watches
 stream, finds offers that match its configured pairs and price ranges, and fulfills them atomically
 via an introspector-signed Ark transaction.
 
+## Architecture
+
+```
+arkd tx stream  ─►  Solver  ─►  Plugin.Match(tx)  ─►  intent  ─►  Plugin.Solve(intent)
+                       │
+                       └── fans every tx out to all registered plugins
+```
+
+A solver bot is a small runtime that subscribes to arkd's transaction stream and
+hands every PSBT it sees to one or more **plugins**. A plugin is just two
+methods:
+
+```go
+type Plugin interface {
+    Match(ctx, tx) (intent any, ok bool)   // is this tx relevant? extract what I need
+    Solve(ctx, intent)                     // react to it
+}
+```
+
+`Match` is the cheap filter+decode pass; `Solve` is the (usually slow) reaction.
+The runtime (`pkg/solver`) calls `Match` sequentially for each plugin, then
+spawns a goroutine for each matched `Solve`. Panics in either are recovered so
+one buggy plugin can't take the bot down, and `Run` waits for in-flight solves
+to drain on shutdown.
+
+Most plugins read protocol data from the Ark **extension** TLV in the OP_RETURN
+output of the funding tx, so `pkg/solver/builder` provides a typed pipeline
+(`Filter → Decode → Validate → Solve`) that hides the OP_RETURN parse. Today
+two plugins ship with the daemon:
+
+- **`pkg/banco`** — banco swap solver. Decodes a swap offer, range-checks the
+  amount and price, and fulfills via the introspector.
+- **`pkg/preimage`** — preimage-gated claim solver. Decrypts an ECIES payload
+  attached to the funding tx and claims the VTXO when the arkade script matches.
+
+Each enabled plugin owns its own `Solver` and arkd subscription, so adding a
+new protocol means writing a new `Plugin` and wiring it in `cmd/bancod`. See
+[`pkg/solver/README.md`](pkg/solver/README.md) for the plugin authoring guide.
+
 ## Packages
 
 ### `pkg/contract`
