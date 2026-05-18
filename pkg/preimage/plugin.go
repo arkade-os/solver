@@ -162,25 +162,56 @@ func (p *plugin) checkVtxoSpendable(ctx context.Context, m *MatchedClaim) (bool,
 }
 
 func (p *plugin) claim(ctx context.Context, m *MatchedClaim) {
+	log := p.log.WithField("outpoint", m.Outpoint.String())
+
+	log.WithField("amount", m.Amount).
+		WithField("arkade_script_hex", hex.EncodeToString(m.Credentials.ArkadeScript)).
+		WithField("pk_script_hex", hex.EncodeToString(m.Credentials.PkScript)).
+		WithField("taptree_leaves", len(m.Credentials.Taptree)).
+		WithField("preimage_len", len(m.Credentials.Preimage)).
+		Debug("preimage claim: matched, building ark tx")
+
 	arkTx, checkpoints, err := BuildClaim(
 		m, p.cfg.CheckpointTapscript, p.cfg.ServerPubKey, p.cfg.IntrospectorPubKey,
 	)
 	if err != nil {
-		p.log.WithError(err).WithField("outpoint", m.Outpoint.String()).
-			Warn("preimage claim build failed")
+		log.WithError(err).Warn("preimage claim build failed")
 		return
 	}
 
-	txid, err := SubmitClaim(ctx, p.cfg.ArkClient, p.cfg.Introspector, arkTx, checkpoints)
+	arkTxB64, b64Err := arkTx.B64Encode()
+	if b64Err != nil {
+		log.WithError(b64Err).Warn("preimage claim: failed to b64-encode unsigned ark tx (debug)")
+		arkTxB64 = "<encode-error>"
+	}
+	cpTxids := make([]string, len(checkpoints))
+	cpB64 := make([]string, len(checkpoints))
+	for i, cp := range checkpoints {
+		cpTxids[i] = cp.UnsignedTx.TxHash().String()
+		s, err := cp.B64Encode()
+		if err != nil {
+			cpB64[i] = "<encode-error>"
+		} else {
+			cpB64[i] = s
+		}
+	}
+	log.WithField("ark_txid", arkTx.UnsignedTx.TxHash().String()).
+		WithField("unsigned_ark_tx_b64", arkTxB64).
+		WithField("num_checkpoints", len(checkpoints)).
+		WithField("checkpoint_txids", cpTxids).
+		WithField("unsigned_checkpoints_b64", cpB64).
+		Debug("preimage claim: built ark tx + checkpoints")
+
+	txid, err := SubmitClaim(ctx, p.cfg.ArkClient, p.cfg.Introspector, arkTx, checkpoints, p.log)
 	if err != nil {
-		p.log.WithError(err).WithField("outpoint", m.Outpoint.String()).
+		log.WithError(err).
+			WithField("ark_txid", arkTx.UnsignedTx.TxHash().String()).
+			WithField("checkpoint_txids", cpTxids).
 			Warn("preimage claim submit failed")
 		return
 	}
 
-	p.log.
-		WithField("outpoint", m.Outpoint.String()).
-		WithField("amount", m.Amount).
+	log.WithField("amount", m.Amount).
 		WithField("txid", txid).
 		Info("preimage claim submitted")
 }

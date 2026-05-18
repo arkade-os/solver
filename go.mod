@@ -7,7 +7,7 @@ require (
 	github.com/ArkLabsHQ/introspector/pkg/client v0.0.0-20260427094156-b60e40adcde1
 	github.com/arkade-os/arkd/pkg/ark-lib v0.8.1-0.20260429091057-9246f043c4c8
 	github.com/arkade-os/arkd/pkg/client-lib v0.0.0-20260514151440-4ecc7753e264
-	github.com/arkade-os/go-sdk v0.9.2-0.20260514163636-f28dda8725d5
+	github.com/arkade-os/go-sdk v0.9.2-0.20260518112312-588477f9d618
 	github.com/btcsuite/btcd v0.24.3-0.20250318170759-4f4ea81776d6
 	github.com/btcsuite/btcd/btcec/v2 v2.3.6
 	github.com/btcsuite/btcd/btcutil v1.1.6

@@ -14,6 +14,8 @@ import (
 
 	introclient "github.com/ArkLabsHQ/introspector/pkg/client"
 	arkdclient "github.com/arkade-os/arkd/pkg/client-lib"
+	singlekey "github.com/arkade-os/arkd/pkg/client-lib/identity/singlekey"
+	singlekeyfilestore "github.com/arkade-os/arkd/pkg/client-lib/identity/singlekey/store/file"
 	arksdk "github.com/arkade-os/go-sdk"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/sirupsen/logrus"
@@ -58,13 +60,26 @@ func main() {
 	introspector := introclient.NewGRPCClient(introConn)
 
 	ctx := context.Background()
-	arkClient, err := arksdk.LoadWallet(cfg.Datadir)
+	identityStore, err := singlekeyfilestore.NewStore(cfg.Datadir)
 	if err != nil {
-		if !errors.Is(err, arkdclient.ErrNotInitialized) {
+		log.WithError(err).Fatal("failed to init identity store")
+	}
+	singleKeyIdentity, err := singlekey.NewIdentity(identityStore)
+	if err != nil {
+		log.WithError(err).Fatal("failed to init single-key identity")
+	}
+	walletOpts := []arksdk.WalletOption{arksdk.WithIdentity(singleKeyIdentity)}
+	arkClient, err := arksdk.LoadWallet(cfg.Datadir, walletOpts...)
+	if err != nil {
+		// Fresh datadir surfaces as either go-sdk's or client-lib's
+		// ErrNotInitialized depending on which layer first noticed the
+		// missing config — both are valid "no wallet yet" signals.
+		if !errors.Is(err, arksdk.ErrNotInitialized) &&
+			!errors.Is(err, arkdclient.ErrNotInitialized) {
 			log.WithError(err).Fatal("failed to load ark client")
 		}
 		// Fresh datadir — create and initialize the wallet.
-		arkClient, err = arksdk.NewWallet(cfg.Datadir)
+		arkClient, err = arksdk.NewWallet(cfg.Datadir, walletOpts...)
 		if err != nil {
 			log.WithError(err).Fatal("failed to create ark client")
 		}
