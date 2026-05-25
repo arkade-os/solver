@@ -40,6 +40,7 @@ type (
 // cheaply on every tx in the stream so they go first; validators may
 // be expensive (I/O, RPCs) and run only after decode succeeds.
 type Builder[T any] struct {
+	celFilter  string
 	filters    []txmatch.Predicate
 	decode     DecodeFunc[T]
 	validators []ValidateFunc[T]
@@ -91,6 +92,14 @@ func (b *Builder[T]) WithLogger(log logrus.FieldLogger) *Builder[T] {
 	return b
 }
 
+// WithFilter sets the CEL expression applied server-side by the solver
+// runtime when subscribing to the upstream tx stream for this plugin.
+// Empty string (the default) means no server-side filter.
+func (b *Builder[T]) WithFilter(cel string) *Builder[T] {
+	b.celFilter = cel
+	return b
+}
+
 // Build produces a solver.Plugin from the configured stages. Panics if
 // Decode or Solve are missing — these are programmer errors and shouldn't
 // be silently tolerated.
@@ -102,6 +111,7 @@ func (b *Builder[T]) Build() solver.Plugin {
 		panic("builder: Solve is required")
 	}
 	return &plugin[T]{
+		celFilter:  b.celFilter,
 		filters:    append([]txmatch.Predicate(nil), b.filters...),
 		decode:     b.decode,
 		validators: append([]ValidateFunc[T](nil), b.validators...),
@@ -111,12 +121,15 @@ func (b *Builder[T]) Build() solver.Plugin {
 }
 
 type plugin[T any] struct {
+	celFilter  string
 	filters    []txmatch.Predicate
 	decode     DecodeFunc[T]
 	validators []ValidateFunc[T]
 	solve      SolveFunc[T]
 	log        logrus.FieldLogger
 }
+
+func (p *plugin[T]) Filter() string { return p.celFilter }
 
 func (p *plugin[T]) Match(ctx context.Context, tx *psbt.Packet) (any, bool) {
 	var zero T

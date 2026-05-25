@@ -106,7 +106,7 @@ func (svc *PreimageService) Start() error {
 	}
 
 	s := solver.New(plugin).WithLogger(svc.log)
-	txs := arkdsource.Subscribe(ctx, svc.cfg.ArkClient, svc.log)
+	src := arkdsource.New(svc.cfg.ArkClient.Client(), svc.log)
 
 	svc.cancel = cancel
 	svc.done = make(chan struct{})
@@ -115,7 +115,7 @@ func (svc *PreimageService) Start() error {
 	go func() {
 		defer close(svc.done)
 		defer svc.setRunning(false)
-		if err := s.Run(ctx, txs); err != nil && !errors.Is(err, context.Canceled) {
+		if err := s.Run(ctx, src); err != nil && !errors.Is(err, context.Canceled) {
 			svc.log.WithError(err).Error("preimage solver run exited")
 		}
 	}()

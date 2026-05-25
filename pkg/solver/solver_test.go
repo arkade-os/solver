@@ -2,6 +2,7 @@ package solver
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -14,12 +15,15 @@ import (
 // fakePlugin drives engine tests.
 type fakePlugin struct {
 	mu      sync.Mutex
+	filter  string
 	matchFn func(context.Context, *psbt.Packet) (any, bool)
 	solveFn func(context.Context, any)
 	matched int
 	solved  []any
 	solveWg sync.WaitGroup
 }
+
+func (f *fakePlugin) Filter() string { return f.filter }
 
 func (f *fakePlugin) Match(ctx context.Context, tx *psbt.Packet) (any, bool) {
 	f.mu.Lock()
@@ -56,16 +60,78 @@ func (f *fakePlugin) waitSolves(t *testing.T) {
 	}
 }
 
+// fakeSource hands each Subscribe call a pre-loaded channel, indexed by
+// the filter string the plugin asked for. This lets tests assert that the
+// solver subscribed with the right filter and lets each plugin receive
+// its own tagged stream.
+type fakeSource struct {
+	mu       sync.Mutex
+	streams  map[string]chan *psbt.Packet
+	subErr   map[string]error
+	seen     []string
+	fallback chan *psbt.Packet // used when filter has no preconfigured stream
+}
+
+func newFakeSource() *fakeSource {
+	return &fakeSource{streams: map[string]chan *psbt.Packet{}, subErr: map[string]error{}}
+}
+
+func (s *fakeSource) withStream(filter string, ch chan *psbt.Packet) *fakeSource {
+	s.streams[filter] = ch
+	return s
+}
+
+func (s *fakeSource) withSubErr(filter string, err error) *fakeSource {
+	s.subErr[filter] = err
+	return s
+}
+
+func (s *fakeSource) withFallback(ch chan *psbt.Packet) *fakeSource {
+	s.fallback = ch
+	return s
+}
+
+func (s *fakeSource) Subscribe(_ context.Context, filter string) (<-chan *psbt.Packet, error) {
+	s.mu.Lock()
+	s.seen = append(s.seen, filter)
+	s.mu.Unlock()
+	if err, ok := s.subErr[filter]; ok {
+		return nil, err
+	}
+	if ch, ok := s.streams[filter]; ok {
+		return ch, nil
+	}
+	if s.fallback != nil {
+		return s.fallback, nil
+	}
+	// Default: empty stream that the caller closes externally.
+	ch := make(chan *psbt.Packet)
+	close(ch)
+	return ch, nil
+}
+
+func (s *fakeSource) seenFilters() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := append([]string(nil), s.seen...)
+	return out
+}
+
 // runEngine spawns Run in a goroutine, returns done channel + result holder.
-func runEngine(t *testing.T, s *Solver, ctx context.Context, ch <-chan *psbt.Packet) (chan struct{}, *error) {
+func runEngine(t *testing.T, s *Solver, ctx context.Context, src Source) (chan struct{}, *error) {
 	t.Helper()
 	done := make(chan struct{})
 	var runErr error
 	go func() {
 		defer close(done)
-		runErr = s.Run(ctx, ch)
+		runErr = s.Run(ctx, src)
 	}()
 	return done, &runErr
+}
+
+// singleSource wraps a single channel as a Source for one-plugin tests.
+func singleSource(ch chan *psbt.Packet) Source {
+	return newFakeSource().withFallback(ch)
 }
 
 func TestRun_ReturnsNilOnChannelClose(t *testing.T) {
@@ -74,7 +140,7 @@ func TestRun_ReturnsNilOnChannelClose(t *testing.T) {
 	ctx := context.Background()
 	ch := make(chan *psbt.Packet)
 
-	done, errp := runEngine(t, s, ctx, ch)
+	done, errp := runEngine(t, s, ctx, singleSource(ch))
 	close(ch)
 
 	select {
@@ -91,7 +157,7 @@ func TestRun_ReturnsCtxErrOnCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	ch := make(chan *psbt.Packet)
 
-	done, errp := runEngine(t, s, ctx, ch)
+	done, errp := runEngine(t, s, ctx, singleSource(ch))
 	cancel()
 
 	select {
@@ -113,7 +179,7 @@ func TestRun_MatchOkFalseDoesNotCallSolve(t *testing.T) {
 	ch <- &psbt.Packet{}
 	close(ch)
 
-	done, errp := runEngine(t, s, ctx, ch)
+	done, errp := runEngine(t, s, ctx, singleSource(ch))
 	<-done
 	require.NoError(t, *errp)
 	require.Empty(t, plugin.solved)
@@ -131,7 +197,7 @@ func TestRun_MatchOkTrueCallsSolve(t *testing.T) {
 	ch <- &psbt.Packet{}
 	close(ch)
 
-	done, errp := runEngine(t, s, ctx, ch)
+	done, errp := runEngine(t, s, ctx, singleSource(ch))
 	<-done
 	plugin.waitSolves(t)
 	require.NoError(t, *errp)
@@ -148,36 +214,84 @@ func TestRun_NilTxIsSkipped(t *testing.T) {
 	ch <- &psbt.Packet{}
 	close(ch)
 
-	done, errp := runEngine(t, s, ctx, ch)
+	done, errp := runEngine(t, s, ctx, singleSource(ch))
 	<-done
 	require.NoError(t, *errp)
 	// Only the non-nil tx should have been Matched.
 	require.Equal(t, 1, plugin.matched)
 }
 
-func TestRun_MultiplePluginsAllSeeTx(t *testing.T) {
+// TestRun_PerPluginFilteredSubscription verifies each Plugin gets its own
+// subscription keyed by its Filter(), and only its own stream's txs reach
+// its Match.
+func TestRun_PerPluginFilteredSubscription(t *testing.T) {
 	p1 := &fakePlugin{
+		filter:  "tag == 'a'",
 		matchFn: func(context.Context, *psbt.Packet) (any, bool) { return "p1", true },
 	}
 	p2 := &fakePlugin{
+		filter:  "tag == 'b'",
 		matchFn: func(context.Context, *psbt.Packet) (any, bool) { return "p2", true },
 	}
 	p1.expectSolves(1)
 	p2.expectSolves(1)
+
+	ch1 := make(chan *psbt.Packet, 1)
+	ch1 <- &psbt.Packet{}
+	close(ch1)
+	ch2 := make(chan *psbt.Packet, 1)
+	ch2 <- &psbt.Packet{}
+	close(ch2)
+
+	src := newFakeSource().
+		withStream("tag == 'a'", ch1).
+		withStream("tag == 'b'", ch2)
+
 	s := New(p1, p2)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	ch := make(chan *psbt.Packet, 1)
-	ch <- &psbt.Packet{}
-	close(ch)
 
-	done, errp := runEngine(t, s, ctx, ch)
+	done, errp := runEngine(t, s, ctx, src)
 	<-done
 	p1.waitSolves(t)
 	p2.waitSolves(t)
 	require.NoError(t, *errp)
+	require.ElementsMatch(t, []string{"tag == 'a'", "tag == 'b'"}, src.seenFilters())
+	// Each plugin saw exactly its own tx, not the other's.
+	require.Equal(t, 1, p1.matched)
+	require.Equal(t, 1, p2.matched)
 	require.Equal(t, []any{"p1"}, p1.solved)
 	require.Equal(t, []any{"p2"}, p2.solved)
+}
+
+// TestRun_SubscribeErrorSkipsPlugin verifies a Subscribe failure for one
+// plugin doesn't prevent the others from running.
+func TestRun_SubscribeErrorSkipsPlugin(t *testing.T) {
+	failing := &fakePlugin{filter: "bad"}
+	working := &fakePlugin{
+		filter:  "good",
+		matchFn: func(context.Context, *psbt.Packet) (any, bool) { return "ok", true },
+	}
+	working.expectSolves(1)
+
+	ch := make(chan *psbt.Packet, 1)
+	ch <- &psbt.Packet{}
+	close(ch)
+
+	src := newFakeSource().
+		withSubErr("bad", errors.New("nope")).
+		withStream("good", ch)
+
+	s := New(failing, working).WithLogger(nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done, errp := runEngine(t, s, ctx, src)
+	<-done
+	working.waitSolves(t)
+	require.NoError(t, *errp)
+	require.Equal(t, 0, failing.matched)
+	require.Equal(t, []any{"ok"}, working.solved)
 }
 
 // TestRun_WaitsForInflightSolvesOnChannelClose ensures Run does not return
@@ -200,7 +314,7 @@ func TestRun_WaitsForInflightSolvesOnChannelClose(t *testing.T) {
 	ch <- &psbt.Packet{}
 	close(ch)
 
-	done, errp := runEngine(t, s, ctx, ch)
+	done, errp := runEngine(t, s, ctx, singleSource(ch))
 
 	// Run must NOT return while Solve is still blocked.
 	select {
@@ -235,7 +349,7 @@ func TestRun_WaitsForInflightSolvesOnCtxCancel(t *testing.T) {
 	ch := make(chan *psbt.Packet, 1)
 	ch <- &psbt.Packet{}
 
-	done, errp := runEngine(t, s, ctx, ch)
+	done, errp := runEngine(t, s, ctx, singleSource(ch))
 
 	// Wait for Match to dispatch the Solve, then cancel.
 	require.Eventually(t, func() bool {
@@ -274,7 +388,7 @@ func TestRun_RecoversMatchPanic(t *testing.T) {
 	ch <- &psbt.Packet{}
 	close(ch)
 
-	done, errp := runEngine(t, s, ctx, ch)
+	done, errp := runEngine(t, s, ctx, singleSource(ch))
 	select {
 	case <-done:
 	case <-time.After(time.Second):
@@ -299,7 +413,7 @@ func TestRun_RecoversSolvePanic(t *testing.T) {
 	ch <- &psbt.Packet{}
 	close(ch)
 
-	done, errp := runEngine(t, s, ctx, ch)
+	done, errp := runEngine(t, s, ctx, singleSource(ch))
 	select {
 	case <-done:
 	case <-time.After(time.Second):

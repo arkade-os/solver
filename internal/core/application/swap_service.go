@@ -79,12 +79,12 @@ func (svc *TakerService) Start() {
 	svc.cancel = cancel
 	svc.done = make(chan struct{})
 
-	txs := arkdsource.Subscribe(ctx, svc.arkClient, svc.log)
+	src := arkdsource.New(svc.arkClient.Client(), svc.log)
 	svc.setRunning(true)
 	go func() {
 		defer close(svc.done)
 		defer svc.setRunning(false)
-		if err := svc.solver.Run(ctx, txs); err != nil && !errors.Is(err, context.Canceled) {
+		if err := svc.solver.Run(ctx, src); err != nil && !errors.Is(err, context.Canceled) {
 			svc.log.WithError(err).Error("solver run exited")
 		}
 	}()

@@ -11,6 +11,10 @@ import (
 
 // Plugin is the protocol-specific contract a Solver runs.
 type Plugin interface {
+	// Filter returns the CEL expression applied server-side to the upstream
+	// tx stream. Empty string means "no filter" (full stream).
+	Filter() string
+
 	// Match decodes/filters tx.
 	//   ok=false  -> ignore tx (not for us)
 	//   ok=true   -> hand intent to Solve
@@ -18,6 +22,15 @@ type Plugin interface {
 
 	// Solve reacts to a matched intent.
 	Solve(ctx context.Context, intent any)
+}
+
+// Source produces a stream of *psbt.Packet matching the given CEL filter.
+// An empty filter means no filtering. The returned channel is closed when
+// ctx is canceled or the upstream stream ends. Subscribe returns an error
+// only if the subscription itself can't be established; transport errors
+// after that close the channel instead.
+type Source interface {
+	Subscribe(ctx context.Context, filter string) (<-chan *psbt.Packet, error)
 }
 
 // Solver is the runtime that drives Plugins against a tx stream.
@@ -39,40 +52,77 @@ func (s *Solver) WithLogger(log logrus.FieldLogger) *Solver {
 	return &cp
 }
 
-// Run consumes txs sequentially and dispatches Match -> (Solve if ok).
-// Solves run concurrently; Run waits for all in-flight Solves before
-// returning, so callers get clean shutdown semantics. Panics inside
-// Match or Solve are recovered and logged so one buggy plugin can't
-// crash the bot.
+// Run subscribes each Plugin to Source with its own CEL filter and
+// dispatches incoming txs to Match -> (Solve if ok). Each plugin runs on
+// its own subscription so server-side filtering can drop unrelated txs
+// before they ever reach us. Solves run concurrently; Run waits for all
+// in-flight Solves before returning, so callers get clean shutdown
+// semantics. Panics inside Match or Solve are recovered and logged so
+// one buggy plugin can't crash the bot.
 //
 //   - returns ctx.Err() when ctx is canceled (after in-flight Solves drain)
-//   - returns nil when the txs channel is closed (after in-flight Solves drain)
-func (s *Solver) Run(ctx context.Context, txs <-chan *psbt.Packet) error {
+//   - returns nil when every per-plugin stream has closed (or no plugin
+//     subscribed successfully)
+//
+// A Subscribe error for a single plugin is logged and that plugin is
+// skipped; the rest continue.
+func (s *Solver) Run(ctx context.Context, source Source) error {
+	var wg sync.WaitGroup
+
+	for _, p := range s.plugins {
+		txs, err := source.Subscribe(ctx, p.Filter())
+		if err != nil {
+			if s.log != nil {
+				s.log.WithError(err).Error("plugin subscribe failed")
+			}
+			continue
+		}
+		wg.Add(1)
+		go func(p Plugin, txs <-chan *psbt.Packet) {
+			defer wg.Done()
+			s.consume(ctx, p, txs)
+		}(p, txs)
+	}
+
+	done := make(chan struct{})
+	go func() { wg.Wait(); close(done) }()
+
+	select {
+	case <-ctx.Done():
+		<-done
+		return ctx.Err()
+	case <-done:
+		return nil
+	}
+}
+
+// consume drives one plugin's tx stream until ctx is canceled or the
+// stream closes. Solves are launched concurrently and waited on via wg
+// so they drain before consume returns.
+func (s *Solver) consume(ctx context.Context, p Plugin, txs <-chan *psbt.Packet) {
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return
 		case tx, ok := <-txs:
 			if !ok {
-				return nil
+				return
 			}
 			if tx == nil {
 				continue
 			}
-			for _, p := range s.plugins {
-				intent, matched := s.safeMatch(ctx, p, tx)
-				if !matched {
-					continue
-				}
-				wg.Add(1)
-				go func(p Plugin, intent any) {
-					defer wg.Done()
-					s.safeSolve(ctx, p, intent)
-				}(p, intent)
+			intent, matched := s.safeMatch(ctx, p, tx)
+			if !matched {
+				continue
 			}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				s.safeSolve(ctx, p, intent)
+			}()
 		}
 	}
 }
