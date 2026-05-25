@@ -2,7 +2,7 @@
 
 `bancod` is a Go implementation of a **banco solver bot** for the [Arkade](https://arkadeos.com/) virtual mempool.
 
-A *maker* posts a swap offer as a VTXO on an Arkade network. The solver bot watches the arkd
+A *maker* posts a swap offer as a VTXO on an Arkade. The solver bot watches the arkd
 transaction stream, finds offers that match its configured pairs and price ranges, and fulfills
 them atomically via an introspector-signed Arkade transaction.
 
