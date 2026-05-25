@@ -2,9 +2,9 @@
 
 `bancod` is a Go implementation of a **banco solver bot** for the [Arkade](https://arkadeos.com/) virtual mempool.
 
-A *maker* posts a swap offer as a VTXO on an Ark network. The solver bot watches the arkd transaction
-stream, finds offers that match its configured pairs and price ranges, and fulfills them atomically
-via an introspector-signed Ark transaction.
+A *maker* posts a swap offer as a VTXO on an Arkade network. The solver bot watches the arkd
+transaction stream, finds offers that match its configured pairs and price ranges, and fulfills
+them atomically via an introspector-signed Arkade transaction.
 
 ## Architecture
 
@@ -31,7 +31,7 @@ spawns a goroutine for each matched `Solve`. Panics in either are recovered so
 one buggy plugin can't take the bot down, and `Run` waits for in-flight solves
 to drain on shutdown.
 
-Most plugins read protocol data from the Ark **extension** TLV in the OP_RETURN
+Most plugins read protocol data from the Arkade **extension** TLV in the OP_RETURN
 output of the funding tx, so `pkg/solver/builder` provides a typed pipeline
 (`Filter → Decode → Validate → Solve`) that hides the OP_RETURN parse. Today
 two plugins ship with the daemon:
@@ -39,7 +39,7 @@ two plugins ship with the daemon:
 - **`pkg/banco`** — banco swap solver. Decodes a swap offer, range-checks the
   amount and price, and fulfills via the introspector.
 - **`pkg/preimage`** — preimage-gated claim solver. Decrypts an ECIES payload
-  attached to the funding tx and claims the VTXO when the arkade script matches.
+  attached to the funding tx and claims the VTXO when the arkade-script matches.
 
 Each enabled plugin owns its own `Solver` and arkd subscription, so adding a
 new protocol means writing a new `Plugin` and wiring it in `cmd/bancod`. See
@@ -51,19 +51,19 @@ new protocol means writing a new `Plugin` and wiring it in `cmd/bancod`. See
 
 Wire-protocol primitives for the banco swap.
 
-- `Offer` — typed banco swap offer, encoded as a TLV payload inside an Ark
+- `Offer` — typed banco swap offer, encoded as a TLV payload inside an Arkade
   extension packet (`PacketType = 0x03`). Methods: `Serialize`, `ToPacket`,
   `FulfillScript`, and `VtxoScript` (builds the swap taproot tree from the
   maker, introspector, and signer keys).
 - `DeserializeOffer` / `FindBancoOffer` — decode an offer from raw bytes or
-  pull one out of an Ark extension.
+  pull one out of an Arkade extension.
 - `CreateOffer` — maker-side helper: queries the introspector for its signer
-  key, derives the maker address from the ark client, assembles an `Offer`,
+  key, derives the maker address from the Arkade client, assembles an `Offer`,
   and returns the hex-encoded offer + extension packet + swap address to
   fund (`CreateOfferParams` / `CreateOfferResult`).
 - `GetOffers` — queries the indexer for VTXOs sitting at a swap address, used
   by a maker to check whether its offer is still live (`[]OfferStatus`).
-- `FulfillOffer` — taker-side atomic swap: builds the Ark transaction that
+- `FulfillOffer` — taker-side atomic swap: builds the Arkade transaction that
   spends the swap VTXO to the maker's pkScript (paying `WantAmount`/`WantAsset`)
   and returns change to the taker, signs it with the introspector, and submits
   it (`FulfillResult`).
@@ -110,7 +110,7 @@ for a taker bot.
 A second solver plugin: preimage-gated VTXO claims. The bot is **stateless**
 — a maker fetches the bot's encryption pubkey via the `GetSolverPubKey`
 RPC, ECIES-encrypts `(preimage || arkade_script)` to that key, and attaches
-the ciphertext + plaintext taptree as an Ark extension TLV packet
+the ciphertext + plaintext taptree as an Arkade extension TLV packet
 (`PacketType = 0x04`) on the funding tx. The bot watches arkd's tx
 stream, parses the extension, decrypts on the fly, validates, and
 claims. No registration, no DB, no per-claim persistence. v1 only
