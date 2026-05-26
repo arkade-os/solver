@@ -3,6 +3,58 @@
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
+// -------- icons (inline SVG, lucide-style) --------
+
+const ICONS = {
+  layers:
+    '<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/>',
+  wallet:
+    '<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/>',
+  history:
+    '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>',
+  key:
+    '<path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/>',
+  plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  refresh:
+    '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+  copy:
+    '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  trash:
+    '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
+  edit:
+    '<path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/>',
+  external:
+    '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+  "arrow-right": '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+  info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+  eye:
+    '<path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  alert:
+    '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
+  "wifi-off":
+    '<path d="M12 20h.01"/><path d="M8.5 16.43a5 5 0 0 1 7 0"/><path d="M5 12.86a10 10 0 0 1 5.17-2.69"/><path d="M19 12.86a10 10 0 0 0-2.01-1.52"/><path d="M2 8.82a15 15 0 0 1 4.18-2.64"/><path d="M22 8.82a15 15 0 0 0-11.29-3.76"/><path d="m2 2 20 20"/>',
+  "power-off":
+    '<path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" x2="12" y1="2" y2="12"/>',
+};
+
+function icon(name, cls = "") {
+  const body = ICONS[name] || "";
+  return `<svg class="${`icon ${cls}`.trim()}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+}
+
+// hydrateIcons swaps every <i data-icon="name"> placeholder for inline SVG,
+// preserving any extra classes (e.g. "empty-art").
+function hydrateIcons(root = document) {
+  $$("i[data-icon]", root).forEach((el) => {
+    const extra = el.className.trim();
+    el.outerHTML = icon(el.dataset.icon, extra);
+  });
+}
+
+// -------- api --------
+
 const api = {
   async _req(method, path, body) {
     const res = await fetch(path, {
@@ -28,16 +80,12 @@ const api = {
   addPair: (pair) => api._req("POST", "/v1/pair", { pair }),
   updatePair: (pair) => api._req("PUT", "/v1/pair", { pair }),
   removePair: (name) => api._req("DELETE", `/v1/pair/${encodeURIComponent(name)}`),
-  status: () => api._req("GET", "/v1/status"),
   plugins: () => api._req("GET", "/v1/plugins"),
   balance: () => api._req("GET", "/v1/balance"),
   address: () => api._req("GET", "/v1/address"),
   listTrades: (limit = 100) =>
     api._req("GET", `/v1/trades?limit=${encodeURIComponent(limit)}`),
-  listClaims: () => api._req("GET", "/v1/preimage/claims"),
-  registerClaim: (body) => api._req("POST", "/v1/preimage/claim", body),
-  deleteClaim: (addr) =>
-    api._req("DELETE", `/v1/preimage/claim/${encodeURIComponent(addr)}`),
+  solverKeys: () => api._req("GET", "/v1/preimage/solver-pubkey"),
 };
 
 // -------- toast --------
@@ -46,7 +94,10 @@ function toast(message, kind = "info", actionLabel, onAction) {
   const root = $("#toasts");
   const el = document.createElement("div");
   el.className = "toast" + (kind !== "info" ? ` ${kind}` : "");
+  const ic = kind === "error" ? "alert" : kind === "success" ? "check" : "info";
+  el.innerHTML = icon(ic);
   const msg = document.createElement("span");
+  msg.className = "toast-msg";
   msg.textContent = message;
   el.appendChild(msg);
   if (actionLabel && onAction) {
@@ -84,14 +135,13 @@ function truncMid(s, head = 8, tail = 6) {
   return `${s.slice(0, head)}…${s.slice(-tail)}`;
 }
 
-function displayPair(name) {
-  if (!name) return "";
-  const [base, quote] = name.split("/");
-  return `${truncMid(base)} / ${truncMid(quote)}`;
+// assetLabel renders an asset id (or "BTC") for display, truncated when long.
+function assetLabel(s, head = 6, tail = 4) {
+  if (!s) return "?";
+  return truncMid(s, head, tail);
 }
 
-// pairWantAsset returns the want-side asset of a pair name.
-// In a base/quote pair the deposit is base and the want is quote.
+// pairWantAsset returns the want-side (quote) asset of a pair name.
 function pairWantAsset(name) {
   if (!name) return "";
   const i = name.indexOf("/");
@@ -99,46 +149,32 @@ function pairWantAsset(name) {
 }
 
 // fmtPairAmount formats a min/max value using the pair's want-side asset:
-// BTC → satoshi count + BTC label, asset → raw count + truncated id.
+// BTC → satoshi count, asset → raw count + truncated id.
 function fmtPairAmount(raw, pairName) {
   if (raw == null) return "—";
   const want = pairWantAsset(pairName);
   if (want === "BTC") return `${Number(raw).toLocaleString("en-US")} sats`;
-  return `${Number(raw).toLocaleString("en-US")} · ${truncMid(want, 6, 4)}`;
+  return `${Number(raw).toLocaleString("en-US")} · ${assetLabel(want)}`;
 }
 
 async function copy(text) {
   try {
     await navigator.clipboard.writeText(text);
-    toast("Copied", "success");
+    toast("Copied to clipboard", "success");
   } catch (_) {
     toast("Copy failed", "error");
   }
 }
 
-// -------- navigation --------
+// -------- plugin state, gating & connection banner --------
 
-function setSection(name) {
-  $$(".nav-item").forEach((b) => {
-    const active = b.dataset.section === name;
-    b.toggleAttribute("aria-current", active);
-    if (active) b.setAttribute("aria-current", "page");
-  });
-  $$(".view").forEach((v) => (v.hidden = true));
-  const target = $(`#view-${name}`);
-  if (target) target.hidden = false;
-  if (name === "balance") loadBalance();
-  if (name === "pairs") loadPairs();
-  if (name === "history") loadTrades();
-  if (name === "preimage") loadClaims();
+// pluginsState mirrors GET /v1/plugins; null until first fetch.
+let pluginsState = null;
+
+function pluginEnabled(name) {
+  // Treat "unknown" as enabled so we don't gate before the first poll.
+  return !pluginsState || pluginsState[name]?.enabled !== false;
 }
-
-$("#nav").addEventListener("click", (e) => {
-  const btn = e.target.closest(".nav-item");
-  if (btn) setSection(btn.dataset.section);
-});
-
-// -------- status polling --------
 
 function setPluginChip(name, info) {
   const chip = $(`#plugin-${name}`);
@@ -151,6 +187,27 @@ function setPluginChip(name, info) {
   }
   chip.dataset.state = info.running ? "running" : "stopped";
   stateEl.textContent = info.running ? "running" : "stopped";
+}
+
+function applyGating() {
+  $$(".nav-item").forEach((btn) => {
+    const plug = btn.dataset.plugin;
+    const disabled = pluginsState && pluginsState[plug]?.enabled === false;
+    btn.dataset.disabled = disabled ? "true" : "false";
+    let off = btn.querySelector(".nav-off");
+    if (disabled && !off) {
+      off = document.createElement("span");
+      off.className = "nav-off";
+      off.textContent = "off";
+      btn.appendChild(off);
+    } else if (!disabled && off) {
+      off.remove();
+    }
+  });
+}
+
+function setConnected(ok) {
+  $("#conn-banner").hidden = ok;
 }
 
 function setPluginsOffline() {
@@ -166,27 +223,105 @@ function setPluginsOffline() {
 async function refreshStatus() {
   try {
     const p = await api.plugins();
+    pluginsState = p;
     setPluginChip("banco", p.banco);
     setPluginChip("preimage", p.preimage);
-  } catch (err) {
+    applyGating();
+    setConnected(true);
+  } catch (_) {
     setPluginsOffline();
+    setConnected(false);
   }
 }
 
-setInterval(refreshStatus, 5000);
+// renderDisabled hides a view's normal content and shows a "plugin disabled"
+// notice instead of letting its loader hit endpoints that 404.
+function renderDisabled(viewName, pluginName) {
+  $$(`#view-${viewName} > .card`).forEach((c) => (c.hidden = true));
+  $$(`#view-${viewName} .view-head button`).forEach((b) => (b.hidden = true));
+  let el = $(`#${viewName}-disabled`);
+  if (!el) {
+    el = document.createElement("div");
+    el.className = "card";
+    el.id = `${viewName}-disabled`;
+    el.innerHTML = `<div class="empty">${icon(
+      "power-off",
+      "empty-art"
+    )}<p>The <strong>${escapeHTML(
+      pluginName
+    )}</strong> plugin is disabled.</p><p class="muted">Enable it in the bancod configuration to use this section.</p></div>`;
+    $(`#view-${viewName}`).appendChild(el);
+  }
+  el.hidden = false;
+}
+
+function clearDisabled(viewName) {
+  const el = $(`#${viewName}-disabled`);
+  if (el) el.hidden = true;
+  $$(`#view-${viewName} > .card`).forEach((c) => {
+    if (c.id !== `${viewName}-disabled`) c.hidden = false;
+  });
+  $$(`#view-${viewName} .view-head button`).forEach((b) => (b.hidden = false));
+}
+
+// -------- navigation --------
+
+const VIEW_PLUGIN = {
+  pairs: "banco",
+  balance: "banco",
+  history: "banco",
+  solverkeys: "preimage",
+};
+
+function setSection(name) {
+  $$(".nav-item").forEach((b) => {
+    const active = b.dataset.section === name;
+    b.toggleAttribute("aria-current", active);
+    if (active) b.setAttribute("aria-current", "page");
+  });
+  $$(".view").forEach((v) => (v.hidden = true));
+  const target = $(`#view-${name}`);
+  if (target) target.hidden = false;
+
+  const plug = VIEW_PLUGIN[name];
+  if (plug && !pluginEnabled(plug)) {
+    renderDisabled(name, plug);
+    return;
+  }
+  clearDisabled(name);
+  if (name === "balance") loadBalance();
+  if (name === "pairs") loadPairs();
+  if (name === "history") loadTrades();
+  if (name === "solverkeys") loadKeys();
+}
+
+$("#nav").addEventListener("click", (e) => {
+  const btn = e.target.closest(".nav-item");
+  if (btn) setSection(btn.dataset.section);
+});
+
+// firstEnabledSection picks the landing tab based on which plugins are on.
+function firstEnabledSection() {
+  if (pluginEnabled("banco")) return "pairs";
+  if (pluginEnabled("preimage")) return "solverkeys";
+  return "pairs";
+}
 
 // -------- pairs --------
 
 let pairsCache = [];
 
 async function loadPairs() {
+  const body = $("#pairs-body");
+  const empty = $("#pairs-empty");
   try {
     const data = await api.listPairs();
     pairsCache = data.pairs || [];
     renderPairs(pairsCache);
   } catch (err) {
     toast(err.message, "error");
-    renderPairs([]);
+    body.innerHTML = "";
+    empty.hidden = false;
   }
 }
 
@@ -201,18 +336,34 @@ function renderPairs(pairs) {
   empty.hidden = true;
   body.innerHTML = "";
   for (const p of pairs) {
+    const base = pairBase(p.pair);
+    const quote = pairWantAsset(p.pair);
     const tr = document.createElement("tr");
     tr.dataset.pair = p.pair;
     tr.innerHTML = `
-      <td><span class="mono" title="${escapeAttr(p.pair)}">${escapeHTML(displayPair(p.pair))}</span></td>
-      <td>${escapeHTML(fmtPairAmount(p.min_amount, p.pair))}</td>
-      <td>${escapeHTML(fmtPairAmount(p.max_amount, p.pair))}</td>
-      <td><a href="${escapeAttr(safeHref(p.price_feed))}" target="_blank" rel="noreferrer noopener" class="mono trunc">${escapeHTML(p.price_feed)}</a></td>
-      <td>${p.invert_price ? '<span class="badge on">Yes</span>' : '<span class="badge">No</span>'}</td>
+      <td>
+        <span class="mono" title="${escapeAttr(p.pair)}">${escapeHTML(
+          assetLabel(base)
+        )} ${icon("arrow-right")} ${escapeHTML(assetLabel(quote))}</span>
+      </td>
+      <td class="num">${escapeHTML(fmtPairAmount(p.min_amount, p.pair))}</td>
+      <td class="num">${escapeHTML(fmtPairAmount(p.max_amount, p.pair))}</td>
+      <td><a href="${escapeAttr(safeHref(p.price_feed))}" target="_blank" rel="noreferrer noopener" class="mono trunc" title="${escapeAttr(
+        p.price_feed
+      )}">${escapeHTML(p.price_feed)}</a></td>
+      <td>${
+        p.invert_price
+          ? '<span class="badge on">Yes</span>'
+          : '<span class="badge">No</span>'
+      }</td>
       <td class="actions-col">
         <div class="row-actions">
-          <button class="btn btn-ghost" data-edit>Edit</button>
-          <button class="btn btn-ghost btn-danger" data-del>Delete</button>
+          <button class="icon-btn" data-edit aria-label="Edit pair">${icon(
+            "edit"
+          )}</button>
+          <button class="icon-btn btn-danger" data-del aria-label="Delete pair">${icon(
+            "trash"
+          )}</button>
         </div>
       </td>`;
     tr.querySelector("[data-edit]").addEventListener("click", () => openEdit(p));
@@ -221,34 +372,163 @@ function renderPairs(pairs) {
   }
 }
 
-// -------- dialog --------
+function pairBase(name) {
+  if (!name) return "";
+  const i = name.indexOf("/");
+  return i < 0 ? name : name.slice(0, i);
+}
+
+// -------- pair dialog --------
 
 const dialog = $("#pair-dialog");
 const form = $("#pair-form");
 
+// sideValue resolves a base/quote side to "BTC" or a normalized hex asset id.
+function sideValue(side) {
+  const kind = form.elements[`${side}_kind`].value;
+  if (kind === "BTC") return "BTC";
+  return String(form.elements[`${side}_asset`].value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^0x/, "");
+}
+
+// syncAssetInputs shows the hex input only when its side is set to "asset",
+// and toggles `required` so a hidden field never blocks submit.
+function syncAssetInputs() {
+  ["base", "quote"].forEach((side) => {
+    const isAsset = form.elements[`${side}_kind`].value === "asset";
+    const input = form.elements[`${side}_asset`];
+    input.hidden = !isAsset;
+    input.required = isAsset && !form.dataset.locked;
+  });
+}
+
+function updateForm() {
+  syncAssetInputs();
+  const base = sideValue("base");
+  const quote = sideValue("quote");
+  const baseDisp = base === "BTC" ? "BTC" : base ? assetLabel(base) : "an asset";
+  const quoteDisp =
+    quote === "BTC" ? "BTC" : quote ? assetLabel(quote) : "an asset";
+
+  // unit suffix + amount hint follow the want (quote) asset.
+  const unit = quote === "BTC" ? "sats" : "units";
+  $$("[data-unit-suffix]").forEach((el) => (el.textContent = unit));
+  $("#amount-hint").textContent =
+    quote === "BTC"
+      ? "Bounds are in satoshis on the want side (BTC dust ≥ 330 sats)."
+      : "Bounds are in the want asset's smallest (raw) unit.";
+
+  // invert hint references the actual sides.
+  $("#invert-hint").textContent = `Offers are priced as ${baseDisp} per ${quoteDisp}. Enable if your feed returns ${quoteDisp} per ${baseDisp} instead.`;
+
+  // live preview.
+  const baseStr = base || "?";
+  const quoteStr = quote || "?";
+  $("#preview-pair-str").textContent = `${assetLabel(baseStr)} / ${assetLabel(
+    quoteStr
+  )}`;
+  const min = form.elements.min_amount.value;
+  const max = form.elements.max_amount.value;
+  const minStr = min ? Number(min).toLocaleString("en-US") : "min";
+  const maxStr = max ? Number(max).toLocaleString("en-US") : "max";
+  $("#preview-text").innerHTML = `The solver fulfills offers depositing <strong>${escapeHTML(
+    baseDisp
+  )}</strong> for <strong>${escapeHTML(
+    quoteDisp
+  )}</strong> when the maker wants between <strong>${escapeHTML(
+    minStr
+  )}</strong> and <strong>${escapeHTML(maxStr)}</strong> <strong>${escapeHTML(
+    unit
+  )}</strong>.`;
+}
+
+function setAssetsLocked(locked) {
+  form.dataset.locked = locked ? "1" : "";
+  ["base_kind", "quote_kind"].forEach((n) => {
+    form.querySelectorAll(`[name="${n}"]`).forEach((r) => (r.disabled = locked));
+  });
+  form.elements.base_asset.disabled = locked;
+  form.elements.quote_asset.disabled = locked;
+  $("#assets-section").style.opacity = locked ? "0.7" : "";
+}
+
+function clearFormErrors() {
+  $("#assets-error").textContent = "";
+  $("#amount-error").textContent = "";
+  ["base_asset", "quote_asset", "min_amount", "max_amount"].forEach((n) =>
+    form.elements[n].classList.remove("invalid")
+  );
+}
+
 function openAdd() {
   form.reset();
   form.dataset.mode = "add";
-  $("#dialog-title").textContent = "Add pair";
-  form.elements.pair.readOnly = false;
+  setAssetsLocked(false);
+  // defaults: deposit BTC, want asset.
+  form.elements.base_kind.value = "BTC";
+  form.elements.quote_kind.value = "asset";
+  clearFormErrors();
+  $("#dialog-title").textContent = "Add trading pair";
   $("#pair-submit").textContent = "Add pair";
+  updateForm();
   dialog.showModal();
-  form.elements.pair.focus();
 }
 
 function openEdit(pair) {
   form.reset();
   form.dataset.mode = "edit";
-  form.elements.pair.value = pair.pair;
-  form.elements.pair.readOnly = true;
+  const base = pairBase(pair.pair);
+  const quote = pairWantAsset(pair.pair);
+  form.elements.base_kind.value = base === "BTC" ? "BTC" : "asset";
+  form.elements.quote_kind.value = quote === "BTC" ? "BTC" : "asset";
+  form.elements.base_asset.value = base === "BTC" ? "" : base;
+  form.elements.quote_asset.value = quote === "BTC" ? "" : quote;
   form.elements.min_amount.value = pair.min_amount;
   form.elements.max_amount.value = pair.max_amount;
   form.elements.price_feed.value = pair.price_feed;
   form.elements.invert_price.checked = !!pair.invert_price;
-  $("#dialog-title").textContent = "Edit pair";
+  setAssetsLocked(true); // identity can't change on edit
+  clearFormErrors();
+  $("#dialog-title").textContent = "Edit trading pair";
   $("#pair-submit").textContent = "Save changes";
+  updateForm();
   dialog.showModal();
 }
+
+function validateForm(base, quote, min, max) {
+  let ok = true;
+  const isHex = (s) => /^[0-9a-f]+$/.test(s) && s.length % 2 === 0;
+  if (!form.dataset.locked) {
+    if (base !== "BTC" && !isHex(base)) {
+      $("#assets-error").textContent = "Deposit asset must be a valid hex id.";
+      form.elements.base_asset.classList.add("invalid");
+      ok = false;
+    } else if (quote !== "BTC" && !isHex(quote)) {
+      $("#assets-error").textContent = "Want asset must be a valid hex id.";
+      form.elements.quote_asset.classList.add("invalid");
+      ok = false;
+    } else if (base === quote) {
+      $("#assets-error").textContent = "Deposit and want assets must differ.";
+      ok = false;
+    }
+  }
+  if (ok) {
+    if (!(min > 0) || !(max > 0)) {
+      $("#amount-error").textContent = "Min and max must be greater than 0.";
+      ok = false;
+    } else if (min > max) {
+      $("#amount-error").textContent = "Min must be less than or equal to max.";
+      form.elements.min_amount.classList.add("invalid");
+      ok = false;
+    }
+  }
+  return ok;
+}
+
+form.addEventListener("input", updateForm);
+form.addEventListener("change", updateForm);
 
 $("#btn-add-pair").addEventListener("click", openAdd);
 $("#btn-add-first-pair").addEventListener("click", openAdd);
@@ -258,13 +538,19 @@ $$("#pair-dialog [data-close]").forEach((b) =>
 
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
-  const fd = new FormData(form);
+  clearFormErrors();
+  const base = sideValue("base");
+  const quote = sideValue("quote");
+  const min = Number(form.elements.min_amount.value);
+  const max = Number(form.elements.max_amount.value);
+  if (!validateForm(base, quote, min, max)) return;
+
   const pair = {
-    pair: String(fd.get("pair")).trim(),
-    min_amount: Number(fd.get("min_amount")),
-    max_amount: Number(fd.get("max_amount")),
-    price_feed: String(fd.get("price_feed")).trim(),
-    invert_price: fd.get("invert_price") === "on",
+    pair: `${base}/${quote}`,
+    min_amount: min,
+    max_amount: max,
+    price_feed: String(form.elements.price_feed.value).trim(),
+    invert_price: form.elements.invert_price.checked,
   };
   const mode = form.dataset.mode;
   const submit = $("#pair-submit");
@@ -293,19 +579,14 @@ async function deletePair(pair) {
   renderPairs(pairsCache);
   try {
     await api.removePair(pair.pair);
-    toast(
-      "Pair deleted",
-      "success",
-      "Undo",
-      async () => {
-        try {
-          await api.addPair(pair);
-          await loadPairs();
-        } catch (err) {
-          toast(err.message, "error");
-        }
+    toast("Pair deleted", "success", "Undo", async () => {
+      try {
+        await api.addPair(pair);
+        await loadPairs();
+      } catch (err) {
+        toast(err.message, "error");
       }
-    );
+    });
   } catch (err) {
     pairsCache = prev;
     renderPairs(pairsCache);
@@ -351,12 +632,26 @@ async function loadTrades() {
     for (const t of trades) {
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td title="${escapeAttr(new Date(t.created_at * 1000).toISOString())}">${escapeHTML(fmtTime(t.created_at))}</td>
-        <td><span class="mono" title="${escapeAttr(t.pair)}">${escapeHTML(displayPair(t.pair))}</span></td>
-        <td>${escapeHTML(fmtAmount(t.deposit_amount, t.deposit_asset))}</td>
-        <td>${escapeHTML(fmtAmount(t.want_amount, t.want_asset))}</td>
-        <td><code class="mono trunc" title="${escapeAttr(t.offer_txid)}">${escapeHTML(truncMid(t.offer_txid, 6, 6))}</code></td>
-        <td><code class="mono trunc" title="${escapeAttr(t.fulfill_txid)}">${escapeHTML(truncMid(t.fulfill_txid, 6, 6))}</code></td>`;
+        <td title="${escapeAttr(
+          new Date(t.created_at * 1000).toISOString()
+        )}">${escapeHTML(fmtTime(t.created_at))}</td>
+        <td><span class="mono" title="${escapeAttr(t.pair)}">${escapeHTML(
+          assetLabel(pairBase(t.pair))
+        )} ${icon("arrow-right")} ${escapeHTML(
+          assetLabel(pairWantAsset(t.pair))
+        )}</span></td>
+        <td class="num">${escapeHTML(
+          fmtAmount(t.deposit_amount, t.deposit_asset)
+        )}</td>
+        <td class="num">${escapeHTML(
+          fmtAmount(t.want_amount, t.want_asset)
+        )}</td>
+        <td><code class="mono trunc" title="${escapeAttr(
+          t.offer_txid
+        )}">${escapeHTML(truncMid(t.offer_txid, 6, 6))}</code></td>
+        <td><code class="mono trunc" title="${escapeAttr(
+          t.fulfill_txid
+        )}">${escapeHTML(truncMid(t.fulfill_txid, 6, 6))}</code></td>`;
       body.appendChild(tr);
     }
   } catch (err) {
@@ -379,129 +674,31 @@ function fmtTime(unixSec) {
 function fmtAmount(raw, asset) {
   if (raw == null) return "—";
   if (asset === "BTC" || !asset) {
-    return `${(Number(raw) / 1e8).toFixed(8)} BTC (${Number(raw).toLocaleString("en-US")} sats)`;
+    return `${(Number(raw) / 1e8).toFixed(8)} BTC`;
   }
-  // Asset decimals aren't exposed by the API; show raw count + truncated asset id.
-  return `${Number(raw).toLocaleString("en-US")} · ${truncMid(asset, 6, 4)}`;
+  // Asset decimals aren't exposed by the API; show raw count + truncated id.
+  return `${Number(raw).toLocaleString("en-US")} · ${assetLabel(asset)}`;
 }
 
 $("#btn-refresh-trades").addEventListener("click", loadTrades);
 
-// -------- preimage claims --------
+// -------- solver keys --------
 
-let claimsCache = [];
-
-async function loadClaims() {
-  const body = $("#claims-body");
-  const empty = $("#claims-empty");
+async function loadKeys() {
   try {
-    const data = await api.listClaims();
-    claimsCache = data.claims || [];
-    if (!claimsCache.length) {
-      body.innerHTML = "";
-      empty.hidden = false;
-      return;
-    }
-    empty.hidden = true;
-    body.innerHTML = "";
-    for (const c of claimsCache) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td><code class="mono trunc" title="${escapeAttr(c.claim_address)}">${escapeHTML(c.claim_address)}</code></td>
-        <td class="actions-col">
-          <div class="row-actions">
-            <button class="btn btn-ghost" data-copy-claim>Copy</button>
-            <button class="btn btn-ghost btn-danger" data-del-claim>Delete</button>
-          </div>
-        </td>`;
-      tr.querySelector("[data-copy-claim]").addEventListener("click", () => copy(c.claim_address));
-      tr.querySelector("[data-del-claim]").addEventListener("click", () => deleteClaim(c.claim_address));
-      body.appendChild(tr);
-    }
+    const k = await api.solverKeys();
+    $("#solver-pubkey").textContent = k.solver_pub_key || "—";
+    $("#introspector-pubkey").textContent = k.introspector_pub_key || "—";
   } catch (err) {
     toast(err.message, "error");
-    body.innerHTML = "";
-    empty.hidden = false;
+    $("#solver-pubkey").textContent = "—";
+    $("#introspector-pubkey").textContent = "—";
   }
 }
 
-function hexToBase64(hex) {
-  let s = String(hex || "").trim().toLowerCase();
-  if (s.startsWith("0x")) s = s.slice(2);
-  if (s.length === 0) throw new Error("hex string is empty");
-  if (s.length % 2 !== 0) throw new Error("hex string must have even length");
-  if (!/^[0-9a-f]+$/.test(s)) throw new Error("invalid hex characters");
-  let bin = "";
-  for (let i = 0; i < s.length; i += 2) {
-    bin += String.fromCharCode(parseInt(s.slice(i, i + 2), 16));
-  }
-  return btoa(bin);
-}
+$("#btn-refresh-keys").addEventListener("click", loadKeys);
 
-const claimDialog = $("#claim-dialog");
-const claimForm = $("#claim-form");
-
-function openAddClaim() {
-  claimForm.reset();
-  claimDialog.showModal();
-  claimForm.elements.preimage.focus();
-}
-
-$("#btn-add-claim").addEventListener("click", openAddClaim);
-$("#btn-add-first-claim").addEventListener("click", openAddClaim);
-$$("#claim-dialog [data-close]").forEach((b) =>
-  b.addEventListener("click", () => claimDialog.close())
-);
-
-claimForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const fd = new FormData(claimForm);
-  const submit = $("#claim-submit");
-  submit.disabled = true;
-  try {
-    const taptreeLines = String(fd.get("taptree") || "")
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter(Boolean);
-    if (!taptreeLines.length) throw new Error("taptree must contain at least one closure");
-    // Validate each closure is hex.
-    taptreeLines.forEach((l) => {
-      if (!/^(0x)?[0-9a-fA-F]+$/.test(l)) {
-        throw new Error(`taptree line is not hex: ${l.slice(0, 16)}…`);
-      }
-    });
-    const body = {
-      preimage: hexToBase64(fd.get("preimage")),
-      arkade_script: hexToBase64(fd.get("arkade_script")),
-      taptree: taptreeLines.map((l) => l.replace(/^0x/i, "")),
-    };
-    const resp = await api.registerClaim(body);
-    toast(`Claim registered: ${truncMid(resp.claim_address, 10, 10)}`, "success");
-    claimDialog.close();
-    await loadClaims();
-  } catch (err) {
-    toast(err.message, "error");
-  } finally {
-    submit.disabled = false;
-  }
-});
-
-async function deleteClaim(address) {
-  if (!confirm(`Delete claim ${address}?`)) return;
-  const prev = claimsCache.slice();
-  claimsCache = claimsCache.filter((c) => c.claim_address !== address);
-  try {
-    await api.deleteClaim(address);
-    toast("Claim deleted", "success");
-    await loadClaims();
-  } catch (err) {
-    claimsCache = prev;
-    toast(err.message, "error");
-    await loadClaims();
-  }
-}
-
-// delegate copy buttons
+// delegate copy buttons (copies full textContent; CSS handles truncation)
 document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-copy]");
   if (!b) return;
@@ -512,8 +709,16 @@ document.addEventListener("click", (e) => {
 // -------- utils --------
 
 function escapeHTML(s) {
-  return String(s ?? "").replace(/[&<>"']/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]
+  return String(s ?? "").replace(
+    /[&<>"']/g,
+    (c) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[c]
   );
 }
 function escapeAttr(s) {
@@ -521,18 +726,19 @@ function escapeAttr(s) {
 }
 
 // safeHref returns the URL only if it parses and uses an http(s) scheme.
-// Anything else (javascript:, data:, malformed) returns "#" to neutralize it.
 function safeHref(s) {
   try {
     const u = new URL(String(s ?? ""));
-    if (u.protocol === "http:" || u.protocol === "https:") {
-      return u.href;
-    }
+    if (u.protocol === "http:" || u.protocol === "https:") return u.href;
   } catch (_) {}
   return "#";
 }
 
 // -------- init --------
 
-refreshStatus();
-setSection("pairs");
+hydrateIcons(document);
+(async () => {
+  await refreshStatus();
+  setSection(firstEnabledSection());
+})();
+setInterval(refreshStatus, 5000);

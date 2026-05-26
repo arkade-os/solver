@@ -10,24 +10,34 @@
   <body>
     <aside class="sidebar">
       <div class="brand">
-        <span class="brand-mark">◇</span>
+        <svg class="brand-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <rect x="6.34" y="6.34" width="19.3" height="19.3" rx="4"
+            transform="rotate(45 16 16)" stroke="currentColor" stroke-width="2" />
+          <circle cx="16" cy="16" r="3" fill="currentColor" />
+        </svg>
         <span class="brand-name">bancod</span>
       </div>
+
       <nav class="nav" id="nav">
-        <button class="nav-item" data-section="pairs" aria-current="page">
-          <span class="nav-icon">◇</span> Pairs
+        <span class="nav-section-label">Banco solver</span>
+        <button class="nav-item" data-section="pairs" data-plugin="banco" aria-current="page">
+          <i data-icon="layers"></i> <span>Trading pairs</span>
         </button>
-        <button class="nav-item" data-section="preimage">
-          <span class="nav-icon">⚿</span> Preimage
+        <button class="nav-item" data-section="balance" data-plugin="banco">
+          <i data-icon="wallet"></i> <span>Balance</span>
         </button>
-        <button class="nav-item" data-section="balance">
-          <span class="nav-icon">◉</span> Balance
+        <button class="nav-item" data-section="history" data-plugin="banco">
+          <i data-icon="history"></i> <span>History</span>
         </button>
-        <button class="nav-item" data-section="history">
-          <span class="nav-icon">⏱</span> History
+
+        <span class="nav-section-label">Preimage solver</span>
+        <button class="nav-item" data-section="solverkeys" data-plugin="preimage">
+          <i data-icon="key"></i> <span>Solver keys</span>
         </button>
       </nav>
+
       <div class="sidebar-foot">
+        <div class="sidebar-foot-label">Plugins</div>
         <div class="plugin-list" id="plugin-list">
           <span class="plugin-chip" id="plugin-banco" data-state="unknown">
             <span class="dot"></span>
@@ -44,39 +54,49 @@
     </aside>
 
     <main class="content">
-      <!-- Pairs -->
+      <div class="banner" id="conn-banner" hidden>
+        <i data-icon="wifi-off"></i>
+        <span>Disconnected from the bancod daemon. Retrying…</span>
+      </div>
+
+      <!-- Trading pairs -->
       <section class="view" id="view-pairs">
         <header class="view-head">
           <div>
             <h1>Trading pairs</h1>
-            <p class="muted">Configure the pairs the solver will fulfill offers on.</p>
+            <p class="muted">Offers the solver will fulfill, with their price-feed bounds.</p>
           </div>
           <button class="btn btn-primary" id="btn-add-pair">
-            <span>＋</span> Add pair
+            <i data-icon="plus"></i> Add pair
           </button>
         </header>
 
         <div class="card">
-          <table class="table" id="pairs-table">
-            <thead>
-              <tr>
-                <th>Pair (base / quote)</th>
-                <th>Min (want)</th>
-                <th>Max (want)</th>
-                <th>Price feed</th>
-                <th>Invert</th>
-                <th class="actions-col"></th>
-              </tr>
-            </thead>
-            <tbody id="pairs-body">
-              <tr class="skeleton-row"><td colspan="6"><div class="skeleton"></div></td></tr>
-              <tr class="skeleton-row"><td colspan="6"><div class="skeleton"></div></td></tr>
-              <tr class="skeleton-row"><td colspan="6"><div class="skeleton"></div></td></tr>
-            </tbody>
-          </table>
+          <div class="table-wrap">
+            <table class="table" id="pairs-table">
+              <thead>
+                <tr>
+                  <th>Deposit → Want</th>
+                  <th>Min</th>
+                  <th>Max</th>
+                  <th>Price feed</th>
+                  <th>Invert</th>
+                  <th class="actions-col"></th>
+                </tr>
+              </thead>
+              <tbody id="pairs-body">
+                <tr class="skeleton-row"><td colspan="6"><div class="skeleton"></div></td></tr>
+                <tr class="skeleton-row"><td colspan="6"><div class="skeleton"></div></td></tr>
+                <tr class="skeleton-row"><td colspan="6"><div class="skeleton"></div></td></tr>
+              </tbody>
+            </table>
+          </div>
           <div class="empty" id="pairs-empty" hidden>
-            <p>No pairs yet.</p>
-            <button class="btn btn-primary" id="btn-add-first-pair">Add your first pair</button>
+            <i data-icon="layers" class="empty-art"></i>
+            <p>No trading pairs configured.</p>
+            <button class="btn btn-primary" id="btn-add-first-pair">
+              <i data-icon="plus"></i> Add your first pair
+            </button>
           </div>
         </div>
       </section>
@@ -86,14 +106,16 @@
         <header class="view-head">
           <div>
             <h1>Balance</h1>
-            <p class="muted">Wallet funds available to the taker.</p>
+            <p class="muted">Wallet funds available to the solver.</p>
           </div>
-          <button class="btn" id="btn-refresh-balance">↻ Refresh</button>
+          <button class="btn" id="btn-refresh-balance">
+            <i data-icon="refresh"></i> Refresh
+          </button>
         </header>
 
         <div class="card card-hero">
           <div class="hero-label">Offchain total</div>
-          <div class="hero-value" id="offchain-sats">—</div>
+          <div class="hero-value tnum" id="offchain-sats">—</div>
           <div class="hero-sub" id="offchain-btc">—</div>
         </div>
 
@@ -115,47 +137,19 @@
             <div class="card-row-label">Offchain address</div>
             <div class="card-row-value">
               <code id="offchain-address" class="mono trunc">—</code>
-              <button class="btn btn-ghost" data-copy="#offchain-address">Copy</button>
+              <button class="icon-btn" data-copy="#offchain-address" aria-label="Copy offchain address">
+                <i data-icon="copy"></i>
+              </button>
             </div>
           </div>
           <div class="card-row">
             <div class="card-row-label">Boarding address</div>
             <div class="card-row-value">
               <code id="boarding-address" class="mono trunc">—</code>
-              <button class="btn btn-ghost" data-copy="#boarding-address">Copy</button>
+              <button class="icon-btn" data-copy="#boarding-address" aria-label="Copy boarding address">
+                <i data-icon="copy"></i>
+              </button>
             </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Preimage -->
-      <section class="view" id="view-preimage" hidden>
-        <header class="view-head">
-          <div>
-            <h1>Preimage claims</h1>
-            <p class="muted">Registered preimage-gated VTXOs the solver auto-claims when funded.</p>
-          </div>
-          <button class="btn btn-primary" id="btn-add-claim">
-            <span>＋</span> Register claim
-          </button>
-        </header>
-
-        <div class="card">
-          <table class="table" id="claims-table">
-            <thead>
-              <tr>
-                <th>Claim address</th>
-                <th class="actions-col"></th>
-              </tr>
-            </thead>
-            <tbody id="claims-body">
-              <tr class="skeleton-row"><td colspan="2"><div class="skeleton"></div></td></tr>
-              <tr class="skeleton-row"><td colspan="2"><div class="skeleton"></div></td></tr>
-            </tbody>
-          </table>
-          <div class="empty" id="claims-empty" hidden>
-            <p>No claims registered.</p>
-            <button class="btn btn-primary" id="btn-add-first-claim">Register your first claim</button>
           </div>
         </div>
       </section>
@@ -165,34 +159,83 @@
         <header class="view-head">
           <div>
             <h1>History</h1>
-            <p class="muted">Past offers fulfilled by the solver.</p>
+            <p class="muted">Offers the solver has fulfilled.</p>
           </div>
-          <button class="btn" id="btn-refresh-trades">↻ Refresh</button>
+          <button class="btn" id="btn-refresh-trades">
+            <i data-icon="refresh"></i> Refresh
+          </button>
         </header>
 
         <div class="card">
-          <table class="table" id="trades-table">
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Pair</th>
-                <th>Deposit</th>
-                <th>Want</th>
-                <th>Offer tx</th>
-                <th>Fulfill tx</th>
-              </tr>
-            </thead>
-            <tbody id="trades-body">
-              <tr class="skeleton-row"><td colspan="6"><div class="skeleton"></div></td></tr>
-              <tr class="skeleton-row"><td colspan="6"><div class="skeleton"></div></td></tr>
-              <tr class="skeleton-row"><td colspan="6"><div class="skeleton"></div></td></tr>
-            </tbody>
-          </table>
+          <div class="table-wrap">
+            <table class="table" id="trades-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Pair</th>
+                  <th>Deposit</th>
+                  <th>Want</th>
+                  <th>Offer tx</th>
+                  <th>Fulfill tx</th>
+                </tr>
+              </thead>
+              <tbody id="trades-body">
+                <tr class="skeleton-row"><td colspan="6"><div class="skeleton"></div></td></tr>
+                <tr class="skeleton-row"><td colspan="6"><div class="skeleton"></div></td></tr>
+                <tr class="skeleton-row"><td colspan="6"><div class="skeleton"></div></td></tr>
+              </tbody>
+            </table>
+          </div>
           <div class="empty" id="trades-empty" hidden>
-            <div class="placeholder-art">⏱</div>
+            <i data-icon="history" class="empty-art"></i>
             <p>No trades yet.</p>
             <p class="muted">When the solver fulfills an offer it will appear here.</p>
           </div>
+        </div>
+      </section>
+
+      <!-- Solver keys (preimage) -->
+      <section class="view" id="view-solverkeys" hidden>
+        <header class="view-head">
+          <div>
+            <h1>Solver keys</h1>
+            <p class="muted">Public keys for building preimage-gated VTXOs the bot can claim.</p>
+          </div>
+          <button class="btn" id="btn-refresh-keys">
+            <i data-icon="refresh"></i> Refresh
+          </button>
+        </header>
+
+        <div class="card">
+          <div class="card-row">
+            <div class="card-row-label">Solver public key</div>
+            <div class="card-row-value">
+              <code id="solver-pubkey" class="mono trunc">—</code>
+              <button class="icon-btn" data-copy="#solver-pubkey" aria-label="Copy solver public key">
+                <i data-icon="copy"></i>
+              </button>
+            </div>
+          </div>
+          <div class="card-row">
+            <div class="card-row-label">Introspector public key</div>
+            <div class="card-row-value">
+              <code id="introspector-pubkey" class="mono trunc">—</code>
+              <button class="icon-btn" data-copy="#introspector-pubkey" aria-label="Copy introspector public key">
+                <i data-icon="copy"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="note">
+          <i data-icon="info"></i>
+          <p>
+            Encrypt the claim credentials (preimage + taptree) to the
+            <strong>solver key</strong> and attach the ciphertext via an Ark
+            extension TLV — the bot decrypts and claims on the fly, with no
+            registration needed. Use the <strong>introspector key</strong> when
+            building VHTLCs whose offline-claim closure this bot should spend.
+          </p>
         </div>
       </section>
     </main>
@@ -201,72 +244,106 @@
     <dialog id="pair-dialog" class="dialog">
       <form method="dialog" id="pair-form" class="dialog-form">
         <header class="dialog-head">
-          <h2 id="dialog-title">Add pair</h2>
-          <button type="button" class="icon-btn" data-close aria-label="Close">✕</button>
+          <h2 id="dialog-title">Add trading pair</h2>
+          <button type="button" class="icon-btn" data-close aria-label="Close">
+            <i data-icon="x"></i>
+          </button>
         </header>
 
-        <label class="field">
-          <span>Pair</span>
-          <input name="pair" type="text" placeholder="ASSETID/BTC or BTC/ASSETID" required pattern=".+/.+" />
-          <small class="muted">Use <code>BTC</code> or a hex asset ID on each side.</small>
-        </label>
+        <div class="dialog-body">
+          <div class="form-section" id="assets-section">
+            <span class="form-section-title">Assets</span>
+            <div class="asset-grid">
+              <div class="asset-field">
+                <span class="field-label">Deposit <small>(base)</small></span>
+                <div class="seg" role="radiogroup" aria-label="Deposit asset type">
+                  <label>
+                    <input type="radio" name="base_kind" value="BTC" checked />
+                    <span>BTC</span>
+                  </label>
+                  <label>
+                    <input type="radio" name="base_kind" value="asset" />
+                    <span>Asset</span>
+                  </label>
+                </div>
+                <input class="asset-hex mono" name="base_asset" type="text"
+                  placeholder="asset id (hex)" autocomplete="off" spellcheck="false" hidden />
+              </div>
 
-        <div class="field-row">
-          <label class="field">
-            <span>Min</span>
-            <input name="min_amount" type="number" min="1" required />
-          </label>
-          <label class="field">
-            <span>Max</span>
-            <input name="max_amount" type="number" min="1" required />
-          </label>
+              <div class="asset-arrow"><i data-icon="arrow-right"></i></div>
+
+              <div class="asset-field">
+                <span class="field-label">Want <small>(quote)</small></span>
+                <div class="seg" role="radiogroup" aria-label="Want asset type">
+                  <label>
+                    <input type="radio" name="quote_kind" value="BTC" />
+                    <span>BTC</span>
+                  </label>
+                  <label>
+                    <input type="radio" name="quote_kind" value="asset" checked />
+                    <span>Asset</span>
+                  </label>
+                </div>
+                <input class="asset-hex mono" name="quote_asset" type="text"
+                  placeholder="asset id (hex)" autocomplete="off" spellcheck="false" />
+              </div>
+            </div>
+            <small class="muted">Makers deposit the base asset and receive the quote asset, which the solver provides.</small>
+            <p class="field-error" id="assets-error"></p>
+          </div>
+
+          <div class="form-section">
+            <span class="form-section-title">Amount bounds (want side)</span>
+            <div class="field-row">
+              <label class="field">
+                <span>Minimum</span>
+                <div class="input-suffix">
+                  <input name="min_amount" type="number" min="1" step="1" inputmode="numeric" required />
+                  <span class="suffix" data-unit-suffix>units</span>
+                </div>
+              </label>
+              <label class="field">
+                <span>Maximum</span>
+                <div class="input-suffix">
+                  <input name="max_amount" type="number" min="1" step="1" inputmode="numeric" required />
+                  <span class="suffix" data-unit-suffix>units</span>
+                </div>
+              </label>
+            </div>
+            <small class="muted" id="amount-hint">Bounds apply to the amount makers want, in the want asset's smallest unit.</small>
+            <p class="field-error" id="amount-error"></p>
+          </div>
+
+          <div class="form-section">
+            <span class="form-section-title">Pricing</span>
+            <label class="field">
+              <span>Price feed URL</span>
+              <input name="price_feed" type="url" placeholder="https://api.example.com/price" required />
+              <small class="muted">The solver polls this URL for the reference price and fulfills offers within 1%.</small>
+            </label>
+
+            <label class="switch-row">
+              <span class="switch-text">
+                <span>Invert price</span>
+                <small class="muted" id="invert-hint">Use 1 / feed price when comparing.</small>
+              </span>
+              <span class="switch">
+                <input name="invert_price" type="checkbox" />
+                <span class="track"></span>
+              </span>
+            </label>
+          </div>
+
+          <div class="preview">
+            <span class="preview-head"><i data-icon="eye"></i> Preview</span>
+            <div class="preview-pair"><code id="preview-pair-str">—</code></div>
+            <p class="preview-text" id="preview-text">Fill in the fields to preview this pair.</p>
+          </div>
         </div>
-        <small class="muted">Bounds apply to the <strong>want side</strong> in its smallest unit (sats for BTC; raw units for an asset). For BTC dust ≥ 330 sats.</small>
-
-        <label class="field">
-          <span>Price feed URL</span>
-          <input name="price_feed" type="url" placeholder="https://api.example.com/price" required />
-        </label>
-
-        <label class="checkbox">
-          <input name="invert_price" type="checkbox" />
-          <span>Invert price</span>
-        </label>
 
         <footer class="dialog-foot">
           <button type="button" class="btn" data-close>Cancel</button>
-          <button type="submit" class="btn btn-primary" id="pair-submit">Save</button>
-        </footer>
-      </form>
-    </dialog>
-
-    <!-- Claim form dialog -->
-    <dialog id="claim-dialog" class="dialog">
-      <form method="dialog" id="claim-form" class="dialog-form">
-        <header class="dialog-head">
-          <h2>Register preimage claim</h2>
-          <button type="button" class="icon-btn" data-close aria-label="Close">✕</button>
-        </header>
-
-        <label class="field">
-          <span>Preimage (hex)</span>
-          <input name="preimage" type="text" pattern="(0x)?[0-9a-fA-F]+" placeholder="deadbeef…" required />
-        </label>
-
-        <label class="field">
-          <span>Arkade script (hex)</span>
-          <input name="arkade_script" type="text" pattern="(0x)?[0-9a-fA-F]+" placeholder="enforcePayTo script bytes" required />
-        </label>
-
-        <label class="field">
-          <span>Taptree (one hex closure per line)</span>
-          <textarea name="taptree" rows="4" placeholder="hex closure 1&#10;hex closure 2" required></textarea>
-          <small class="muted">Hex-encoded closure scripts (TapscriptsVtxoScript.Encode output).</small>
-        </label>
-
-        <footer class="dialog-foot">
-          <button type="button" class="btn" data-close>Cancel</button>
-          <button type="submit" class="btn btn-primary" id="claim-submit">Register</button>
+          <button type="submit" class="btn btn-primary" id="pair-submit">Add pair</button>
         </footer>
       </form>
     </dialog>
