@@ -1,6 +1,6 @@
 # solver
 
-`solver` is a Go implementation of a **banco solver bot** for the [Arkade](https://arkadeos.com/) virtual mempool. It ships the `solverd` daemon and the `solver` CLI.
+`solver` is a Go implementation of a **solver bot** for the [Arkade Intents](https://arkadeos.com/). It ships the `solverd` daemon and the `solver` CLI.
 
 A *maker* posts a swap offer as a VTXO on an Arkade. The solver bot watches the arkd
 transaction stream, finds offers that match its configured pairs and price ranges, and fulfills
@@ -36,7 +36,7 @@ output of the funding tx, so `pkg/solver/builder` provides a typed pipeline
 (`Filter → Decode → Validate → Solve`) that hides the OP_RETURN parse. Today
 two plugins ship with the daemon:
 
-- **`pkg/banco`** — banco swap solver. Decodes a swap offer, range-checks the
+- **`pkg/banco`** — solver library. Decodes a swap offer, range-checks the
   amount and price, and fulfills via the emulator.
 - **`pkg/preimage`** — preimage-gated claim solver. Decrypts an ECIES payload
   attached to the funding tx and claims the VTXO when the arkade-script matches.
@@ -49,9 +49,9 @@ new protocol means writing a new `Plugin` and wiring it in `cmd/solverd`. See
 
 ### `pkg/contract`
 
-Wire-protocol primitives for the banco swap.
+Wire-protocol primitives for the swap.
 
-- `Offer` — typed banco swap offer, encoded as a TLV payload inside an Arkade
+- `Offer` — typed swap offer, encoded as a TLV payload inside an Arkade
   extension packet (`PacketType = 0x03`). Methods: `Serialize`, `ToPacket`,
   `FulfillScript`, and `VtxoScript` (builds the swap taproot tree from the
   maker, emulator, and signer keys).
@@ -82,10 +82,10 @@ dispatches each one to its registered plugins.
 
 ### `pkg/banco`
 
-The banco-specific solver plugin and its supporting types — the building block
+The solver plugin and its supporting types — the building block
 for a taker bot.
 
-- `Plugin` / `NewPlugin(Config)` — implements `solver.Plugin` for the banco
+- `Plugin` / `NewPlugin(Config)` — implements `solver.Plugin` for the
   swap protocol: decodes the offer from a tx, looks up a matching configured
   pair, range-checks `WantAmount`, validates price within 1% of the feed, and
   fulfills via `contract.FulfillOffer`.
@@ -140,7 +140,7 @@ web UI. Configured entirely through environment variables:
 | `SOLVER_GRPC_PORT` | | `7070` | gRPC listener |
 | `SOLVER_HTTP_PORT` | | `7071` | HTTP REST + web UI listener |
 | `SOLVER_LOG_LEVEL` | | `4` (Info) | logrus level |
-| `SOLVER_BANCO_ENABLED` | | `true` | enable the banco swap plugin |
+| `SOLVER_BANCO_ENABLED` | | `true` | enable the swap plugin |
 | `SOLVER_PREIMAGE_ENABLED` | | `false` | enable the preimage-claim plugin |
 
 At least one plugin must be enabled. Each enabled plugin owns its own solver
