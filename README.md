@@ -1,6 +1,6 @@
 # solver
 
-`solver` is a Go implementation of a **banco solver bot** for the [Arkade](https://arkadeos.com/) virtual mempool. It ships the `bancod` daemon and the `banco` CLI.
+`solver` is a Go implementation of a **banco solver bot** for the [Arkade](https://arkadeos.com/) virtual mempool. It ships the `solverd` daemon and the `solver` CLI.
 
 A *maker* posts a swap offer as a VTXO on an Arkade. The solver bot watches the arkd
 transaction stream, finds offers that match its configured pairs and price ranges, and fulfills
@@ -42,7 +42,7 @@ two plugins ship with the daemon:
   attached to the funding tx and claims the VTXO when the arkade-script matches.
 
 Each enabled plugin owns its own `Solver` and arkd subscription, so adding a
-new protocol means writing a new `Plugin` and wiring it in `cmd/bancod`. See
+new protocol means writing a new `Plugin` and wiring it in `cmd/solverd`. See
 [`pkg/solver/README.md`](pkg/solver/README.md) for the plugin authoring guide.
 
 ## Packages
@@ -125,7 +125,7 @@ depend on any `internal/` code.
 
 ## Binaries
 
-### `bancod`
+### `solverd`
 
 Daemon that boots a solver, a SQLite-backed wallet, the gRPC+REST API, and the
 web UI. Configured entirely through environment variables:
@@ -136,7 +136,7 @@ web UI. Configured entirely through environment variables:
 | `SOLVER_WALLET_SEED` | ✓ | — | wallet seed (hex) |
 | `SOLVER_INTROSPECTOR_URL` | ✓ | — | introspector endpoint |
 | `SOLVER_WALLET_PASSWORD` | | — | wallet unlock password |
-| `SOLVER_DATADIR` | | `$HOME/.bancod` | data directory (SQLite DB lives here) |
+| `SOLVER_DATADIR` | | `$HOME/.solverd` | data directory (SQLite DB lives here) |
 | `SOLVER_GRPC_PORT` | | `7070` | gRPC listener |
 | `SOLVER_HTTP_PORT` | | `7071` | HTTP REST + web UI listener |
 | `SOLVER_LOG_LEVEL` | | `4` (Info) | logrus level |
@@ -146,26 +146,26 @@ web UI. Configured entirely through environment variables:
 At least one plugin must be enabled. Each enabled plugin owns its own solver
 and arkd subscription.
 
-### `banco`
+### `solver`
 
 CLI client for the HTTP API. Points at `http://localhost:7071` by default
-(`--server` or `BANCO_SERVER` to override). Commands:
+(`--server` or `SOLVER_SERVER` to override). Commands:
 
 ```
-banco pair add     --pair BTC/<asset> --min … --max … --price-feed …
-banco pair update  …
-banco pair remove  --pair …
-banco pair list
-banco status
-banco balance
-banco address
+solver pair add     --pair BTC/<asset> --min … --max … --price-feed …
+solver pair update  …
+solver pair remove  --pair …
+solver pair list
+solver status
+solver balance
+solver address
 ```
 
 ## Building
 
 ```sh
-make build          # builds ./bancod and ./banco
-make docker         # builds the bancod image
+make build          # builds ./solverd and ./solver
+make docker         # builds the solverd image
 make proto          # regenerates api-spec/protobuf/gen
 make sqlc           # regenerates internal/infrastructure/db/sqlite/sqlc
 make lint
@@ -184,4 +184,4 @@ make teardown-test-env
 
 If nigiri is already running (e.g. in CI, where the `vulpemventures/nigiri-github-action`
 sets it up), use `make docker-run` and `make docker-stop` instead — they bring up
-the bancod-side stack and fund the arkd wallet without touching nigiri.
+the solverd-side stack and fund the arkd wallet without touching nigiri.

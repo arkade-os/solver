@@ -2,7 +2,7 @@ services:
   pgnbxplorer:
     restart: unless-stopped
     image: postgres:16
-    container_name: bancod-pgnbxplorer
+    container_name: solverd-pgnbxplorer
     environment:
       - POSTGRES_HOST_AUTH_METHOD=trust
     volumes:
@@ -16,7 +16,7 @@ services:
 
   nbxplorer:
     restart: unless-stopped
-    container_name: bancod-nbxplorer
+    container_name: solverd-nbxplorer
     image: nicolasdorier/nbxplorer:2.5.30
     environment:
       - NBXPLORER_NETWORK=regtest
@@ -29,7 +29,7 @@ services:
       - NBXPLORER_BIND=0.0.0.0:32838
       - NBXPLORER_TRIMEVENTS=10000
       - NBXPLORER_SIGNALFILESDIR=/datadir
-      - NBXPLORER_POSTGRES=User ID=postgres;Host=bancod-pgnbxplorer;Port=5432;Application Name=nbxplorer;MaxPoolSize=20;Database=nbxplorer
+      - NBXPLORER_POSTGRES=User ID=postgres;Host=solverd-pgnbxplorer;Port=5432;Application Name=nbxplorer;MaxPoolSize=20;Database=nbxplorer
       - NBXPLORER_EXPOSERPC=1
       - NBXPLORER_NOAUTH=1
     volumes:
@@ -42,14 +42,14 @@ services:
   arkd-wallet:
     restart: unless-stopped
     image: ghcr.io/arkade-os/arkd-wallet:v0.9.3
-    container_name: bancod-arkd-wallet
+    container_name: solverd-arkd-wallet
     depends_on:
       - nbxplorer
     ports:
       - "6160:6060"
     environment:
       - ARKD_WALLET_LOG_LEVEL=5
-      - ARKD_WALLET_NBXPLORER_URL=http://bancod-nbxplorer:32838
+      - ARKD_WALLET_NBXPLORER_URL=http://solverd-nbxplorer:32838
       - ARKD_WALLET_NETWORK=regtest
       - ARKD_WALLET_SIGNER_KEY=1822f98b3a7366532d3a875fa94c97948fe8f6a71a0ca1e94587be5f4ce646d1
     volumes:
@@ -58,7 +58,7 @@ services:
 
   arkd:
     image: ghcr.io/arkade-os/arkd:v0.9.3
-    container_name: bancod-arkd
+    container_name: solverd-arkd
     restart: unless-stopped
     depends_on:
       - arkd-wallet
@@ -73,7 +73,7 @@ services:
       - ARKD_PUBLIC_UNILATERAL_EXIT_DELAY=20
       - ARKD_BOARDING_EXIT_DELAY=30
       - ARKD_CHECKPOINT_EXIT_DELAY=10
-      - ARKD_WALLET_ADDR=bancod-arkd-wallet:6060
+      - ARKD_WALLET_ADDR=solverd-arkd-wallet:6060
       - ARKD_ESPLORA_URL=http://chopsticks:3000
       - ARKD_VTXO_MIN_AMOUNT=1
       - ARKD_LIVE_STORE_TYPE=inmemory
@@ -86,7 +86,7 @@ services:
 
   introspector:
     image: ghcr.io/arklabshq/introspector:v0.0.1
-    container_name: bancod-introspector
+    container_name: solverd-introspector
     restart: unless-stopped
     depends_on:
       - arkd
@@ -96,7 +96,7 @@ services:
       - INTROSPECTOR_SECRET_KEY=f40f6e7a5cf262f4093d4605b8f40cbaf9da9e59bf32f24bb27a4ffc74f71eab
       - INTROSPECTOR_NO_TLS=true
       - INTROSPECTOR_LOG_LEVEL=5
-      - INTROSPECTOR_ARKD_URL=bancod-arkd:7070
+      - INTROSPECTOR_ARKD_URL=solverd-arkd:7070
     volumes:
       - type: tmpfs
         target: /app/data

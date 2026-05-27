@@ -5,7 +5,7 @@
 The Banco swap is a non-interactive, atomic asset swap projected onto the
 Arkade virtual mempool. A **maker** publishes a standing offer by funding a
 VTXO whose script encodes "pay me `WantAmount` of `WantAsset` and you may sweep
-the deposit". A **taker** (the `bancod` solver bot) watches arkd's transaction
+the deposit". A **taker** (the `solverd` solver bot) watches arkd's transaction
 stream, recognises offers it is configured to fill, and settles them with a
 single Ark transaction. Settlement is atomic: the maker receives its requested
 output or the swap VTXO is never spent.
@@ -175,7 +175,7 @@ transaction's asset packet (Section 4.2).
 Both require `MakerPublicKey` (record `0x07`); an offer that sets `CancelAt` or
 `ExitDelay` without it is INVALID.
 
-> Note: V1 of `bancod`'s maker helper does not yet construct cancel/exit
+> Note: V1 of `solverd`'s maker helper does not yet construct cancel/exit
 > offers (`CreateOffer` rejects them), but the wire format and tree support
 > them for forward compatibility.
 
@@ -257,7 +257,7 @@ the settlement identifier.
 ### 5.2. Taker acceptance policy (bot configuration)
 
 These gates are **not** consensus; they are the operator's risk policy. A taker
-MAY apply any subset. `bancod` applies, in order:
+MAY apply any subset. `solverd` applies, in order:
 
 -   **Pair match**: a configured trading pair MUST exist for the offer's
     `(DepositAsset → WantAsset)` direction. Otherwise the offer is ignored.

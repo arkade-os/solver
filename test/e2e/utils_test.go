@@ -347,7 +347,7 @@ func newIntroClient(t *testing.T) introclient.TransportClient {
 
 func issueAsset(t *testing.T, client arksdk.Wallet, supply uint64) string {
 	t.Helper()
-	// bancod's pair validation looks up "decimals" metadata via the indexer,
+	// solverd's pair validation looks up "decimals" metadata via the indexer,
 	// so every test asset must publish it (zero-decimal assets are fine).
 	decimalsMd, err := asset.NewMetadata("decimals", "0")
 	require.NoError(t, err)

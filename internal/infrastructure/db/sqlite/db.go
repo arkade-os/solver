@@ -15,10 +15,10 @@ import (
 //go:embed migration/*.sql
 var migrations embed.FS
 
-// OpenDB opens (or creates) the SQLite database at datadir/bancod.db and
+// OpenDB opens (or creates) the SQLite database at datadir/solverd.db and
 // runs all pending migrations.
 func OpenDB(datadir string) (*sql.DB, error) {
-	dbPath := filepath.Join(datadir, "bancod.db")
+	dbPath := filepath.Join(datadir, "solverd.db")
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)

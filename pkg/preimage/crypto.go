@@ -21,12 +21,12 @@ const (
 	eciesHeader   = eciesPubLen + eciesNonceLen
 	eciesOverhead = eciesHeader + eciesTagLen
 
-	eciesHkdfInfo = "bancod/preimage/v1"
+	eciesHkdfInfo = "solverd/preimage/v1"
 )
 
 // Encrypt produces ephemeralPub(33) || nonce(12) || aead(plaintext, sharedKey).
 // The shared key is HKDF-SHA256(ECDH(ephPriv, recipient).X(), salt=ephemeralPub,
-// info="bancod/preimage/v1").
+// info="solverd/preimage/v1").
 func Encrypt(recipient *btcec.PublicKey, plaintext []byte) ([]byte, error) {
 	if recipient == nil {
 		return nil, errors.New("recipient pubkey must not be nil")

@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        binary: [bancod, banco]
+        binary: [solverd, solver]
         os: [linux, darwin]
         arch: [amd64, arm64]
     steps:
@@ -68,7 +68,7 @@ jobs:
       - name: Set lowercase image name
         run: echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
 
-      - name: Build and push bancod Docker image
+      - name: Build and push solverd Docker image
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .

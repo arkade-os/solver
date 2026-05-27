@@ -230,7 +230,7 @@ Cheap — one `extension.IsExtension(script)` call per output, no full deseriali
 
 ---
 
-## Wiring example (cmd/bancod/main.go)
+## Wiring example (cmd/solverd/main.go)
 
 Reference shape — every solver bot looks like this:
 

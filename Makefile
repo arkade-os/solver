@@ -7,16 +7,16 @@ GOLANGCI_LINT ?= $(shell \
 	echo "docker run --rm -v $$(pwd):/app -w /app golangci/golangci-lint:v2.9.0 golangci-lint"; \
 )
 
-## build: build bancod and banco binaries
+## build: build solverd and solver binaries
 build:
-	@echo "Building bancod..."
-	@go build -o bancod ./cmd/bancod/
-	@echo "Building banco CLI..."
-	@go build -o banco ./cmd/banco/
+	@echo "Building solverd..."
+	@go build -o solverd ./cmd/solverd/
+	@echo "Building solver CLI..."
+	@go build -o solver ./cmd/solver/
 
-## run: build and run bancod locally against the fulmine test stack (arkd@7070, introspector@7273)
+## run: build and run solverd locally against the fulmine test stack (arkd@7070, introspector@7273)
 run: build
-	@echo "Running bancod against local test stack..."
+	@echo "Running solverd against local test stack..."
 	@SOLVER_ARK_URL=localhost:7070 \
 	SOLVER_INTROSPECTOR_URL=localhost:7273 \
 	SOLVER_WALLET_SEED=ed1f6ad1c0aa1bbdcc14a4dc26ff5d31cca6df11617f2bbb24a4e0e6f72f7a5d \
@@ -26,14 +26,14 @@ run: build
 	SOLVER_BANCO_ENABLED=false \
 	SOLVER_PREIMAGE_ENABLED=true \
 	SOLVER_DATADIR=$${SOLVER_DATADIR:-$$(mktemp -d)} \
-	./bancod
+	./solverd
 
-## build-all: cross-compile bancod and banco for linux/darwin × amd64/arm64 (release artifacts)
+## build-all: cross-compile solverd and solver for linux/darwin × amd64/arm64 (release artifacts)
 build-all:
-	@echo "Building bancod and banco for all release platforms (VERSION=$(VERSION))..."
+	@echo "Building solverd and solver for all release platforms (VERSION=$(VERSION))..."
 	@for goos in linux darwin; do \
 		for goarch in amd64 arm64; do \
-			for bin in bancod banco; do \
+			for bin in solverd solver; do \
 				echo "  -> $$bin-$$goos-$$goarch"; \
 				CGO_ENABLED=0 GOOS=$$goos GOARCH=$$goarch \
 					go build -trimpath -ldflags "$(LDFLAGS)" \
@@ -55,13 +55,13 @@ sqlc:
 ## docker: build production Docker image
 docker:
 	@echo "Building Docker image..."
-	@docker build -t bancod .
+	@docker build -t solverd .
 
 ## clean: cleans build artifacts
 clean:
 	@echo "Cleaning..."
 	@go clean
-	@rm -f bancod banco
+	@rm -f solverd solver
 
 ## cov: generates coverage report
 cov:
@@ -95,10 +95,10 @@ docker-run:
 	@echo "Waiting for services..."
 	@sleep 15
 	@echo "Creating arkd wallet..."
-	@docker exec bancod-arkd arkd wallet create --password password || true
-	@docker exec bancod-arkd arkd wallet unlock --password password || true
+	@docker exec solverd-arkd arkd wallet create --password password || true
+	@docker exec solverd-arkd arkd wallet unlock --password password || true
 	@echo "Funding arkd..."
-	@for i in 1 2 3; do nigiri faucet $$(docker exec bancod-arkd arkd wallet address | tr -d '[:space:]') 1; done
+	@for i in 1 2 3; do nigiri faucet $$(docker exec solverd-arkd arkd wallet address | tr -d '[:space:]') 1; done
 	@sleep 5
 	@echo "Test environment ready."
 

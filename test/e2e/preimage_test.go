@@ -19,7 +19,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	bancov1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/bancod/v1"
+	bancov1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/solverd/v1"
 	"github.com/arkade-os/solver/pkg/preimage"
 )
 

@@ -34,13 +34,13 @@ jobs:
         if: failure()
         run: |
           echo "=== arkd logs ==="
-          docker logs bancod-arkd || true
+          docker logs solverd-arkd || true
           echo "=== arkd-wallet logs ==="
-          docker logs bancod-arkd-wallet || true
+          docker logs solverd-arkd-wallet || true
           echo "=== nbxplorer logs ==="
-          docker logs bancod-nbxplorer || true
+          docker logs solverd-nbxplorer || true
           echo "=== introspector logs ==="
-          docker logs bancod-introspector || true
+          docker logs solverd-introspector || true
 
       - name: Tear down
         if: always()

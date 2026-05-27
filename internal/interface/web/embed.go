@@ -1,4 +1,4 @@
-// Package web serves the bancod operator dashboard as embedded static assets.
+// Package web serves the solverd operator dashboard as embedded static assets.
 package web
 
 import (

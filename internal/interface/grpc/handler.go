@@ -7,7 +7,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	bancov1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/bancod/v1"
+	bancov1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/solverd/v1"
 	"github.com/arkade-os/solver/internal/core/application"
 	"github.com/arkade-os/solver/internal/core/ports"
 	"github.com/arkade-os/solver/pkg/banco"

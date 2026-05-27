@@ -1,6 +1,6 @@
 syntax = "proto3";
-package bancod.v1;
-option go_package = "github.com/arkade-os/solver/api-spec/protobuf/gen/bancod/v1";
+package solverd.v1;
+option go_package = "github.com/arkade-os/solver/api-spec/protobuf/gen/solverd/v1";
 
 import "google/api/annotations.proto";
 

@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	defaultDatadir         = ".bancod"
+	defaultDatadir         = ".solverd"
 	defaultGRPCPort        = 7070
 	defaultHTTPPort        = 7071
 	defaultLogLevel        = 4 // logrus.InfoLevel
@@ -16,7 +16,7 @@ const (
 	defaultPreimageEnabled = false
 )
 
-// Config holds all configuration for the bancod server.
+// Config holds all configuration for the solverd server.
 type Config struct {
 	Datadir         string
 	ArkURL          string

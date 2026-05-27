@@ -86,7 +86,7 @@ Ciphertext := ephemeralPub(33) || nonce(12) || AEAD_output
 shared    = ECDH(ephPriv, solverPub).X            # 32-byte X coordinate
 symKey    = HKDF-SHA256(ikm = shared,
                         salt = ephemeralPub,        # the 33-byte compressed point
-                        info = "bancod/preimage/v1",
+                        info = "solverd/preimage/v1",
                         len  = 32)
 AEAD      = AES-256-GCM(symKey), AAD = ephemeralPub
 ```
@@ -210,7 +210,7 @@ simply not a claim for it); none are on-chain rejections.
 ## 7. Key management
 
 -   **Solver encryption key.** The solver's ECIES key is derived deterministically
-    from the wallet seed: `HMAC-SHA256(seed, "bancod/preimage-plugin/v1")`
+    from the wallet seed: `HMAC-SHA256(seed, "solverd/preimage-plugin/v1")`
     interpreted as a secp256k1 private key. It is stable across restarts as long
     as the seed is unchanged, which is what makes the protocol stateless — a
     maker that fetched the key yesterday can still encrypt to it today.

@@ -159,7 +159,7 @@ func main() {
 	log.WithField("version", Version).
 		WithField("banco", cfg.BancoEnabled).
 		WithField("preimage", cfg.PreimageEnabled).
-		Info("bancod started")
+		Info("solverd started")
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -175,7 +175,7 @@ func main() {
 	if srv != nil {
 		srv.Stop()
 	}
-	log.Info("bancod stopped")
+	log.Info("solverd stopped")
 }
 
 // optionalSqliteDB opens the sqlite DB iff banco plugin is enabled
@@ -190,7 +190,7 @@ func optionalSqliteDB(cfg *config.Config, log logrus.FieldLogger) *sql.DB {
 	return db
 }
 
-const preimageKeyDomain = "bancod/preimage-plugin/v1"
+const preimageKeyDomain = "solverd/preimage-plugin/v1"
 
 // deriveSolverPrivKey derives the preimage-plugin's encryption privkey from
 // the wallet seed via HMAC-SHA256(seed, domain). Stable across restarts as

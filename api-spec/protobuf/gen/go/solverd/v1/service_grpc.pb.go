@@ -2,9 +2,9 @@
 // versions:
 // - protoc-gen-go-grpc v1.4.0
 // - protoc             (unknown)
-// source: bancod/v1/service.proto
+// source: solverd/v1/service.proto
 
-package bancodv1
+package solverdv1
 
 import (
 	context "context"
@@ -19,14 +19,14 @@ import (
 const _ = grpc.SupportPackageIsVersion8
 
 const (
-	BancoService_AddPair_FullMethodName    = "/bancod.v1.BancoService/AddPair"
-	BancoService_UpdatePair_FullMethodName = "/bancod.v1.BancoService/UpdatePair"
-	BancoService_RemovePair_FullMethodName = "/bancod.v1.BancoService/RemovePair"
-	BancoService_ListPairs_FullMethodName  = "/bancod.v1.BancoService/ListPairs"
-	BancoService_GetStatus_FullMethodName  = "/bancod.v1.BancoService/GetStatus"
-	BancoService_GetBalance_FullMethodName = "/bancod.v1.BancoService/GetBalance"
-	BancoService_GetAddress_FullMethodName = "/bancod.v1.BancoService/GetAddress"
-	BancoService_ListTrades_FullMethodName = "/bancod.v1.BancoService/ListTrades"
+	BancoService_AddPair_FullMethodName    = "/solverd.v1.BancoService/AddPair"
+	BancoService_UpdatePair_FullMethodName = "/solverd.v1.BancoService/UpdatePair"
+	BancoService_RemovePair_FullMethodName = "/solverd.v1.BancoService/RemovePair"
+	BancoService_ListPairs_FullMethodName  = "/solverd.v1.BancoService/ListPairs"
+	BancoService_GetStatus_FullMethodName  = "/solverd.v1.BancoService/GetStatus"
+	BancoService_GetBalance_FullMethodName = "/solverd.v1.BancoService/GetBalance"
+	BancoService_GetAddress_FullMethodName = "/solverd.v1.BancoService/GetAddress"
+	BancoService_ListTrades_FullMethodName = "/solverd.v1.BancoService/ListTrades"
 )
 
 // BancoServiceClient is the client API for BancoService service.
@@ -333,7 +333,7 @@ func _BancoService_ListTrades_Handler(srv interface{}, ctx context.Context, dec 
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var BancoService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "bancod.v1.BancoService",
+	ServiceName: "solverd.v1.BancoService",
 	HandlerType: (*BancoServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -370,5 +370,5 @@ var BancoService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "bancod/v1/service.proto",
+	Metadata: "solverd/v1/service.proto",
 }

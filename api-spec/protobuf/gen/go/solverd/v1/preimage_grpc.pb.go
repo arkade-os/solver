@@ -2,9 +2,9 @@
 // versions:
 // - protoc-gen-go-grpc v1.4.0
 // - protoc             (unknown)
-// source: bancod/v1/preimage.proto
+// source: solverd/v1/preimage.proto
 
-package bancodv1
+package solverdv1
 
 import (
 	context "context"
@@ -19,7 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion8
 
 const (
-	PreimageService_GetSolverPubKey_FullMethodName = "/bancod.v1.PreimageService/GetSolverPubKey"
+	PreimageService_GetSolverPubKey_FullMethodName = "/solverd.v1.PreimageService/GetSolverPubKey"
 )
 
 // PreimageServiceClient is the client API for PreimageService service.
@@ -113,7 +113,7 @@ func _PreimageService_GetSolverPubKey_Handler(srv interface{}, ctx context.Conte
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var PreimageService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "bancod.v1.PreimageService",
+	ServiceName: "solverd.v1.PreimageService",
 	HandlerType: (*PreimageServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -122,5 +122,5 @@ var PreimageService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "bancod/v1/preimage.proto",
+	Metadata: "solverd/v1/preimage.proto",
 }

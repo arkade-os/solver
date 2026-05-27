@@ -347,7 +347,7 @@ func FulfillOffer(
 		checkpointB64s = append(checkpointB64s, signedCpB64)
 	}
 
-	// Hand the pre-signed bundle to the introspector. Because bancod's swap
+	// Hand the pre-signed bundle to the introspector. Because solverd's swap
 	// fulfill closure makes the introspector tweaked key the last non-arkd
 	// signer, the introspector takes on the finalizer role: it forwards the
 	// bundle to arkd, merges arkd's checkpoint signatures, calls FinalizeTx,

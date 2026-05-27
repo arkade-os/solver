@@ -1,4 +1,4 @@
-// bancod dashboard — vanilla ES module, talks to /v1/* REST endpoints.
+// solverd dashboard — vanilla ES module, talks to /v1/* REST endpoints.
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -249,7 +249,7 @@ function renderDisabled(viewName, pluginName) {
       "empty-art"
     )}<p>The <strong>${escapeHTML(
       pluginName
-    )}</strong> plugin is disabled.</p><p class="muted">Enable it in the bancod configuration to use this section.</p></div>`;
+    )}</strong> plugin is disabled.</p><p class="muted">Enable it in the solverd configuration to use this section.</p></div>`;
     $(`#view-${viewName}`).appendChild(el);
   }
   el.hidden = false;

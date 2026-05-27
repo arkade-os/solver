@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	bancov1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/bancod/v1"
+	bancov1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/solverd/v1"
 	"github.com/arkade-os/solver/internal/core/application"
 	sqlitedb "github.com/arkade-os/solver/internal/infrastructure/db/sqlite"
 	"github.com/arkade-os/solver/pkg/banco"

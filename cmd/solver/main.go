@@ -20,15 +20,15 @@ var (
 
 func main() {
 	app := &cli.App{
-		Name:    "banco",
-		Usage:   "bancod CLI - manage the taker bot",
+		Name:    "solver",
+		Usage:   "solverd CLI - manage the taker bot",
 		Version: Version,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "server",
-				Usage:   "bancod HTTP server address",
+				Usage:   "solverd HTTP server address",
 				Value:   "http://localhost:7071",
-				EnvVars: []string{"BANCO_SERVER"},
+				EnvVars: []string{"SOLVER_SERVER"},
 			},
 		},
 		Commands: []*cli.Command{

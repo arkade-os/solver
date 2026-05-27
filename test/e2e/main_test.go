@@ -28,7 +28,7 @@ import (
 
 const (
 	// e2eGRPCPort + e2eHTTPPort are the ports the e2e gRPC server binds to.
-	// They're separate from cmd/bancod's defaults (7070/7071) so a developer
+	// They're separate from cmd/solverd's defaults (7070/7071) so a developer
 	// can run both in parallel.
 	e2eGRPCPort = 17070
 	e2eHTTPPort = 17071
@@ -70,7 +70,7 @@ func runTests(m *testing.M) int {
 	}
 
 	// Create taker's ArkClient
-	takerDatadir, err := os.MkdirTemp("", "bancod-e2e-taker-*")
+	takerDatadir, err := os.MkdirTemp("", "solverd-e2e-taker-*")
 	if err != nil {
 		log.Errorf("failed to create taker datadir: %s", err)
 		return 1
@@ -90,7 +90,7 @@ func runTests(m *testing.M) int {
 	}
 
 	// SQLite pair repo in temp dir
-	tmpDir, err := os.MkdirTemp("", "bancod-e2e-*")
+	tmpDir, err := os.MkdirTemp("", "solverd-e2e-*")
 	if err != nil {
 		log.Errorf("failed to create temp dir: %s", err)
 		return 1
@@ -250,7 +250,7 @@ func fundTaker(ctx context.Context, client arksdk.Wallet) error {
 }
 
 func refillArkd(ctx context.Context) error {
-	arkdExec := "docker exec bancod-arkd arkd"
+	arkdExec := "docker exec solverd-arkd arkd"
 	command := fmt.Sprintf("%s wallet balance", arkdExec)
 	out, err := runCommand(ctx, command)
 	if err != nil {
