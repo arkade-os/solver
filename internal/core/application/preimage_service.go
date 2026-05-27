@@ -13,9 +13,9 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/sirupsen/logrus"
 
-	"github.com/arkade-os/bancod/pkg/preimage"
-	"github.com/arkade-os/bancod/pkg/solver"
-	"github.com/arkade-os/bancod/pkg/solver/arkdsource"
+	"github.com/arkade-os/solver/pkg/preimage"
+	"github.com/arkade-os/solver/pkg/solver"
+	"github.com/arkade-os/solver/pkg/solver/arkdsource"
 )
 
 type PreimageServiceConfig struct {

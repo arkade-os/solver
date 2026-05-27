@@ -9,7 +9,7 @@ import (
 	"github.com/btcsuite/btcd/wire"
 	"github.com/stretchr/testify/require"
 
-	"github.com/arkade-os/bancod/pkg/solver/txmatch"
+	"github.com/arkade-os/solver/pkg/solver/txmatch"
 )
 
 type intent struct{ value int }

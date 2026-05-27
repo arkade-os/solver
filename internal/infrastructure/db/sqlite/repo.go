@@ -4,9 +4,9 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/arkade-os/bancod/internal/core/ports"
-	"github.com/arkade-os/bancod/internal/infrastructure/db/sqlite/sqlc"
-	"github.com/arkade-os/bancod/pkg/banco"
+	"github.com/arkade-os/solver/internal/core/ports"
+	"github.com/arkade-os/solver/internal/infrastructure/db/sqlite/sqlc"
+	"github.com/arkade-os/solver/pkg/banco"
 )
 
 // PairRepository implements ports.PairRepository backed by SQLite.

@@ -7,10 +7,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	bancov1 "github.com/arkade-os/bancod/api-spec/protobuf/gen/go/bancod/v1"
-	"github.com/arkade-os/bancod/internal/core/application"
-	"github.com/arkade-os/bancod/internal/core/ports"
-	"github.com/arkade-os/bancod/pkg/banco"
+	bancov1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/bancod/v1"
+	"github.com/arkade-os/solver/internal/core/application"
+	"github.com/arkade-os/solver/internal/core/ports"
+	"github.com/arkade-os/solver/pkg/banco"
 )
 
 type handler struct {

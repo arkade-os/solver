@@ -3,7 +3,7 @@ managed:
   enabled: true
   override:
     - file_option: go_package_prefix
-      value: github.com/arkade-os/bancod/api-spec/protobuf/gen
+      value: github.com/arkade-os/solver/api-spec/protobuf/gen
   disable:
     - module: buf.build/googleapis/googleapis
 plugins:

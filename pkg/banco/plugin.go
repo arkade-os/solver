@@ -11,9 +11,9 @@ import (
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/sirupsen/logrus"
 
-	"github.com/arkade-os/bancod/pkg/banco/contract"
-	"github.com/arkade-os/bancod/pkg/solver"
-	"github.com/arkade-os/bancod/pkg/solver/builder"
+	"github.com/arkade-os/solver/pkg/banco/contract"
+	"github.com/arkade-os/solver/pkg/solver"
+	"github.com/arkade-os/solver/pkg/solver/builder"
 )
 
 // MatchedOffer is the typed intent produced by the banco Plugin's decode

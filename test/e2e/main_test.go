@@ -18,12 +18,12 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/arkade-os/bancod/internal/core/application"
-	"github.com/arkade-os/bancod/internal/core/ports"
-	sqlitedb "github.com/arkade-os/bancod/internal/infrastructure/db/sqlite"
-	grpcservice "github.com/arkade-os/bancod/internal/interface/grpc"
-	"github.com/arkade-os/bancod/pkg/banco"
-	"github.com/arkade-os/bancod/pkg/solver"
+	"github.com/arkade-os/solver/internal/core/application"
+	"github.com/arkade-os/solver/internal/core/ports"
+	sqlitedb "github.com/arkade-os/solver/internal/infrastructure/db/sqlite"
+	grpcservice "github.com/arkade-os/solver/internal/interface/grpc"
+	"github.com/arkade-os/solver/pkg/banco"
+	"github.com/arkade-os/solver/pkg/solver"
 )
 
 const (

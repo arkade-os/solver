@@ -18,8 +18,8 @@ import (
 	"github.com/btcsuite/btcd/wire"
 	"github.com/sirupsen/logrus"
 
-	"github.com/arkade-os/bancod/pkg/solver"
-	"github.com/arkade-os/bancod/pkg/solver/builder"
+	"github.com/arkade-os/solver/pkg/solver"
+	"github.com/arkade-os/solver/pkg/solver/builder"
 )
 
 type Config struct {

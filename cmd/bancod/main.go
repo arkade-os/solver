@@ -22,13 +22,13 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/arkade-os/bancod/internal/config"
-	"github.com/arkade-os/bancod/internal/core/application"
-	sqlitedb "github.com/arkade-os/bancod/internal/infrastructure/db/sqlite"
-	"github.com/arkade-os/bancod/internal/infrastructure/pricefeed"
-	grpcservice "github.com/arkade-os/bancod/internal/interface/grpc"
-	"github.com/arkade-os/bancod/pkg/banco"
-	"github.com/arkade-os/bancod/pkg/solver"
+	"github.com/arkade-os/solver/internal/config"
+	"github.com/arkade-os/solver/internal/core/application"
+	sqlitedb "github.com/arkade-os/solver/internal/infrastructure/db/sqlite"
+	"github.com/arkade-os/solver/internal/infrastructure/pricefeed"
+	grpcservice "github.com/arkade-os/solver/internal/interface/grpc"
+	"github.com/arkade-os/solver/pkg/banco"
+	"github.com/arkade-os/solver/pkg/solver"
 )
 
 // Version is injected at build time via -ldflags "-X main.Version=<tag>".

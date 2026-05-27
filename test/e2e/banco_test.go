@@ -10,8 +10,8 @@ import (
 	sdktypes "github.com/arkade-os/go-sdk/types"
 	"github.com/stretchr/testify/require"
 
-	"github.com/arkade-os/bancod/pkg/banco"
-	"github.com/arkade-os/bancod/pkg/banco/contract"
+	"github.com/arkade-os/solver/pkg/banco"
+	"github.com/arkade-os/solver/pkg/banco/contract"
 )
 
 const mockPriceFeedURL = "http://mock-price-feed"

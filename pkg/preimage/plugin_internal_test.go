@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/arkade-os/bancod/pkg/solver/builder"
+	"github.com/arkade-os/solver/pkg/solver/builder"
 )
 
 type fixture struct {

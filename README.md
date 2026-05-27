@@ -1,6 +1,6 @@
-# bancod
+# solver
 
-`bancod` is a Go implementation of a **banco solver bot** for the [Arkade](https://arkadeos.com/) virtual mempool.
+`solver` is a Go implementation of a **banco solver bot** for the [Arkade](https://arkadeos.com/) virtual mempool. It ships the `bancod` daemon and the `banco` CLI.
 
 A *maker* posts a swap offer as a VTXO on an Arkade. The solver bot watches the arkd
 transaction stream, finds offers that match its configured pairs and price ranges, and fulfills
@@ -132,16 +132,16 @@ web UI. Configured entirely through environment variables:
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
-| `BANCOD_ARK_URL` | ✓ | — | arkd gRPC endpoint |
-| `BANCOD_WALLET_SEED` | ✓ | — | wallet seed (hex) |
-| `BANCOD_INTROSPECTOR_URL` | ✓ | — | introspector endpoint |
-| `BANCOD_WALLET_PASSWORD` | | — | wallet unlock password |
-| `BANCOD_DATADIR` | | `$HOME/.bancod` | data directory (SQLite DB lives here) |
-| `BANCOD_GRPC_PORT` | | `7070` | gRPC listener |
-| `BANCOD_HTTP_PORT` | | `7071` | HTTP REST + web UI listener |
-| `BANCOD_LOG_LEVEL` | | `4` (Info) | logrus level |
-| `BANCOD_BANCO_ENABLED` | | `true` | enable the banco swap plugin |
-| `BANCOD_PREIMAGE_ENABLED` | | `false` | enable the preimage-claim plugin |
+| `SOLVER_ARK_URL` | ✓ | — | arkd gRPC endpoint |
+| `SOLVER_WALLET_SEED` | ✓ | — | wallet seed (hex) |
+| `SOLVER_INTROSPECTOR_URL` | ✓ | — | introspector endpoint |
+| `SOLVER_WALLET_PASSWORD` | | — | wallet unlock password |
+| `SOLVER_DATADIR` | | `$HOME/.bancod` | data directory (SQLite DB lives here) |
+| `SOLVER_GRPC_PORT` | | `7070` | gRPC listener |
+| `SOLVER_HTTP_PORT` | | `7071` | HTTP REST + web UI listener |
+| `SOLVER_LOG_LEVEL` | | `4` (Info) | logrus level |
+| `SOLVER_BANCO_ENABLED` | | `true` | enable the banco swap plugin |
+| `SOLVER_PREIMAGE_ENABLED` | | `false` | enable the preimage-claim plugin |
 
 At least one plugin must be enabled. Each enabled plugin owns its own solver
 and arkd subscription.

@@ -12,10 +12,10 @@ import (
 	arksdk "github.com/arkade-os/go-sdk"
 	"github.com/sirupsen/logrus"
 
-	"github.com/arkade-os/bancod/internal/core/ports"
-	"github.com/arkade-os/bancod/pkg/banco"
-	"github.com/arkade-os/bancod/pkg/solver"
-	"github.com/arkade-os/bancod/pkg/solver/arkdsource"
+	"github.com/arkade-os/solver/internal/core/ports"
+	"github.com/arkade-os/solver/pkg/banco"
+	"github.com/arkade-os/solver/pkg/solver"
+	"github.com/arkade-os/solver/pkg/solver/arkdsource"
 )
 
 const btcDecimals = 8

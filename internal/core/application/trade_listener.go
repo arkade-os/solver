@@ -6,8 +6,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/arkade-os/bancod/internal/core/ports"
-	"github.com/arkade-os/bancod/pkg/banco"
+	"github.com/arkade-os/solver/internal/core/ports"
+	"github.com/arkade-os/solver/pkg/banco"
 )
 
 // persistTimeout caps how long the listener waits for a single trade insert.

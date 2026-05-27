@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/arkade-os/bancod/internal/core/ports"
-	"github.com/arkade-os/bancod/internal/infrastructure/db/sqlite/sqlc"
+	"github.com/arkade-os/solver/internal/core/ports"
+	"github.com/arkade-os/solver/internal/infrastructure/db/sqlite/sqlc"
 )
 
 // TradeRepository implements ports.TradeRepository backed by SQLite.

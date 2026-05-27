@@ -17,15 +17,15 @@ build:
 ## run: build and run bancod locally against the fulmine test stack (arkd@7070, introspector@7273)
 run: build
 	@echo "Running bancod against local test stack..."
-	@BANCOD_ARK_URL=localhost:7070 \
-	BANCOD_INTROSPECTOR_URL=localhost:7273 \
-	BANCOD_WALLET_SEED=ed1f6ad1c0aa1bbdcc14a4dc26ff5d31cca6df11617f2bbb24a4e0e6f72f7a5d \
-	BANCOD_WALLET_PASSWORD=password \
-	BANCOD_GRPC_PORT=7270 \
-	BANCOD_HTTP_PORT=7271 \
-	BANCOD_BANCO_ENABLED=false \
-	BANCOD_PREIMAGE_ENABLED=true \
-	BANCOD_DATADIR=$${BANCOD_DATADIR:-$$(mktemp -d)} \
+	@SOLVER_ARK_URL=localhost:7070 \
+	SOLVER_INTROSPECTOR_URL=localhost:7273 \
+	SOLVER_WALLET_SEED=ed1f6ad1c0aa1bbdcc14a4dc26ff5d31cca6df11617f2bbb24a4e0e6f72f7a5d \
+	SOLVER_WALLET_PASSWORD=password \
+	SOLVER_GRPC_PORT=7270 \
+	SOLVER_HTTP_PORT=7271 \
+	SOLVER_BANCO_ENABLED=false \
+	SOLVER_PREIMAGE_ENABLED=true \
+	SOLVER_DATADIR=$${SOLVER_DATADIR:-$$(mktemp -d)} \
 	./bancod
 
 ## build-all: cross-compile bancod and banco for linux/darwin × amd64/arm64 (release artifacts)

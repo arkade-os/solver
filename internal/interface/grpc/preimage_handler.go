@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/hex"
 
-	bancov1 "github.com/arkade-os/bancod/api-spec/protobuf/gen/go/bancod/v1"
-	"github.com/arkade-os/bancod/internal/core/application"
+	bancov1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/bancod/v1"
+	"github.com/arkade-os/solver/internal/core/application"
 )
 
 type preimageHandler struct {

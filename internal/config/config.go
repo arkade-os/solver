@@ -32,25 +32,25 @@ type Config struct {
 	PreimageEnabled bool
 }
 
-// LoadConfig reads BANCOD_* environment variables and returns a Config
+// LoadConfig reads SOLVER_* environment variables and returns a Config
 // with defaults applied for optional values.
 func LoadConfig() (*Config, error) {
-	arkURL := os.Getenv("BANCOD_ARK_URL")
+	arkURL := os.Getenv("SOLVER_ARK_URL")
 	if arkURL == "" {
-		return nil, fmt.Errorf("BANCOD_ARK_URL is required")
+		return nil, fmt.Errorf("SOLVER_ARK_URL is required")
 	}
 
-	walletSeed := os.Getenv("BANCOD_WALLET_SEED")
+	walletSeed := os.Getenv("SOLVER_WALLET_SEED")
 	if walletSeed == "" {
-		return nil, fmt.Errorf("BANCOD_WALLET_SEED is required")
+		return nil, fmt.Errorf("SOLVER_WALLET_SEED is required")
 	}
 
-	introspectorURL := os.Getenv("BANCOD_INTROSPECTOR_URL")
+	introspectorURL := os.Getenv("SOLVER_INTROSPECTOR_URL")
 	if introspectorURL == "" {
-		return nil, fmt.Errorf("BANCOD_INTROSPECTOR_URL is required")
+		return nil, fmt.Errorf("SOLVER_INTROSPECTOR_URL is required")
 	}
 
-	datadir := os.Getenv("BANCOD_DATADIR")
+	datadir := os.Getenv("SOLVER_DATADIR")
 	if datadir == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
@@ -59,55 +59,55 @@ func LoadConfig() (*Config, error) {
 		datadir = filepath.Join(home, defaultDatadir)
 	}
 
-	walletPassword := os.Getenv("BANCOD_WALLET_PASSWORD")
+	walletPassword := os.Getenv("SOLVER_WALLET_PASSWORD")
 
 	grpcPort := defaultGRPCPort
-	if v := os.Getenv("BANCOD_GRPC_PORT"); v != "" {
+	if v := os.Getenv("SOLVER_GRPC_PORT"); v != "" {
 		p, err := strconv.Atoi(v)
 		if err != nil {
-			return nil, fmt.Errorf("invalid BANCOD_GRPC_PORT: %w", err)
+			return nil, fmt.Errorf("invalid SOLVER_GRPC_PORT: %w", err)
 		}
 		grpcPort = p
 	}
 
 	httpPort := defaultHTTPPort
-	if v := os.Getenv("BANCOD_HTTP_PORT"); v != "" {
+	if v := os.Getenv("SOLVER_HTTP_PORT"); v != "" {
 		p, err := strconv.Atoi(v)
 		if err != nil {
-			return nil, fmt.Errorf("invalid BANCOD_HTTP_PORT: %w", err)
+			return nil, fmt.Errorf("invalid SOLVER_HTTP_PORT: %w", err)
 		}
 		httpPort = p
 	}
 
 	logLevel := defaultLogLevel
-	if v := os.Getenv("BANCOD_LOG_LEVEL"); v != "" {
+	if v := os.Getenv("SOLVER_LOG_LEVEL"); v != "" {
 		l, err := strconv.Atoi(v)
 		if err != nil {
-			return nil, fmt.Errorf("invalid BANCOD_LOG_LEVEL: %w", err)
+			return nil, fmt.Errorf("invalid SOLVER_LOG_LEVEL: %w", err)
 		}
 		logLevel = l
 	}
 
 	if grpcPort < 1 || grpcPort > 65535 {
-		return nil, fmt.Errorf("BANCOD_GRPC_PORT must be between 1 and 65535")
+		return nil, fmt.Errorf("SOLVER_GRPC_PORT must be between 1 and 65535")
 	}
 	if httpPort < 1 || httpPort > 65535 {
-		return nil, fmt.Errorf("BANCOD_HTTP_PORT must be between 1 and 65535")
+		return nil, fmt.Errorf("SOLVER_HTTP_PORT must be between 1 and 65535")
 	}
 	if grpcPort == httpPort {
-		return nil, fmt.Errorf("BANCOD_GRPC_PORT and BANCOD_HTTP_PORT must be different")
+		return nil, fmt.Errorf("SOLVER_GRPC_PORT and SOLVER_HTTP_PORT must be different")
 	}
 
-	bancoEnabled, err := parseBool("BANCOD_BANCO_ENABLED", defaultBancoEnabled)
+	bancoEnabled, err := parseBool("SOLVER_BANCO_ENABLED", defaultBancoEnabled)
 	if err != nil {
 		return nil, err
 	}
-	preimageEnabled, err := parseBool("BANCOD_PREIMAGE_ENABLED", defaultPreimageEnabled)
+	preimageEnabled, err := parseBool("SOLVER_PREIMAGE_ENABLED", defaultPreimageEnabled)
 	if err != nil {
 		return nil, err
 	}
 	if !bancoEnabled && !preimageEnabled {
-		return nil, fmt.Errorf("at least one plugin must be enabled (BANCOD_BANCO_ENABLED or BANCOD_PREIMAGE_ENABLED)")
+		return nil, fmt.Errorf("at least one plugin must be enabled (SOLVER_BANCO_ENABLED or SOLVER_PREIMAGE_ENABLED)")
 	}
 
 	return &Config{

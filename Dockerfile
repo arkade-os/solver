@@ -24,7 +24,7 @@ WORKDIR /app
 COPY --from=builder /app/bin/* /app/
 
 ENV PATH="/app:${PATH}"
-ENV BANCOD_DATADIR=/app/data
+ENV SOLVER_DATADIR=/app/data
 
 VOLUME /app/data
 

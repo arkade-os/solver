@@ -1,4 +1,4 @@
-module github.com/arkade-os/bancod
+module github.com/arkade-os/solver
 
 go 1.26.2
 

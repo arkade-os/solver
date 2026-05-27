@@ -89,8 +89,8 @@ The 90% case: your protocol stamps a packet into the ark OP_RETURN extension. Us
 ```go
 import (
     "github.com/arkade-os/arkd/pkg/ark-lib/extension"
-    "github.com/arkade-os/bancod/pkg/solver"
-    "github.com/arkade-os/bancod/pkg/solver/builder"
+    "github.com/arkade-os/solver/pkg/solver"
+    "github.com/arkade-os/solver/pkg/solver/builder"
 )
 
 type Intent struct { /* typed fields */ }

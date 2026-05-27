@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/arkade-os/bancod/pkg/preimage"
+	"github.com/arkade-os/solver/pkg/preimage"
 )
 
 func TestECIES_RoundTrip(t *testing.T) {

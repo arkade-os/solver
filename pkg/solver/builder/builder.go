@@ -13,8 +13,8 @@ import (
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/sirupsen/logrus"
 
-	"github.com/arkade-os/bancod/pkg/solver"
-	"github.com/arkade-os/bancod/pkg/solver/txmatch"
+	"github.com/arkade-os/solver/pkg/solver"
+	"github.com/arkade-os/solver/pkg/solver/txmatch"
 )
 
 // ErrSkip is the silent-miss sentinel. Returning ErrSkip from Decode or a

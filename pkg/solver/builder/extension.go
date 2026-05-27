@@ -7,7 +7,7 @@ import (
 	"github.com/arkade-os/arkd/pkg/ark-lib/extension"
 	"github.com/btcsuite/btcd/btcutil/psbt"
 
-	"github.com/arkade-os/bancod/pkg/solver/txmatch"
+	"github.com/arkade-os/solver/pkg/solver/txmatch"
 )
 
 // ExtensionDecoder receives the parsed ark Extension and returns a typed

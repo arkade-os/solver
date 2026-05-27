@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/arkade-os/bancod/pkg/banco"
+	"github.com/arkade-os/solver/pkg/banco"
 )
 
 // ErrPairNotFound is returned by PairRepository.Update when the pair does

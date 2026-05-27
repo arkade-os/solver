@@ -15,9 +15,9 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
-	bancov1 "github.com/arkade-os/bancod/api-spec/protobuf/gen/go/bancod/v1"
-	"github.com/arkade-os/bancod/internal/core/application"
-	"github.com/arkade-os/bancod/internal/interface/web"
+	bancov1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/bancod/v1"
+	"github.com/arkade-os/solver/internal/core/application"
+	"github.com/arkade-os/solver/internal/interface/web"
 )
 
 const maxRequestBodySize = 1 << 20 // 1 MB
