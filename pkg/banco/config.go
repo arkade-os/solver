@@ -3,7 +3,7 @@ package banco
 import (
 	"time"
 
-	introclient "github.com/ArkLabsHQ/introspector/pkg/client"
+	emulatorclient "github.com/arkade-os/emulator/pkg/client"
 	arksdk "github.com/arkade-os/go-sdk"
 	"github.com/sirupsen/logrus"
 )
@@ -14,7 +14,7 @@ const (
 
 type Config struct {
 	SolverClient    arksdk.Wallet
-	Introspector    introclient.TransportClient
+	Emulator        emulatorclient.TransportClient
 	PairsRepository PairRepository
 	PriceFeed       PriceFeed
 	PriceCacheTTL   time.Duration

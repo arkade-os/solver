@@ -22,8 +22,8 @@ message GetSolverPubKeyRequest {}
 message GetSolverPubKeyResponse {
   // Hex-encoded compressed secp256k1 pubkey (33 bytes / 66 hex chars).
   string solver_pub_key = 1;
-  // Hex-encoded compressed secp256k1 pubkey of the bot's introspector.
+  // Hex-encoded compressed secp256k1 pubkey of the bot's emulator.
   // Receivers MUST use this when building VHTLCs whose offline-claim
   // closure is meant to be spent by this bot.
-  string introspector_pub_key = 2;
+  string emulator_pub_key = 2;
 }

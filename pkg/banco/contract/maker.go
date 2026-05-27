@@ -5,12 +5,12 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	introclient "github.com/ArkLabsHQ/introspector/pkg/client"
 	arklib "github.com/arkade-os/arkd/pkg/ark-lib"
 	"github.com/arkade-os/arkd/pkg/ark-lib/asset"
 	"github.com/arkade-os/arkd/pkg/ark-lib/extension"
 	"github.com/arkade-os/arkd/pkg/ark-lib/script"
 	"github.com/arkade-os/arkd/pkg/client-lib/indexer"
+	emulatorclient "github.com/arkade-os/emulator/pkg/client"
 	arksdk "github.com/arkade-os/go-sdk"
 	"github.com/btcsuite/btcd/btcec/v2"
 )
@@ -44,7 +44,7 @@ func CreateOffer(
 	ctx context.Context,
 	params CreateOfferParams,
 	arkClient arksdk.Wallet,
-	introClient introclient.TransportClient,
+	emulatorClient emulatorclient.TransportClient,
 ) (*CreateOfferResult, error) {
 	// TODO cancel and exit needs a way to get the wallet public key
 	if params.CancelAt > 0 {
@@ -54,19 +54,19 @@ func CreateOffer(
 		return nil, fmt.Errorf("exit not supported")
 	}
 
-	// Get introspector pubkey
-	introInfo, err := introClient.GetInfo(ctx)
+	// Get emulator pubkey
+	emulatorInfo, err := emulatorClient.GetInfo(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get introspector info: %w", err)
+		return nil, fmt.Errorf("failed to get emulator info: %w", err)
 	}
 
-	introPubKeyBytes, err := hex.DecodeString(introInfo.SignerPublicKey)
+	emulatorPubKeyBytes, err := hex.DecodeString(emulatorInfo.SignerPublicKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode introspector pubkey: %w", err)
+		return nil, fmt.Errorf("failed to decode emulator pubkey: %w", err)
 	}
-	introspectorPubkey, err := btcec.ParsePubKey(introPubKeyBytes)
+	emulatorPubkey, err := btcec.ParsePubKey(emulatorPubKeyBytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse introspector pubkey: %w", err)
+		return nil, fmt.Errorf("failed to parse emulator pubkey: %w", err)
 	}
 
 	// Get maker address
@@ -89,11 +89,11 @@ func CreateOffer(
 	}
 
 	offer := &Offer{
-		WantAmount:         params.WantAmount,
-		WantAsset:          params.WantAsset,
-		CancelAt:           params.CancelAt,
-		MakerPkScript:      makerPkScript,
-		IntrospectorPubkey: introspectorPubkey,
+		WantAmount:     params.WantAmount,
+		WantAsset:      params.WantAsset,
+		CancelAt:       params.CancelAt,
+		MakerPkScript:  makerPkScript,
+		EmulatorPubkey: emulatorPubkey,
 	}
 
 	// Compute swap address

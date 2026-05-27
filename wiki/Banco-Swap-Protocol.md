@@ -17,10 +17,10 @@ The protocol relies on three parties:
     it.
 -   The **taker** spends the swap VTXO via its **fulfill** tapscript, providing
     the maker's output and its own change in the same transaction.
--   The [**introspector**](https://github.com/ArkLabsHQ/introspector) is the
+-   The [**emulator**](https://github.com/ArkLabsHQ/emulator) is the
     covenant-enforcing co-signer. The fulfill leaf
     delegates one of its two required keys to a key that is tweaked by the
-    fulfill script itself, so the introspector will only sign a transaction
+    fulfill script itself, so the emulator will only sign a transaction
     whose outputs satisfy that script. This is what makes the swap trustless for
     the maker.
 
@@ -67,7 +67,7 @@ Offer := {
   0x04 CancelAt?           : u64 BE       # unix timestamp; absent/0 => no cancel path.
   0x05 MakerPkScript       : bytes(34)    # REQUIRED. OP_1 || PUSH32 || <32-byte key>.
   0x07 MakerPublicKey?     : xonly(32)    # REQUIRED iff CancelAt or ExitDelay is set.
-  0x08 IntrospectorPubkey  : xonly(32)    # REQUIRED. Covenant co-signer key.
+  0x08 EmulatorPubkey  : xonly(32)    # REQUIRED. Covenant co-signer key.
   0x09 RatioNum?           : u64 BE       # partial-fill numerator; absent/0 => unset.
   0x0a RatioDen?           : u64 BE       # partial-fill denominator; absent/0 => unset.
   0x0b OfferAsset?         : AssetId       # absent => BTC. Asset deposited into the swap.
@@ -81,12 +81,12 @@ ExitTimelock := { type: u8, value: u64 BE }       # type 0x00 = blocks, 0x01 = s
 the [Arkade Asset spec](https://github.com/ArkLabsHQ/arkade-assets/blob/master/arkade-assets.md).
 
 **Required fields:** `SwapPkScript`, `WantAmount`, `MakerPkScript`,
-`IntrospectorPubkey`. An offer missing any of these is INVALID.
+`EmulatorPubkey`. An offer missing any of these is INVALID.
 
 **Serialization order.** A serializer MUST emit present records in this order:
 `SwapPkScript`, `WantAmount`, `WantAsset?`, `RatioNum?`, `RatioDen?`,
 `OfferAsset?`, `CancelAt?`, `MakerPkScript`, `MakerPublicKey?`,
-`IntrospectorPubkey?`, `ExitDelay?`. Parsers MUST NOT assume this order — the
+`EmulatorPubkey?`, `ExitDelay?`. Parsers MUST NOT assume this order — the
 stream is parsed by `Type` — but emitting it canonically keeps offer hashes
 stable across implementations.
 
@@ -99,8 +99,8 @@ stable across implementations.
     program: `OP_1 (0x51) || OP_DATA_32 (0x20) || <32-byte witness program>`.
     The trailing 32 bytes are the maker's witness program, reused as
     `makerWitnessProgram` in the fulfill script.
--   **Public keys** (`MakerPublicKey`, `IntrospectorPubkey`) are 32-byte x-only
-    Schnorr keys. `IntrospectorPubkey` MUST be exactly 32 bytes.
+-   **Public keys** (`MakerPublicKey`, `EmulatorPubkey`) are 32-byte x-only
+    Schnorr keys. `EmulatorPubkey` MUST be exactly 32 bytes.
 -   **`WantAsset` / `OfferAsset`** are serialized `AssetId`s; their absence means
     the leg is native BTC.
 -   **`ExitTimelock`** is 9 bytes: a 1-byte locktime type (`0x00` block height,
@@ -124,21 +124,21 @@ TapscriptsVtxoScript {
 ### 3.1. Fulfill closure
 
 The first (and only mandatory) leaf is a 2-of-2 between the Ark **signer** and a
-**tweaked introspector key**:
+**tweaked emulator key**:
 
 ```
 FulfillTweakedKey = ComputeArkadeScriptPublicKey(
-                        IntrospectorPubkey,
+                        EmulatorPubkey,
                         ArkadeScriptHash(FulfillScript))
 ```
 
-Because the second key commits to `FulfillScript`, the introspector's signature
+Because the second key commits to `FulfillScript`, the emulator's signature
 is only obtainable for a transaction whose outputs satisfy that script. This is
 the covenant that protects the maker.
 
 ### 3.2. Fulfill script
 
-`FulfillScript` is an Arkade-script (introspection opcodes) the introspector
+`FulfillScript` is an Arkade-script (introspection opcodes) the emulator
 evaluates against the spending transaction. It pins **output[0]** to the maker.
 
 **BTC swap** (`WantAsset` absent):
@@ -197,7 +197,7 @@ Outputs:
                                      pkScript = MakerPkScript
   vout 1     : taker output       — swap deposit + BTC change (+ asset change)
                                      pkScript = taker's offchain address
-  vout 2     : OP_RETURN extension — introspector packet (+ asset packet if any)
+  vout 2     : OP_RETURN extension — emulator packet (+ asset packet if any)
 ```
 
 When `WantAsset` is set, output[0] carries a 330-sat dust BTC carrier and the
@@ -205,12 +205,12 @@ asset itself is routed through the asset packet; otherwise output[0] carries
 `WantAmount` BTC directly. BTC change is merged into the taker output to avoid
 sub-dust outputs.
 
-### 4.2. Introspector and asset packets
+### 4.2. Emulator and asset packets
 
 The fulfillment transaction's OP_RETURN extension carries:
 
-1.  An **introspector packet**: `IntrospectorEntry{ Vin: 0, Script: FulfillScript }`.
-    This tells the introspector which input (the swap VTXO) is gated by which
+1.  An **emulator packet**: `EmulatorEntry{ Vin: 0, Script: FulfillScript }`.
+    This tells the emulator which input (the swap VTXO) is gated by which
     Arkade-script, so it can evaluate the covenant before co-signing.
 2.  An **[Arkade Asset packet](https://github.com/ArkLabsHQ/arkade-assets/blob/master/arkade-assets.md)**
     (only when assets move), tracking every asset across inputs and outputs.
@@ -225,14 +225,14 @@ The fulfillment transaction's OP_RETURN extension carries:
 graph LR
     A[Swap VTXO<br/>maker funded] --> B[Taker builds<br/>ark tx + checkpoints]
     B --> C[Taker signs<br/>own inputs]
-    C --> D[Introspector.SubmitTx]
-    D --> E[Introspector co-signs<br/>fulfill leaf + finalizes]
+    C --> D[Emulator.SubmitTx]
+    D --> E[Emulator co-signs<br/>fulfill leaf + finalizes]
     E --> F[arkd accepts<br/>swap settled]
 ```
 
 The taker signs the ark transaction and pre-signs every checkpoint with its own
-key. Because the fulfill closure makes the **introspector's tweaked key the last
-non-arkd signer**, the introspector takes the finalizer role: it verifies the
+key. Because the fulfill closure makes the **emulator's tweaked key the last
+non-arkd signer**, the emulator takes the finalizer role: it verifies the
 covenant, adds its signature, forwards to arkd, merges arkd's checkpoint
 signatures, and returns the finalized ark transaction. The returned ark txid is
 the settlement identifier.
@@ -244,9 +244,9 @@ the settlement identifier.
 -   **TLV well-formedness**: every record fits within the payload; no truncated
     headers or values; no unknown `Type`.
 -   **Required fields present**: `SwapPkScript`, `WantAmount`, `MakerPkScript`,
-    `IntrospectorPubkey`.
+    `EmulatorPubkey`.
 -   **`MakerPkScript`** is exactly 34 bytes and a valid P2TR program.
--   **`IntrospectorPubkey`** is a valid 32-byte x-only key.
+-   **`EmulatorPubkey`** is a valid 32-byte x-only key.
 -   **Tree consistency**: the swap pkScript reconstructed from the offer +
     signer key MUST equal `SwapPkScript`. A taker MUST abort fulfillment on
     mismatch (`offer inconsistency`).
@@ -274,7 +274,7 @@ swap VTXO simply remains unspent and available to another taker.
 ## 6. Maker lifecycle
 
 -   **Create.** The maker calls `CreateOffer(WantAmount, WantAsset, …)`: it
-    fetches the introspector's signer key, derives the maker pkScript from its
+    fetches the emulator's signer key, derives the maker pkScript from its
     Ark address, builds the `Offer`, computes the swap address from the VTXO
     tree, and returns the hex offer payload + extension packet + swap address.
     The maker then funds the swap address, attaching the offer packet to the
@@ -287,7 +287,7 @@ swap VTXO simply remains unspent and available to another taker.
 
 ## 7. Rationale and notes
 
--   **Why a tweaked introspector key, not the maker's signature?** It makes the
+-   **Why a tweaked emulator key, not the maker's signature?** It makes the
     offer non-interactive. The maker funds once and goes offline; the covenant —
     not a live signature — guarantees it gets paid. Anyone can be the taker.
 -   **Why output[0] is pinned by index.** The fulfill script self-references

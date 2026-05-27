@@ -36,12 +36,12 @@ not by error.
 
 ## Solve
 
-`contract.FulfillOffer(ctx, offer, arkClient, introspector)` atomically:
+`contract.FulfillOffer(ctx, offer, arkClient, emulator)` atomically:
 
 1. Constructs the taker's Ark tx that spends into the offer's
    `SwapPkScript` (the maker's receive output) and emits the taker's
    matching outputs.
-2. Signs and submits via the introspector. On success, returns
+2. Signs and submits via the emulator. On success, returns
    `result.ArkTxid`.
 3. If a `FulfillmentListener` is configured, emits a `FulfillmentEvent`
    with both txids and the resolved pair — `TradeListener` persists this
@@ -62,7 +62,7 @@ lands.
 ```go
 plugin := banco.NewPlugin(banco.Config{
     SolverClient:    arkClient,    // arksdk.Wallet — signs + holds funds
-    Introspector:    introClient,  // submits fulfilled bundles
+    Emulator:    emulatorClient,  // submits fulfilled bundles
     PairsRepository: pairRepo,     // configured trading pairs (CRUD via TakerService)
     PriceFeed:       priceFeed,    // CoinGecko-backed by default
     Listener:        tradeListener,// persists FulfillmentEvent → trades table

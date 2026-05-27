@@ -36,16 +36,16 @@ func testXOnlyBytes(pub *btcec.PublicKey) []byte {
 func testMinimalOffer(t *testing.T) *Offer {
 	t.Helper()
 	_, makerPub := testKeyPair(t)
-	_, introPub := testKeyPair(t)
+	_, emulatorPub := testKeyPair(t)
 
 	makerPkScript := testP2TRScript(t, makerPub)
 	swapPkScript := testP2TRScript(t, makerPub)
 
 	return &Offer{
-		SwapPkScript:       swapPkScript,
-		WantAmount:         1000,
-		MakerPkScript:      makerPkScript,
-		IntrospectorPubkey: introPub,
+		SwapPkScript:   swapPkScript,
+		WantAmount:     1000,
+		MakerPkScript:  makerPkScript,
+		EmulatorPubkey: emulatorPub,
 	}
 }
 
@@ -54,19 +54,19 @@ func testFullOffer(t *testing.T) *Offer {
 	t.Helper()
 	_, makerPub := testKeyPair(t)
 	_, makerPub2 := testKeyPair(t)
-	_, introPub := testKeyPair(t)
+	_, emulatorPub := testKeyPair(t)
 
 	makerPkScript := testP2TRScript(t, makerPub)
 	swapPkScript := testP2TRScript(t, makerPub)
 
 	return &Offer{
-		SwapPkScript:       swapPkScript,
-		WantAmount:         5000,
-		MakerPkScript:      makerPkScript,
-		IntrospectorPubkey: introPub,
-		CancelAt:           1700000000,
-		RatioNum:           3,
-		RatioDen:           4,
+		SwapPkScript:   swapPkScript,
+		WantAmount:     5000,
+		MakerPkScript:  makerPkScript,
+		EmulatorPubkey: emulatorPub,
+		CancelAt:       1700000000,
+		RatioNum:       3,
+		RatioDen:       4,
 		ExitDelay: &arklib.RelativeLocktime{
 			Type:  arklib.LocktimeTypeBlock,
 			Value: 144,

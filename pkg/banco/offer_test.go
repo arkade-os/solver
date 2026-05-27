@@ -76,16 +76,16 @@ func buildTestTxWithOffer(t *testing.T, offer *contract.Offer) *wire.MsgTx {
 func buildMinimalOffer(t *testing.T) *contract.Offer {
 	t.Helper()
 	_, makerPub := testKeyPair(t)
-	_, introPub := testKeyPair(t)
+	_, emulatorPub := testKeyPair(t)
 
 	makerPkScript := testP2TRScript(t, makerPub)
 	swapPkScript := testP2TRScript(t, makerPub)
 
 	return &contract.Offer{
-		SwapPkScript:       swapPkScript,
-		WantAmount:         1000,
-		MakerPkScript:      makerPkScript,
-		IntrospectorPubkey: introPub,
+		SwapPkScript:   swapPkScript,
+		WantAmount:     1000,
+		MakerPkScript:  makerPkScript,
+		EmulatorPubkey: emulatorPub,
 	}
 }
 

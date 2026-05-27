@@ -45,10 +45,10 @@ func TestBancoAssetToBTC(t *testing.T) {
 	t.Cleanup(func() { _ = pairRepo.Remove(ctx, pair.Pair) })
 
 	// Maker creates offer: deposit asset, want 500 sats BTC.
-	intro := newIntroClient(t)
+	emulator := newEmulatorClient(t)
 	offerResult, err := contract.CreateOffer(ctx, contract.CreateOfferParams{
 		WantAmount: 500,
-	}, maker, intro)
+	}, maker, emulator)
 	require.NoError(t, err)
 	require.NotEmpty(t, offerResult.SwapAddress)
 
@@ -113,13 +113,13 @@ func TestBancoBTCToAsset(t *testing.T) {
 	maker := setupArkClient(t)
 	faucetOffchain(t, maker, 0.0005)
 
-	intro := newIntroClient(t)
+	emulator := newEmulatorClient(t)
 	wantAssetID, err := asset.NewAssetIdFromString(assetID)
 	require.NoError(t, err)
 	offerResult, err := contract.CreateOffer(ctx, contract.CreateOfferParams{
 		WantAmount: 500,
 		WantAsset:  wantAssetID,
-	}, maker, intro)
+	}, maker, emulator)
 	require.NoError(t, err)
 
 	// Subscribe to maker vtxo events before funding the swap.
@@ -176,13 +176,13 @@ func TestBancoAssetToAsset(t *testing.T) {
 	require.NoError(t, pairRepo.Add(ctx, pair))
 	t.Cleanup(func() { _ = pairRepo.Remove(ctx, pair.Pair) })
 
-	intro := newIntroClient(t)
+	emulator := newEmulatorClient(t)
 	wantAssetID, err := asset.NewAssetIdFromString(assetB)
 	require.NoError(t, err)
 	offerResult, err := contract.CreateOffer(ctx, contract.CreateOfferParams{
 		WantAmount: 500,
 		WantAsset:  wantAssetID,
-	}, maker, intro)
+	}, maker, emulator)
 	require.NoError(t, err)
 
 	makerVtxoCh := maker.GetVtxoEventChannel(ctx)

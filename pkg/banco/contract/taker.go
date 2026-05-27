@@ -9,8 +9,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/ArkLabsHQ/introspector/pkg/arkade"
-	introclient "github.com/ArkLabsHQ/introspector/pkg/client"
 	arklib "github.com/arkade-os/arkd/pkg/ark-lib"
 	"github.com/arkade-os/arkd/pkg/ark-lib/asset"
 	"github.com/arkade-os/arkd/pkg/ark-lib/extension"
@@ -18,6 +16,8 @@ import (
 	"github.com/arkade-os/arkd/pkg/ark-lib/script"
 	"github.com/arkade-os/arkd/pkg/client-lib/indexer"
 	clientTypes "github.com/arkade-os/arkd/pkg/client-lib/types"
+	"github.com/arkade-os/emulator/pkg/arkade"
+	emulatorclient "github.com/arkade-os/emulator/pkg/client"
 	arksdk "github.com/arkade-os/go-sdk"
 	sdkcontract "github.com/arkade-os/go-sdk/contract"
 	sdkcontracttypes "github.com/arkade-os/go-sdk/types"
@@ -39,7 +39,7 @@ func FulfillOffer(
 	ctx context.Context,
 	offer Offer,
 	arkClient arksdk.Wallet,
-	introClient introclient.TransportClient,
+	emulatorClient emulatorclient.TransportClient,
 ) (*FulfillResult, error) {
 	cfg, err := arkClient.GetConfigData(ctx)
 	if err != nil {
@@ -193,14 +193,14 @@ func FulfillOffer(
 		return nil, fmt.Errorf("failed to build fulfill script: %w", err)
 	}
 
-	introspectorPacket, err := arkade.NewPacket(arkade.IntrospectorEntry{
+	emulatorPacket, err := arkade.NewPacket(arkade.EmulatorEntry{
 		Vin:    0,
 		Script: fulfillScriptBytes,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to build introspector packet: %w", err)
+		return nil, fmt.Errorf("failed to build emulator packet: %w", err)
 	}
-	ext := extension.Extension{introspectorPacket}
+	ext := extension.Extension{emulatorPacket}
 
 	// Build asset packet tracking asset flows across inputs/outputs.
 	// Input 0 = swap VTXO, inputs 1+ = taker VTXOs.
@@ -329,11 +329,11 @@ func FulfillOffer(
 		return nil, fmt.Errorf("failed to sign ark tx: %w", err)
 	}
 
-	// Pre-sign every checkpoint with the taker key. The introspector requires
+	// Pre-sign every checkpoint with the taker key. The emulator requires
 	// each checkpoint to already carry its non-arkd signatures before it forwards
 	// the bundle to arkd (verifyNonArkdCheckpointSignatures). The swap VTXO
 	// checkpoint has no taker key in its closure so SignTransaction is a no-op
-	// there; the introspector will add its own signature in its SubmitTx.
+	// there; the emulator will add its own signature in its SubmitTx.
 	checkpointB64s := make([]string, 0, len(checkpoints))
 	for _, cp := range checkpoints {
 		cpB64, err := cp.B64Encode()
@@ -347,14 +347,14 @@ func FulfillOffer(
 		checkpointB64s = append(checkpointB64s, signedCpB64)
 	}
 
-	// Hand the pre-signed bundle to the introspector. Because solverd's swap
-	// fulfill closure makes the introspector tweaked key the last non-arkd
-	// signer, the introspector takes on the finalizer role: it forwards the
+	// Hand the pre-signed bundle to the emulator. Because solverd's swap
+	// fulfill closure makes the emulator tweaked key the last non-arkd
+	// signer, the emulator takes on the finalizer role: it forwards the
 	// bundle to arkd, merges arkd's checkpoint signatures, calls FinalizeTx,
 	// and returns the finalized ark tx + finalized checkpoints.
-	finalArkTxB64, _, err := introClient.SubmitTx(ctx, signedArkTxB64, checkpointB64s)
+	finalArkTxB64, _, err := emulatorClient.SubmitTx(ctx, signedArkTxB64, checkpointB64s)
 	if err != nil {
-		return nil, fmt.Errorf("introspector submission failed: %w", err)
+		return nil, fmt.Errorf("emulator submission failed: %w", err)
 	}
 
 	finalArkPtx, err := psbt.NewFromRawBytes(strings.NewReader(finalArkTxB64), true)
@@ -362,7 +362,7 @@ func FulfillOffer(
 		return nil, fmt.Errorf("failed to decode finalized ark tx: %w", err)
 	}
 	arkTxid := finalArkPtx.UnsignedTx.TxHash().String()
-	log.WithField("arkTxid", arkTxid).Debug("taker: introspector finalized fulfill tx")
+	log.WithField("arkTxid", arkTxid).Debug("taker: emulator finalized fulfill tx")
 
 	return &FulfillResult{ArkTxid: arkTxid}, nil
 }

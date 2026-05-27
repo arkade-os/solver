@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	introclient "github.com/ArkLabsHQ/introspector/pkg/client"
+	emulatorclient "github.com/arkade-os/emulator/pkg/client"
 
 	arklib "github.com/arkade-os/arkd/pkg/ark-lib"
 	"github.com/arkade-os/arkd/pkg/ark-lib/asset"
@@ -35,10 +35,10 @@ import (
 )
 
 const (
-	password         = "secret"
-	arkdURL          = "localhost:7170"
-	arkdHTTPURL      = "http://localhost:7171"
-	introspectorAddr = "localhost:7173"
+	password     = "secret"
+	arkdURL      = "localhost:7170"
+	arkdHTTPURL  = "http://localhost:7171"
+	emulatorAddr = "localhost:7173"
 )
 
 // setupArkClient builds, inits, and unlocks a fresh ark wallet on a temp
@@ -338,11 +338,11 @@ func sendOffChainWithExtension(
 	require.NoError(t, err)
 }
 
-func newIntroClient(t *testing.T) introclient.TransportClient {
+func newEmulatorClient(t *testing.T) emulatorclient.TransportClient {
 	t.Helper()
-	conn, err := grpc.NewClient(introspectorAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(emulatorAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
-	return introclient.NewGRPCClient(conn)
+	return emulatorclient.NewGRPCClient(conn)
 }
 
 func issueAsset(t *testing.T, client arksdk.Wallet, supply uint64) string {
@@ -357,10 +357,10 @@ func issueAsset(t *testing.T, client arksdk.Wallet, supply uint64) string {
 	return assetIds[0].String()
 }
 
-// fetchIntroPubkey returns the introspector signer pubkey, parsed.
-func fetchIntroPubkey(t *testing.T, introClient introclient.TransportClient) *btcec.PublicKey {
+// fetchIntroPubkey returns the emulator signer pubkey, parsed.
+func fetchIntroPubkey(t *testing.T, emulatorClient emulatorclient.TransportClient) *btcec.PublicKey {
 	t.Helper()
-	info, err := introClient.GetInfo(t.Context())
+	info, err := emulatorClient.GetInfo(t.Context())
 	require.NoError(t, err)
 	raw, err := hex.DecodeString(info.SignerPublicKey)
 	require.NoError(t, err)

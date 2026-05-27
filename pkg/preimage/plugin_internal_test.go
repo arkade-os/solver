@@ -24,7 +24,7 @@ type fixture struct {
 	t            *testing.T
 	solverPriv   *btcec.PrivateKey
 	serverPriv   *btcec.PrivateKey
-	introPriv    *btcec.PrivateKey
+	emulatorPriv *btcec.PrivateKey
 	preimg       []byte
 	receiverPk   []byte
 	arkadeScript []byte
@@ -39,7 +39,7 @@ func newFixture(t *testing.T) *fixture {
 	require.NoError(t, err)
 	serverPriv, err := btcec.NewPrivateKey()
 	require.NoError(t, err)
-	introPriv, err := btcec.NewPrivateKey()
+	emulatorPriv, err := btcec.NewPrivateKey()
 	require.NoError(t, err)
 
 	preimg := bytes.Repeat([]byte{0xab}, 32)
@@ -49,7 +49,7 @@ func newFixture(t *testing.T) *fixture {
 	require.NoError(t, err)
 
 	preimageHash := btcutil.Hash160(preimg)
-	closure, err := CovenantClaimClosure(preimageHash, receiverPk, serverPriv.PubKey(), introPriv.PubKey())
+	closure, err := CovenantClaimClosure(preimageHash, receiverPk, serverPriv.PubKey(), emulatorPriv.PubKey())
 	require.NoError(t, err)
 	vtxoScript := &script.TapscriptsVtxoScript{Closures: []script.Closure{closure}}
 	taptree, err := vtxoScript.Encode()
@@ -64,10 +64,10 @@ func newFixture(t *testing.T) *fixture {
 
 	p := &plugin{
 		cfg: Config{
-			SolverPrivKey:      solverPriv,
-			IntrospectorPubKey: introPriv.PubKey(),
-			ServerPubKey:       serverPriv.PubKey(),
-			Log:                log,
+			SolverPrivKey:  solverPriv,
+			EmulatorPubKey: emulatorPriv.PubKey(),
+			ServerPubKey:   serverPriv.PubKey(),
+			Log:            log,
 		},
 		log: log,
 	}
@@ -76,7 +76,7 @@ func newFixture(t *testing.T) *fixture {
 		t:            t,
 		solverPriv:   solverPriv,
 		serverPriv:   serverPriv,
-		introPriv:    introPriv,
+		emulatorPriv: emulatorPriv,
 		preimg:       preimg,
 		receiverPk:   receiverPk,
 		arkadeScript: arkadeScript,

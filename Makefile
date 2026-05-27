@@ -14,11 +14,11 @@ build:
 	@echo "Building solver CLI..."
 	@go build -o solver ./cmd/solver/
 
-## run: build and run solverd locally against the fulmine test stack (arkd@7070, introspector@7273)
+## run: build and run solverd locally against the fulmine test stack (arkd@7070, emulator@7273)
 run: build
 	@echo "Running solverd against local test stack..."
 	@SOLVER_ARK_URL=localhost:7070 \
-	SOLVER_INTROSPECTOR_URL=localhost:7273 \
+	SOLVER_EMULATOR_URL=localhost:7273 \
 	SOLVER_WALLET_SEED=ed1f6ad1c0aa1bbdcc14a4dc26ff5d31cca6df11617f2bbb24a4e0e6f72f7a5d \
 	SOLVER_WALLET_PASSWORD=password \
 	SOLVER_GRPC_PORT=7270 \

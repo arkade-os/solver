@@ -5,10 +5,10 @@ import (
 	"encoding/hex"
 	"testing"
 
-	introclient "github.com/ArkLabsHQ/introspector/pkg/client"
 	arklib "github.com/arkade-os/arkd/pkg/ark-lib"
 	"github.com/arkade-os/arkd/pkg/client-lib/indexer"
 	clientTypes "github.com/arkade-os/arkd/pkg/client-lib/types"
+	emulatorclient "github.com/arkade-os/emulator/pkg/client"
 	arksdk "github.com/arkade-os/go-sdk"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/stretchr/testify/assert"
@@ -16,15 +16,15 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// Mock: introclient.TransportClient
+// Mock: emulatorclient.TransportClient
 // ---------------------------------------------------------------------------
 
-type mockIntroClient struct {
-	introclient.TransportClient // embed for unimplemented methods
-	getInfoFn                   func(ctx context.Context) (*introclient.Info, error)
+type mockEmulatorClient struct {
+	emulatorclient.TransportClient // embed for unimplemented methods
+	getInfoFn                      func(ctx context.Context) (*emulatorclient.Info, error)
 }
 
-func (m *mockIntroClient) GetInfo(ctx context.Context) (*introclient.Info, error) {
+func (m *mockEmulatorClient) GetInfo(ctx context.Context) (*emulatorclient.Info, error) {
 	return m.getInfoFn(ctx)
 }
 
@@ -83,7 +83,7 @@ func TestCreateOffer_ExitNotSupported(t *testing.T) {
 func TestCreateOffer_HappyPath(t *testing.T) {
 	// Generate keys for the mock services
 	_, signerPub := testKeyPair(t)
-	_, introPub := testKeyPair(t)
+	_, emulatorPub := testKeyPair(t)
 	_, vtxoPub := testKeyPair(t)
 
 	// Build a valid Ark address that NewOffchainAddress will return
@@ -95,11 +95,11 @@ func TestCreateOffer_HappyPath(t *testing.T) {
 	encodedAddr, err := addr.EncodeV0()
 	require.NoError(t, err)
 
-	introClient := &mockIntroClient{
-		getInfoFn: func(ctx context.Context) (*introclient.Info, error) {
+	emulatorClient := &mockEmulatorClient{
+		getInfoFn: func(ctx context.Context) (*emulatorclient.Info, error) {
 			// Return compressed (33-byte) pubkey hex — btcec.ParsePubKey expects compressed
-			return &introclient.Info{
-				SignerPublicKey: hex.EncodeToString(introPub.SerializeCompressed()),
+			return &emulatorclient.Info{
+				SignerPublicKey: hex.EncodeToString(emulatorPub.SerializeCompressed()),
 			}, nil
 		},
 	}
@@ -117,7 +117,7 @@ func TestCreateOffer_HappyPath(t *testing.T) {
 	}
 
 	params := CreateOfferParams{WantAmount: 50_000}
-	result, err := CreateOffer(context.Background(), params, arkClient, introClient)
+	result, err := CreateOffer(context.Background(), params, arkClient, emulatorClient)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -134,57 +134,57 @@ func TestCreateOffer_HappyPath(t *testing.T) {
 	assert.Equal(t, uint64(50_000), decoded.WantAmount)
 	assert.Len(t, decoded.MakerPkScript, 34)
 	assert.Equal(t,
-		schnorr.SerializePubKey(introPub),
-		schnorr.SerializePubKey(decoded.IntrospectorPubkey),
+		schnorr.SerializePubKey(emulatorPub),
+		schnorr.SerializePubKey(decoded.EmulatorPubkey),
 	)
 }
 
-func TestCreateOffer_IntroClientError(t *testing.T) {
-	introClient := &mockIntroClient{
-		getInfoFn: func(ctx context.Context) (*introclient.Info, error) {
+func TestCreateOffer_EmulatorClientError(t *testing.T) {
+	emulatorClient := &mockEmulatorClient{
+		getInfoFn: func(ctx context.Context) (*emulatorclient.Info, error) {
 			return nil, assert.AnError
 		},
 	}
 
 	params := CreateOfferParams{WantAmount: 50_000}
-	_, err := CreateOffer(context.Background(), params, nil, introClient)
+	_, err := CreateOffer(context.Background(), params, nil, emulatorClient)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get introspector info")
+	assert.Contains(t, err.Error(), "failed to get emulator info")
 }
 
 func TestCreateOffer_BadIntroPubkeyHex(t *testing.T) {
-	introClient := &mockIntroClient{
-		getInfoFn: func(ctx context.Context) (*introclient.Info, error) {
-			return &introclient.Info{SignerPublicKey: "not-hex"}, nil
+	emulatorClient := &mockEmulatorClient{
+		getInfoFn: func(ctx context.Context) (*emulatorclient.Info, error) {
+			return &emulatorclient.Info{SignerPublicKey: "not-hex"}, nil
 		},
 	}
 
 	params := CreateOfferParams{WantAmount: 50_000}
-	_, err := CreateOffer(context.Background(), params, nil, introClient)
+	_, err := CreateOffer(context.Background(), params, nil, emulatorClient)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to decode introspector pubkey")
+	assert.Contains(t, err.Error(), "failed to decode emulator pubkey")
 }
 
 func TestCreateOffer_InvalidIntroPubkey(t *testing.T) {
-	introClient := &mockIntroClient{
-		getInfoFn: func(ctx context.Context) (*introclient.Info, error) {
-			return &introclient.Info{SignerPublicKey: hex.EncodeToString([]byte{0x01, 0x02})}, nil
+	emulatorClient := &mockEmulatorClient{
+		getInfoFn: func(ctx context.Context) (*emulatorclient.Info, error) {
+			return &emulatorclient.Info{SignerPublicKey: hex.EncodeToString([]byte{0x01, 0x02})}, nil
 		},
 	}
 
 	params := CreateOfferParams{WantAmount: 50_000}
-	_, err := CreateOffer(context.Background(), params, nil, introClient)
+	_, err := CreateOffer(context.Background(), params, nil, emulatorClient)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to parse introspector pubkey")
+	assert.Contains(t, err.Error(), "failed to parse emulator pubkey")
 }
 
 func TestCreateOffer_ArkClientAddressError(t *testing.T) {
-	_, introPub := testKeyPair(t)
+	_, emulatorPub := testKeyPair(t)
 
-	introClient := &mockIntroClient{
-		getInfoFn: func(ctx context.Context) (*introclient.Info, error) {
-			return &introclient.Info{
-				SignerPublicKey: hex.EncodeToString(introPub.SerializeCompressed()),
+	emulatorClient := &mockEmulatorClient{
+		getInfoFn: func(ctx context.Context) (*emulatorclient.Info, error) {
+			return &emulatorclient.Info{
+				SignerPublicKey: hex.EncodeToString(emulatorPub.SerializeCompressed()),
 			}, nil
 		},
 	}
@@ -196,14 +196,14 @@ func TestCreateOffer_ArkClientAddressError(t *testing.T) {
 	}
 
 	params := CreateOfferParams{WantAmount: 50_000}
-	_, err := CreateOffer(context.Background(), params, arkClient, introClient)
+	_, err := CreateOffer(context.Background(), params, arkClient, emulatorClient)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get maker address")
 }
 
 func TestCreateOffer_GetConfigError(t *testing.T) {
 	_, signerPub := testKeyPair(t)
-	_, introPub := testKeyPair(t)
+	_, emulatorPub := testKeyPair(t)
 	_, vtxoPub := testKeyPair(t)
 
 	addr := &arklib.Address{
@@ -214,10 +214,10 @@ func TestCreateOffer_GetConfigError(t *testing.T) {
 	encodedAddr, err := addr.EncodeV0()
 	require.NoError(t, err)
 
-	introClient := &mockIntroClient{
-		getInfoFn: func(ctx context.Context) (*introclient.Info, error) {
-			return &introclient.Info{
-				SignerPublicKey: hex.EncodeToString(introPub.SerializeCompressed()),
+	emulatorClient := &mockEmulatorClient{
+		getInfoFn: func(ctx context.Context) (*emulatorclient.Info, error) {
+			return &emulatorclient.Info{
+				SignerPublicKey: hex.EncodeToString(emulatorPub.SerializeCompressed()),
 			}, nil
 		},
 	}
@@ -232,7 +232,7 @@ func TestCreateOffer_GetConfigError(t *testing.T) {
 	}
 
 	params := CreateOfferParams{WantAmount: 50_000}
-	_, err = CreateOffer(context.Background(), params, arkClient, introClient)
+	_, err = CreateOffer(context.Background(), params, arkClient, emulatorClient)
 	require.Error(t, err)
 }
 

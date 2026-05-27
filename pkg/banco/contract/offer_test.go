@@ -59,7 +59,7 @@ func TestRoundtrip_MinimalOffer(t *testing.T) {
 	assert.Equal(t, orig.WantAmount, got.WantAmount)
 	assert.Equal(t, orig.MakerPkScript, got.MakerPkScript)
 	// x-only comparison: schnorr.ParsePubKey normalises to even parity
-	assert.Equal(t, schnorr.SerializePubKey(orig.IntrospectorPubkey), schnorr.SerializePubKey(got.IntrospectorPubkey))
+	assert.Equal(t, schnorr.SerializePubKey(orig.EmulatorPubkey), schnorr.SerializePubKey(got.EmulatorPubkey))
 	assert.Nil(t, got.WantAsset)
 	assert.Nil(t, got.OfferAsset)
 	assert.Nil(t, got.ExitDelay)
@@ -84,7 +84,7 @@ func TestRoundtrip_FullOffer(t *testing.T) {
 	assert.Equal(t, orig.WantAmount, got.WantAmount)
 	assert.Equal(t, orig.MakerPkScript, got.MakerPkScript)
 	// x-only comparison: schnorr.ParsePubKey normalises to even parity
-	assert.Equal(t, schnorr.SerializePubKey(orig.IntrospectorPubkey), schnorr.SerializePubKey(got.IntrospectorPubkey))
+	assert.Equal(t, schnorr.SerializePubKey(orig.EmulatorPubkey), schnorr.SerializePubKey(got.EmulatorPubkey))
 	assert.Equal(t, orig.CancelAt, got.CancelAt)
 	assert.Equal(t, orig.RatioNum, got.RatioNum)
 	assert.Equal(t, orig.RatioDen, got.RatioDen)
@@ -101,14 +101,14 @@ func TestRoundtrip_FullOffer(t *testing.T) {
 
 func TestDeserializeOffer_MissingRequiredField(t *testing.T) {
 	minimal := testMinimalOffer(t)
-	introBytes := testXOnlyBytes(minimal.IntrospectorPubkey)
+	emulatorBytes := testXOnlyBytes(minimal.EmulatorPubkey)
 
 	amountBytes := wantAmountBytes(minimal.WantAmount)
 
 	swapField := tlvField{typ: tlvSwapPkScript, value: minimal.SwapPkScript}
 	wantField := tlvField{typ: tlvWantAmount, value: amountBytes}
 	makerField := tlvField{typ: tlvMakerPkScript, value: minimal.MakerPkScript}
-	introField := tlvField{typ: tlvIntrospectorPubkey, value: introBytes}
+	emulatorField := tlvField{typ: tlvEmulatorPubkey, value: emulatorBytes}
 
 	tests := []struct {
 		name   string
@@ -117,23 +117,23 @@ func TestDeserializeOffer_MissingRequiredField(t *testing.T) {
 	}{
 		{
 			name:   "missing swapPkScript",
-			fields: []tlvField{wantField, makerField, introField},
+			fields: []tlvField{wantField, makerField, emulatorField},
 			errMsg: "missing required field: swapPkScript",
 		},
 		{
 			name:   "missing wantAmount",
-			fields: []tlvField{swapField, makerField, introField},
+			fields: []tlvField{swapField, makerField, emulatorField},
 			errMsg: "missing required field: wantAmount",
 		},
 		{
 			name:   "missing makerPkScript",
-			fields: []tlvField{swapField, wantField, introField},
+			fields: []tlvField{swapField, wantField, emulatorField},
 			errMsg: "missing required field: makerPkScript",
 		},
 		{
-			name:   "missing introspectorPubkey",
+			name:   "missing emulatorPubkey",
 			fields: []tlvField{swapField, wantField, makerField},
-			errMsg: "missing required field: introspectorPubkey",
+			errMsg: "missing required field: emulatorPubkey",
 		},
 	}
 
@@ -153,12 +153,12 @@ func TestDeserializeOffer_MissingRequiredField(t *testing.T) {
 
 func TestDeserializeOffer_InvalidFieldLength(t *testing.T) {
 	minimal := testMinimalOffer(t)
-	introBytes := testXOnlyBytes(minimal.IntrospectorPubkey)
+	emulatorBytes := testXOnlyBytes(minimal.EmulatorPubkey)
 	amountBytes := wantAmountBytes(minimal.WantAmount)
 
 	swapField := tlvField{typ: tlvSwapPkScript, value: minimal.SwapPkScript}
 	makerField := tlvField{typ: tlvMakerPkScript, value: minimal.MakerPkScript}
-	introField := tlvField{typ: tlvIntrospectorPubkey, value: introBytes}
+	emulatorField := tlvField{typ: tlvEmulatorPubkey, value: emulatorBytes}
 	wantField := tlvField{typ: tlvWantAmount, value: amountBytes}
 
 	tests := []struct {
@@ -172,7 +172,7 @@ func TestDeserializeOffer_InvalidFieldLength(t *testing.T) {
 				swapField,
 				{typ: tlvWantAmount, value: []byte{0x01, 0x02, 0x03}},
 				makerField,
-				introField,
+				emulatorField,
 			},
 			errMsg: "invalid wantAmount",
 		},
@@ -182,7 +182,7 @@ func TestDeserializeOffer_InvalidFieldLength(t *testing.T) {
 				swapField,
 				wantField,
 				makerField,
-				introField,
+				emulatorField,
 				{typ: tlvCancelDelay, value: []byte{0x01}},
 			},
 			errMsg: "invalid cancelDelay",
@@ -193,7 +193,7 @@ func TestDeserializeOffer_InvalidFieldLength(t *testing.T) {
 				swapField,
 				wantField,
 				makerField,
-				introField,
+				emulatorField,
 				{typ: tlvRatioNum, value: []byte{0x01, 0x02}},
 			},
 			errMsg: "invalid ratioNum",
@@ -204,20 +204,20 @@ func TestDeserializeOffer_InvalidFieldLength(t *testing.T) {
 				swapField,
 				wantField,
 				makerField,
-				introField,
+				emulatorField,
 				{typ: tlvRatioDen, value: []byte{0x01, 0x02}},
 			},
 			errMsg: "invalid ratioDen",
 		},
 		{
-			name: "introspectorPubkey not 32 bytes",
+			name: "emulatorPubkey not 32 bytes",
 			fields: []tlvField{
 				swapField,
 				wantField,
 				makerField,
-				{typ: tlvIntrospectorPubkey, value: []byte{0x01, 0x02}},
+				{typ: tlvEmulatorPubkey, value: []byte{0x01, 0x02}},
 			},
-			errMsg: "invalid introspectorPubkey",
+			errMsg: "invalid emulatorPubkey",
 		},
 		{
 			name: "exitTimelock not 9 bytes",
@@ -225,7 +225,7 @@ func TestDeserializeOffer_InvalidFieldLength(t *testing.T) {
 				swapField,
 				wantField,
 				makerField,
-				introField,
+				emulatorField,
 				{typ: tlvExitTimelock, value: []byte{0x00, 0x01}},
 			},
 			errMsg: "invalid exitTimelock",
@@ -236,7 +236,7 @@ func TestDeserializeOffer_InvalidFieldLength(t *testing.T) {
 				swapField,
 				wantField,
 				{typ: tlvMakerPkScript, value: []byte{0x01, 0x02}},
-				introField,
+				emulatorField,
 			},
 			errMsg: "invalid makerPkScript",
 		},
@@ -279,14 +279,14 @@ func TestDeserializeOffer_TruncatedInput(t *testing.T) {
 
 func TestDeserializeOffer_UnknownType(t *testing.T) {
 	minimal := testMinimalOffer(t)
-	introBytes := testXOnlyBytes(minimal.IntrospectorPubkey)
+	emulatorBytes := testXOnlyBytes(minimal.EmulatorPubkey)
 	amountBytes := wantAmountBytes(minimal.WantAmount)
 
 	data := buildTLV(
 		tlvField{typ: tlvSwapPkScript, value: minimal.SwapPkScript},
 		tlvField{typ: tlvWantAmount, value: amountBytes},
 		tlvField{typ: tlvMakerPkScript, value: minimal.MakerPkScript},
-		tlvField{typ: tlvIntrospectorPubkey, value: introBytes},
+		tlvField{typ: tlvEmulatorPubkey, value: emulatorBytes},
 		tlvField{typ: 0xFF, value: []byte{0x01}},
 	)
 	_, err := DeserializeOffer(data)

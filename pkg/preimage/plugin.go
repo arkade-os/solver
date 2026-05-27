@@ -6,12 +6,12 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	introclient "github.com/ArkLabsHQ/introspector/pkg/client"
 	arklib "github.com/arkade-os/arkd/pkg/ark-lib"
 	"github.com/arkade-os/arkd/pkg/ark-lib/extension"
 	"github.com/arkade-os/arkd/pkg/ark-lib/script"
 	"github.com/arkade-os/arkd/pkg/ark-lib/txutils"
 	"github.com/arkade-os/arkd/pkg/client-lib/indexer"
+	emulatorclient "github.com/arkade-os/emulator/pkg/client"
 	arksdk "github.com/arkade-os/go-sdk"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcutil/psbt"
@@ -24,10 +24,10 @@ import (
 
 type Config struct {
 	ArkClient     arksdk.Wallet
-	Introspector  introclient.TransportClient
+	Emulator      emulatorclient.TransportClient
 	SolverPrivKey *btcec.PrivateKey
 
-	IntrospectorPubKey  *btcec.PublicKey
+	EmulatorPubKey      *btcec.PublicKey
 	ServerPubKey        *btcec.PublicKey
 	CheckpointTapscript []byte
 	Network             arklib.Network
@@ -38,14 +38,14 @@ func NewPlugin(_ context.Context, cfg Config) (solver.Plugin, error) {
 	if cfg.ArkClient == nil {
 		return nil, fmt.Errorf("ark client must not be nil")
 	}
-	if cfg.Introspector == nil {
-		return nil, fmt.Errorf("introspector client must not be nil")
+	if cfg.Emulator == nil {
+		return nil, fmt.Errorf("emulator client must not be nil")
 	}
 	if cfg.SolverPrivKey == nil {
 		return nil, fmt.Errorf("solver privkey must not be nil")
 	}
-	if cfg.IntrospectorPubKey == nil {
-		return nil, fmt.Errorf("introspector pubkey must not be nil")
+	if cfg.EmulatorPubKey == nil {
+		return nil, fmt.Errorf("emulator pubkey must not be nil")
 	}
 	if cfg.ServerPubKey == nil {
 		return nil, fmt.Errorf("server pubkey must not be nil")
@@ -99,7 +99,7 @@ func (p *plugin) decode(
 		p.log.WithError(err).Debug("preimage arkade script invalid")
 		return nil, builder.ErrSkip
 	}
-	expectedTweaked := introspectorTweakedKey(pkt.ArkadeScript, p.cfg.IntrospectorPubKey)
+	expectedTweaked := emulatorTweakedKey(pkt.ArkadeScript, p.cfg.EmulatorPubKey)
 
 	for i, out := range tx.UnsignedTx.TxOut {
 		if i >= len(tx.Outputs) {
@@ -172,7 +172,7 @@ func (p *plugin) claim(ctx context.Context, m *MatchedClaim) {
 		Debug("preimage claim: matched, building ark tx")
 
 	arkTx, checkpoints, err := BuildClaim(
-		m, p.cfg.CheckpointTapscript, p.cfg.ServerPubKey, p.cfg.IntrospectorPubKey,
+		m, p.cfg.CheckpointTapscript, p.cfg.ServerPubKey, p.cfg.EmulatorPubKey,
 	)
 	if err != nil {
 		log.WithError(err).Warn("preimage claim build failed")
@@ -202,7 +202,7 @@ func (p *plugin) claim(ctx context.Context, m *MatchedClaim) {
 		WithField("unsigned_checkpoints_b64", cpB64).
 		Debug("preimage claim: built ark tx + checkpoints")
 
-	txid, err := SubmitClaim(ctx, p.cfg.ArkClient, p.cfg.Introspector, arkTx, checkpoints)
+	txid, err := SubmitClaim(ctx, p.cfg.ArkClient, p.cfg.Emulator, arkTx, checkpoints)
 	if err != nil {
 		log.WithError(err).
 			WithField("ark_txid", arkTx.UnsignedTx.TxHash().String()).

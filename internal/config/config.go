@@ -18,14 +18,14 @@ const (
 
 // Config holds all configuration for the solverd server.
 type Config struct {
-	Datadir         string
-	ArkURL          string
-	WalletSeed      string
-	WalletPassword  string
-	IntrospectorURL string
-	GRPCPort        int
-	HTTPPort        int
-	LogLevel        int
+	Datadir        string
+	ArkURL         string
+	WalletSeed     string
+	WalletPassword string
+	EmulatorURL    string
+	GRPCPort       int
+	HTTPPort       int
+	LogLevel       int
 
 	// Plugin toggles. At least one must be enabled.
 	BancoEnabled    bool
@@ -45,9 +45,9 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("SOLVER_WALLET_SEED is required")
 	}
 
-	introspectorURL := os.Getenv("SOLVER_INTROSPECTOR_URL")
-	if introspectorURL == "" {
-		return nil, fmt.Errorf("SOLVER_INTROSPECTOR_URL is required")
+	emulatorURL := os.Getenv("SOLVER_EMULATOR_URL")
+	if emulatorURL == "" {
+		return nil, fmt.Errorf("SOLVER_EMULATOR_URL is required")
 	}
 
 	datadir := os.Getenv("SOLVER_DATADIR")
@@ -115,7 +115,7 @@ func LoadConfig() (*Config, error) {
 		ArkURL:          arkURL,
 		WalletSeed:      walletSeed,
 		WalletPassword:  walletPassword,
-		IntrospectorURL: introspectorURL,
+		EmulatorURL:     emulatorURL,
 		GRPCPort:        grpcPort,
 		HTTPPort:        httpPort,
 		LogLevel:        logLevel,

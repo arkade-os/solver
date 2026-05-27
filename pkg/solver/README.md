@@ -236,7 +236,7 @@ Reference shape — every solver bot looks like this:
 
 ```go
 arkClient    := /* arksdk client */
-introspector := /* introspector client */
+emulator := /* emulator client */
 
 plugin := banco.NewPlugin(banco.Config{ ... })   // returns solver.Plugin
 s      := solver.New(plugin).WithLogger(log)

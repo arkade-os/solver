@@ -6,11 +6,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ArkLabsHQ/introspector/pkg/arkade"
 	arklib "github.com/arkade-os/arkd/pkg/ark-lib"
 	"github.com/arkade-os/arkd/pkg/ark-lib/asset"
 	"github.com/arkade-os/arkd/pkg/ark-lib/extension"
 	"github.com/arkade-os/arkd/pkg/ark-lib/script"
+	"github.com/arkade-os/emulator/pkg/arkade"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/btcsuite/btcd/txscript"
@@ -20,32 +20,32 @@ import (
 const PacketType = uint8(0x03)
 
 const (
-	tlvSwapPkScript       = 0x01
-	tlvWantAmount         = 0x02
-	tlvWantAsset          = 0x03
-	tlvCancelDelay        = 0x04
-	tlvMakerPkScript      = 0x05
-	tlvMakerPublicKey     = 0x07
-	tlvIntrospectorPubkey = 0x08
-	tlvRatioNum           = 0x09
-	tlvRatioDen           = 0x0a
-	tlvOfferAsset         = 0x0b
-	tlvExitTimelock       = 0x0c
+	tlvSwapPkScript   = 0x01
+	tlvWantAmount     = 0x02
+	tlvWantAsset      = 0x03
+	tlvCancelDelay    = 0x04
+	tlvMakerPkScript  = 0x05
+	tlvMakerPublicKey = 0x07
+	tlvEmulatorPubkey = 0x08
+	tlvRatioNum       = 0x09
+	tlvRatioDen       = 0x0a
+	tlvOfferAsset     = 0x0b
+	tlvExitTimelock   = 0x0c
 )
 
 // Offer contains all the fields from a decoded banco swap offer TLV packet.
 type Offer struct {
-	SwapPkScript       []byte
-	WantAmount         uint64
-	WantAsset          *asset.AssetId   // nil = BTC
-	OfferAsset         *asset.AssetId   // nil = BTC
-	RatioNum           uint64           // partial-fill numerator; 0 = not set
-	RatioDen           uint64           // partial-fill denominator; 0 = not set
-	CancelAt           uint64           // unix timestamp; 0 = no cancel path
-	MakerPkScript      []byte           // 34 bytes: OP_1 + PUSH32 + 32-byte key
-	MakerPublicKey     *btcec.PublicKey // required if cancel or exit
-	IntrospectorPubkey *btcec.PublicKey // required; x-only 32 bytes
-	ExitDelay          *arklib.RelativeLocktime
+	SwapPkScript   []byte
+	WantAmount     uint64
+	WantAsset      *asset.AssetId   // nil = BTC
+	OfferAsset     *asset.AssetId   // nil = BTC
+	RatioNum       uint64           // partial-fill numerator; 0 = not set
+	RatioDen       uint64           // partial-fill denominator; 0 = not set
+	CancelAt       uint64           // unix timestamp; 0 = no cancel path
+	MakerPkScript  []byte           // 34 bytes: OP_1 + PUSH32 + 32-byte key
+	MakerPublicKey *btcec.PublicKey // required if cancel or exit
+	EmulatorPubkey *btcec.PublicKey // required; x-only 32 bytes
+	ExitDelay      *arklib.RelativeLocktime
 }
 
 // DeserializeOffer parses the TLV payload from an UnknownPacket whose type == PacketType.
@@ -56,7 +56,7 @@ func DeserializeOffer(data []byte) (*Offer, error) {
 	hasSwapPkScript := false
 	hasWantAmount := false
 	hasMakerPkScript := false
-	hasIntrospectorPubkey := false
+	hasEmulatorPubkey := false
 
 	offset := 0
 	for offset < len(data) {
@@ -126,16 +126,16 @@ func DeserializeOffer(data []byte) (*Offer, error) {
 				return nil, fmt.Errorf("invalid offerAsset: %w", err)
 			}
 			offer.OfferAsset = assetId
-		case tlvIntrospectorPubkey:
+		case tlvEmulatorPubkey:
 			if len(value) != 32 {
-				return nil, fmt.Errorf("invalid introspectorPubkey: expected 32 bytes, got %d", len(value))
+				return nil, fmt.Errorf("invalid emulatorPubkey: expected 32 bytes, got %d", len(value))
 			}
 			pubkey, err := schnorr.ParsePubKey(value)
 			if err != nil {
-				return nil, fmt.Errorf("invalid introspector public key: %w", err)
+				return nil, fmt.Errorf("invalid emulator public key: %w", err)
 			}
-			offer.IntrospectorPubkey = pubkey
-			hasIntrospectorPubkey = true
+			offer.EmulatorPubkey = pubkey
+			hasEmulatorPubkey = true
 		case tlvExitTimelock:
 			if len(value) != 9 {
 				return nil, fmt.Errorf("invalid exitTimelock: expected 9 bytes, got %d", len(value))
@@ -164,8 +164,8 @@ func DeserializeOffer(data []byte) (*Offer, error) {
 	if !hasMakerPkScript {
 		return nil, errors.New("missing required field: makerPkScript")
 	}
-	if !hasIntrospectorPubkey {
-		return nil, errors.New("missing required field: introspectorPubkey")
+	if !hasEmulatorPubkey {
+		return nil, errors.New("missing required field: emulatorPubkey")
 	}
 
 	if len(offer.MakerPkScript) != 34 {
@@ -222,8 +222,8 @@ func (o *Offer) Serialize() ([]byte, error) {
 	if o.MakerPublicKey != nil {
 		encodeTLV(&buf, tlvMakerPublicKey, schnorr.SerializePubKey(o.MakerPublicKey))
 	}
-	if o.IntrospectorPubkey != nil {
-		encodeTLV(&buf, tlvIntrospectorPubkey, schnorr.SerializePubKey(o.IntrospectorPubkey))
+	if o.EmulatorPubkey != nil {
+		encodeTLV(&buf, tlvEmulatorPubkey, schnorr.SerializePubKey(o.EmulatorPubkey))
 	}
 
 	if o.ExitDelay != nil {
@@ -302,7 +302,7 @@ func (s *Offer) VtxoScript(server *btcec.PublicKey) (*script.TapscriptsVtxoScrip
 	}
 
 	scriptHash := arkade.ArkadeScriptHash(fulfillScript)
-	tweakedKey := arkade.ComputeArkadeScriptPublicKey(s.IntrospectorPubkey, scriptHash)
+	tweakedKey := arkade.ComputeArkadeScriptPublicKey(s.EmulatorPubkey, scriptHash)
 
 	closures := []script.Closure{&script.MultisigClosure{
 		PubKeys: []*btcec.PublicKey{server, tweakedKey},

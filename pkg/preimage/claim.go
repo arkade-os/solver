@@ -8,12 +8,12 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/ArkLabsHQ/introspector/pkg/arkade"
-	introclient "github.com/ArkLabsHQ/introspector/pkg/client"
 	"github.com/arkade-os/arkd/pkg/ark-lib/extension"
 	"github.com/arkade-os/arkd/pkg/ark-lib/offchain"
 	"github.com/arkade-os/arkd/pkg/ark-lib/script"
 	"github.com/arkade-os/arkd/pkg/ark-lib/txutils"
+	"github.com/arkade-os/emulator/pkg/arkade"
+	emulatorclient "github.com/arkade-os/emulator/pkg/client"
 	arksdk "github.com/arkade-os/go-sdk"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
@@ -35,7 +35,7 @@ type MatchedClaim struct {
 func BuildClaim(
 	matched *MatchedClaim,
 	checkpointTapscriptBytes []byte,
-	serverPubKey, introspectorPubKey *btcec.PublicKey,
+	serverPubKey, emulatorPubKey *btcec.PublicKey,
 ) (*psbt.Packet, []*psbt.Packet, error) {
 	if matched == nil {
 		return nil, nil, errors.New("matched is nil")
@@ -54,7 +54,7 @@ func BuildClaim(
 	if err := vtxoScript.Decode(creds.Taptree); err != nil {
 		return nil, nil, fmt.Errorf("decode taptree: %w", err)
 	}
-	expectedTweaked := introspectorTweakedKey(creds.ArkadeScript, introspectorPubKey)
+	expectedTweaked := emulatorTweakedKey(creds.ArkadeScript, emulatorPubKey)
 	claimClosure, err := findClaimClosure(vtxoScript, serverPubKey, expectedTweaked)
 	if err != nil {
 		return nil, nil, fmt.Errorf("find claim closure: %w", err)
@@ -79,15 +79,15 @@ func BuildClaim(
 		return nil, nil, fmt.Errorf("parse control block: %w", err)
 	}
 
-	introPacket, err := arkade.NewPacket(arkade.IntrospectorEntry{
+	emulatorPacket, err := arkade.NewPacket(arkade.EmulatorEntry{
 		Vin:     0,
 		Script:  slices.Clone(creds.ArkadeScript),
 		Witness: wire.TxWitness{},
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("build introspector packet: %w", err)
+		return nil, nil, fmt.Errorf("build emulator packet: %w", err)
 	}
-	ext, err := extension.NewExtensionFromPackets(introPacket)
+	ext, err := extension.NewExtensionFromPackets(emulatorPacket)
 	if err != nil {
 		return nil, nil, fmt.Errorf("build extension: %w", err)
 	}
@@ -135,12 +135,12 @@ func BuildClaim(
 	return arkTx, checkpoints, nil
 }
 
-// SubmitClaim signs and forwards the claim bundle to the introspector.
+// SubmitClaim signs and forwards the claim bundle to the emulator.
 // Returns the finalized ark txid.
 func SubmitClaim(
 	ctx context.Context,
 	arkClient arksdk.Wallet,
-	introClient introclient.TransportClient,
+	emulatorClient emulatorclient.TransportClient,
 	arkTx *psbt.Packet,
 	checkpoints []*psbt.Packet,
 ) (string, error) {
@@ -156,9 +156,9 @@ func SubmitClaim(
 		}
 		signedCheckpoints[i] = s
 	}
-	finalArkB64, _, err := introClient.SubmitTx(ctx, signedArk, signedCheckpoints)
+	finalArkB64, _, err := emulatorClient.SubmitTx(ctx, signedArk, signedCheckpoints)
 	if err != nil {
-		return "", fmt.Errorf("introspector submit: %w", err)
+		return "", fmt.Errorf("emulator submit: %w", err)
 	}
 	finalPtx, err := psbt.NewFromRawBytes(strings.NewReader(finalArkB64), true)
 	if err != nil {

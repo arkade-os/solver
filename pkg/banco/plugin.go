@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	introclient "github.com/ArkLabsHQ/introspector/pkg/client"
 	"github.com/arkade-os/arkd/pkg/ark-lib/extension"
+	emulatorclient "github.com/arkade-os/emulator/pkg/client"
 	arksdk "github.com/arkade-os/go-sdk"
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/sirupsen/logrus"
@@ -27,12 +27,12 @@ type MatchedOffer struct {
 // plugin holds the runtime state shared across builder stages. It's
 // constructed by NewPlugin and never escapes the package.
 type plugin struct {
-	arkClient    arksdk.Wallet
-	introspector introclient.TransportClient
-	pairs        PairRepository
-	prices       *priceCache
-	listener     FulfillmentListener
-	log          logrus.FieldLogger
+	arkClient arksdk.Wallet
+	emulator  emulatorclient.TransportClient
+	pairs     PairRepository
+	prices    *priceCache
+	listener  FulfillmentListener
+	log       logrus.FieldLogger
 }
 
 // NewPlugin builds a banco solver.Plugin. Authoring uses builder.ForExtension
@@ -42,12 +42,12 @@ type plugin struct {
 func NewPlugin(cfg Config) solver.Plugin {
 	cfg = cfg.WithDefault()
 	p := &plugin{
-		arkClient:    cfg.SolverClient,
-		introspector: cfg.Introspector,
-		pairs:        cfg.PairsRepository,
-		prices:       newPriceCache(cfg.PriceFeed, cfg.PriceCacheTTL),
-		listener:     cfg.Listener,
-		log:          cfg.Log,
+		arkClient: cfg.SolverClient,
+		emulator:  cfg.Emulator,
+		pairs:     cfg.PairsRepository,
+		prices:    newPriceCache(cfg.PriceFeed, cfg.PriceCacheTTL),
+		listener:  cfg.Listener,
+		log:       cfg.Log,
 	}
 	solverPlugin := builder.ForExtension(p.decode).
 		Validate(p.checkAmountInRange).
@@ -138,7 +138,7 @@ func (p *plugin) checkBTCBalance(ctx context.Context, m *MatchedOffer) (bool, er
 // fulfill is the terminal action — atomically settles the matched offer and
 // notifies the FulfillmentListener if one is configured.
 func (p *plugin) fulfill(ctx context.Context, m *MatchedOffer) {
-	result, err := contract.FulfillOffer(ctx, m.Offer.Offer, p.arkClient, p.introspector)
+	result, err := contract.FulfillOffer(ctx, m.Offer.Offer, p.arkClient, p.emulator)
 	if err != nil {
 		p.log.WithError(err).Warn("fulfillment failed")
 		return

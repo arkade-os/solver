@@ -48,8 +48,8 @@ func fetchSolverPubKey(t *testing.T, client bancov1.PreimageServiceClient) *btce
 func TestPreimageFundAndClaim(t *testing.T) {
 	ctx := t.Context()
 
-	intro := newIntroClient(t)
-	introPub := fetchIntroPubkey(t, intro)
+	emulator := newEmulatorClient(t)
+	emulatorPub := fetchIntroPubkey(t, emulator)
 
 	maker := setupArkClient(t)
 	faucetOffchain(t, maker, 0.001)
@@ -65,7 +65,7 @@ func TestPreimageFundAndClaim(t *testing.T) {
 
 	claimAddr, claimPacket, encodedTapTree := buildPreimageVTXO(
 		t, preimg, receiverPk, solverPub,
-		cfgData.SignerPubKey, introPub, cfgData.Network,
+		cfgData.SignerPubKey, emulatorPub, cfgData.Network,
 	)
 
 	const amount uint64 = 10_000
@@ -86,8 +86,8 @@ func TestPreimageFundAndClaim(t *testing.T) {
 func TestPreimageInvalidArkadeScript(t *testing.T) {
 	ctx := t.Context()
 
-	intro := newIntroClient(t)
-	introPub := fetchIntroPubkey(t, intro)
+	emulator := newEmulatorClient(t)
+	emulatorPub := fetchIntroPubkey(t, emulator)
 
 	maker := setupArkClient(t)
 	faucetOffchain(t, maker, 0.001)
@@ -103,7 +103,7 @@ func TestPreimageInvalidArkadeScript(t *testing.T) {
 
 	claimAddr, claimPacket, encodedTapTree := buildPreimageVTXO(
 		t, preimg, receiverPk, solverPub,
-		cfgData.SignerPubKey, introPub, cfgData.Network,
+		cfgData.SignerPubKey, emulatorPub, cfgData.Network,
 	)
 
 	// The new packet shape carries the arkade_script in plaintext, so
@@ -131,12 +131,12 @@ func buildPreimageVTXO(
 	t *testing.T,
 	preimg []byte,
 	receiverPk []byte,
-	solverPub, serverPub, introPub *btcec.PublicKey,
+	solverPub, serverPub, emulatorPub *btcec.PublicKey,
 	network arklib.Network,
 ) (string, extension.Packet, []byte) {
 	t.Helper()
 	closure, err := preimage.CovenantClaimClosure(
-		btcutil.Hash160(preimg), receiverPk, serverPub, introPub,
+		btcutil.Hash160(preimg), receiverPk, serverPub, emulatorPub,
 	)
 	require.NoError(t, err)
 	pkt, err := preimage.BuildPacket(preimg, solverPub, receiverPk)

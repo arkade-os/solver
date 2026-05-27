@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	arkade "github.com/ArkLabsHQ/introspector/pkg/arkade"
 	"github.com/arkade-os/arkd/pkg/ark-lib/script"
+	arkade "github.com/arkade-os/emulator/pkg/arkade"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/txscript"
@@ -82,12 +82,12 @@ func TestPreimageCondition_RejectsBadLength(t *testing.T) {
 func TestCovenantClaimClosure_Determinism(t *testing.T) {
 	receiver := fixedReceiver(t)
 	server := fixedPub(t, strings.Repeat("02", 32))
-	intro := fixedPub(t, strings.Repeat("03", 32))
+	emulator := fixedPub(t, strings.Repeat("03", 32))
 	preimageHash := btcutil.Hash160(bytes.Repeat([]byte{0x42}, 32))
 
-	a, err := CovenantClaimClosure(preimageHash, receiver, server, intro)
+	a, err := CovenantClaimClosure(preimageHash, receiver, server, emulator)
 	require.NoError(t, err)
-	b, err := CovenantClaimClosure(preimageHash, receiver, server, intro)
+	b, err := CovenantClaimClosure(preimageHash, receiver, server, emulator)
 	require.NoError(t, err)
 
 	scriptA, err := a.Script()
@@ -110,10 +110,10 @@ func TestCovenantClaimClosure_NilPubkeyRejected(t *testing.T) {
 func TestCovenantClaimClosure_Shape(t *testing.T) {
 	receiver := fixedReceiver(t)
 	server := fixedPub(t, strings.Repeat("02", 32))
-	intro := fixedPub(t, strings.Repeat("03", 32))
+	emulator := fixedPub(t, strings.Repeat("03", 32))
 	preimageHash := btcutil.Hash160(bytes.Repeat([]byte{0x42}, 32))
 
-	c, err := CovenantClaimClosure(preimageHash, receiver, server, intro)
+	c, err := CovenantClaimClosure(preimageHash, receiver, server, emulator)
 	require.NoError(t, err)
 
 	cmc, ok := c.(*script.ConditionMultisigClosure)
@@ -123,7 +123,7 @@ func TestCovenantClaimClosure_Shape(t *testing.T) {
 	enforcement, err := EnforcePayTo(receiver)
 	require.NoError(t, err)
 	expectedTweaked := arkade.ComputeArkadeScriptPublicKey(
-		intro, arkade.ArkadeScriptHash(enforcement),
+		emulator, arkade.ArkadeScriptHash(enforcement),
 	)
 	assert.True(t, cmc.PubKeys[0].IsEqual(server))
 	assert.True(t, cmc.PubKeys[1].IsEqual(expectedTweaked))

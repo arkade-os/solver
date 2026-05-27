@@ -1,12 +1,12 @@
 module github.com/arkade-os/solver
 
-go 1.26.2
+go 1.26.3
 
 require (
-	github.com/ArkLabsHQ/introspector/pkg/arkade v0.0.0-20260427094156-b60e40adcde1
-	github.com/ArkLabsHQ/introspector/pkg/client v0.0.0-20260427094156-b60e40adcde1
 	github.com/arkade-os/arkd/pkg/ark-lib v0.8.1-0.20260429091057-9246f043c4c8
 	github.com/arkade-os/arkd/pkg/client-lib v0.0.0-20260514151440-4ecc7753e264
+	github.com/arkade-os/emulator/pkg/arkade v0.0.0-20260526192649-eac4fbc07c4c
+	github.com/arkade-os/emulator/pkg/client v0.0.0-20260526192649-eac4fbc07c4c
 	github.com/arkade-os/go-sdk v0.9.2-0.20260518112312-588477f9d618
 	github.com/btcsuite/btcd v0.24.3-0.20250318170759-4f4ea81776d6
 	github.com/btcsuite/btcd/btcec/v2 v2.3.6
@@ -28,11 +28,12 @@ require (
 
 require (
 	cel.dev/expr v0.25.1 // indirect
-	github.com/ArkLabsHQ/introspector/api-spec v0.0.0-20260427094156-b60e40adcde1 // indirect
 	github.com/aead/siphash v1.0.1 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/arkade-os/arkd/api-spec v0.0.0-20260420150126-77b6c3aba563 // indirect
 	github.com/arkade-os/arkd/pkg/errors v0.0.0-20260420150126-77b6c3aba563 // indirect
+	github.com/arkade-os/emulator/api-spec v0.0.0-20260526192649-eac4fbc07c4c // indirect
+	github.com/bits-and-blooms/bitset v1.20.0 // indirect
 	github.com/btcsuite/btclog v0.0.0-20241003133417-09c4e92e319c // indirect
 	github.com/btcsuite/btclog/v2 v2.0.1-0.20250602222548-9967d19bb084 // indirect
 	github.com/btcsuite/btcwallet/wallet/txauthor v1.3.5 // indirect
@@ -42,6 +43,7 @@ require (
 	github.com/btcsuite/btcwallet/wtxmgr v1.5.6 // indirect
 	github.com/btcsuite/go-socks v0.0.0-20170105172521-4720035b7bfd // indirect
 	github.com/btcsuite/websocket v0.0.0-20150119174127-31079b680792 // indirect
+	github.com/consensys/gnark-crypto v0.19.2 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/decred/dcrd/crypto/blake256 v1.1.0 // indirect

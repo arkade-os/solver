@@ -4,7 +4,7 @@
 
 A *maker* posts a swap offer as a VTXO on an Arkade. The solver bot watches the arkd
 transaction stream, finds offers that match its configured pairs and price ranges, and fulfills
-them atomically via an introspector-signed Arkade transaction.
+them atomically via an emulator-signed Arkade transaction.
 
 ## Architecture
 
@@ -37,7 +37,7 @@ output of the funding tx, so `pkg/solver/builder` provides a typed pipeline
 two plugins ship with the daemon:
 
 - **`pkg/banco`** — banco swap solver. Decodes a swap offer, range-checks the
-  amount and price, and fulfills via the introspector.
+  amount and price, and fulfills via the emulator.
 - **`pkg/preimage`** — preimage-gated claim solver. Decrypts an ECIES payload
   attached to the funding tx and claims the VTXO when the arkade-script matches.
 
@@ -54,10 +54,10 @@ Wire-protocol primitives for the banco swap.
 - `Offer` — typed banco swap offer, encoded as a TLV payload inside an Arkade
   extension packet (`PacketType = 0x03`). Methods: `Serialize`, `ToPacket`,
   `FulfillScript`, and `VtxoScript` (builds the swap taproot tree from the
-  maker, introspector, and signer keys).
+  maker, emulator, and signer keys).
 - `DeserializeOffer` / `FindBancoOffer` — decode an offer from raw bytes or
   pull one out of an Arkade extension.
-- `CreateOffer` — maker-side helper: queries the introspector for its signer
+- `CreateOffer` — maker-side helper: queries the emulator for its signer
   key, derives the maker address from the Arkade client, assembles an `Offer`,
   and returns the hex-encoded offer + extension packet + swap address to
   fund (`CreateOfferParams` / `CreateOfferResult`).
@@ -65,7 +65,7 @@ Wire-protocol primitives for the banco swap.
   by a maker to check whether its offer is still live (`[]OfferStatus`).
 - `FulfillOffer` — taker-side atomic swap: builds the Arkade transaction that
   spends the swap VTXO to the maker's pkScript (paying `WantAmount`/`WantAsset`)
-  and returns change to the taker, signs it with the introspector, and submits
+  and returns change to the taker, signs it with the emulator, and submits
   it (`FulfillResult`).
 
 ### `pkg/solver`
@@ -89,7 +89,7 @@ for a taker bot.
   swap protocol: decodes the offer from a tx, looks up a matching configured
   pair, range-checks `WantAmount`, validates price within 1% of the feed, and
   fulfills via `contract.FulfillOffer`.
-- `Config` — dependencies: `arksdk.ArkClient`, introspector client,
+- `Config` — dependencies: `arksdk.ArkClient`, emulator client,
   `PairRepository`, `PriceFeed`, optional `FulfillmentListener`, optional
   `logrus.FieldLogger`, and `PriceCacheTTL` (default 5 minutes).
 - `Offer` / `NewOffer(*wire.MsgTx)` — wraps `contract.Offer` with `FundingTxid`,
@@ -134,7 +134,7 @@ web UI. Configured entirely through environment variables:
 |---|---|---|---|
 | `SOLVER_ARK_URL` | ✓ | — | arkd gRPC endpoint |
 | `SOLVER_WALLET_SEED` | ✓ | — | wallet seed (hex) |
-| `SOLVER_INTROSPECTOR_URL` | ✓ | — | introspector endpoint |
+| `SOLVER_EMULATOR_URL` | ✓ | — | emulator endpoint |
 | `SOLVER_WALLET_PASSWORD` | | — | wallet unlock password |
 | `SOLVER_DATADIR` | | `$HOME/.solverd` | data directory (SQLite DB lives here) |
 | `SOLVER_GRPC_PORT` | | `7070` | gRPC listener |
@@ -177,7 +177,7 @@ make test           # unit tests
 End-to-end tests run against a local nigiri + arkd stack:
 
 ```sh
-make setup-test-env     # boot nigiri + arkd + introspector, fund arkd wallet
+make setup-test-env     # boot nigiri + arkd + emulator, fund arkd wallet
 make integrationtest    # run ./test/e2e/...
 make teardown-test-env
 ```

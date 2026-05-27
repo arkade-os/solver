@@ -21,7 +21,7 @@ const (
 // preimage-gated VTXO:
 //   - Ciphertext: ECIES(solverPub, 32-byte preimage)
 //   - ArkadeScript: plaintext enforcePayTo(receiverPk) bytes; needed by
-//     the introspector to evaluate the spend, and used by the plugin
+//     the emulator to evaluate the spend, and used by the plugin
 //     to validate the tap tree binding.
 //
 // The tap tree no longer rides in the packet — it travels in the

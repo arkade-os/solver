@@ -688,11 +688,11 @@ async function loadKeys() {
   try {
     const k = await api.solverKeys();
     $("#solver-pubkey").textContent = k.solver_pub_key || "—";
-    $("#introspector-pubkey").textContent = k.introspector_pub_key || "—";
+    $("#emulator-pubkey").textContent = k.emulator_pub_key || "—";
   } catch (err) {
     toast(err.message, "error");
     $("#solver-pubkey").textContent = "—";
-    $("#introspector-pubkey").textContent = "—";
+    $("#emulator-pubkey").textContent = "—";
   }
 }
 

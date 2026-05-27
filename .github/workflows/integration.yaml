@@ -39,8 +39,8 @@ jobs:
           docker logs solverd-arkd-wallet || true
           echo "=== nbxplorer logs ==="
           docker logs solverd-nbxplorer || true
-          echo "=== introspector logs ==="
-          docker logs solverd-introspector || true
+          echo "=== emulator logs ==="
+          docker logs solverd-emulator || true
 
       - name: Tear down
         if: always()

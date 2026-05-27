@@ -12,10 +12,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	introclient "github.com/ArkLabsHQ/introspector/pkg/client"
 	arkdclient "github.com/arkade-os/arkd/pkg/client-lib"
 	singlekey "github.com/arkade-os/arkd/pkg/client-lib/identity/singlekey"
 	singlekeyfilestore "github.com/arkade-os/arkd/pkg/client-lib/identity/singlekey/store/file"
+	emulatorclient "github.com/arkade-os/emulator/pkg/client"
 	arksdk "github.com/arkade-os/go-sdk"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/sirupsen/logrus"
@@ -48,16 +48,16 @@ func main() {
 		log.WithError(err).Fatal("failed to create datadir")
 	}
 
-	introConn, err := grpc.NewClient(
-		cfg.IntrospectorURL,
+	emulatorConn, err := grpc.NewClient(
+		cfg.EmulatorURL,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
-		log.WithError(err).Fatal("failed to connect to introspector")
+		log.WithError(err).Fatal("failed to connect to emulator")
 	}
 	// nolint:errcheck
-	defer introConn.Close()
-	introspector := introclient.NewGRPCClient(introConn)
+	defer emulatorConn.Close()
+	emulator := emulatorclient.NewGRPCClient(emulatorConn)
 
 	ctx := context.Background()
 	identityStore, err := singlekeyfilestore.NewStore(cfg.Datadir)
@@ -114,7 +114,7 @@ func main() {
 
 		plugin := banco.NewPlugin(banco.Config{
 			SolverClient:    arkClient,
-			Introspector:    introspector,
+			Emulator:        emulator,
 			PairsRepository: pairRepo,
 			PriceFeed:       priceFeed,
 			Listener:        tradeListener,
@@ -134,7 +134,7 @@ func main() {
 		}
 		preimageSvc, err = application.NewPreimageService(ctx, application.PreimageServiceConfig{
 			ArkClient:     arkClient,
-			Introspector:  introspector,
+			Emulator:      emulator,
 			SolverPrivKey: solverPriv,
 			Log:           log,
 		})

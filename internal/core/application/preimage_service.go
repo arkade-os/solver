@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"sync"
 
-	introclient "github.com/ArkLabsHQ/introspector/pkg/client"
 	arklib "github.com/arkade-os/arkd/pkg/ark-lib"
+	emulatorclient "github.com/arkade-os/emulator/pkg/client"
 	arksdk "github.com/arkade-os/go-sdk"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/sirupsen/logrus"
@@ -20,7 +20,7 @@ import (
 
 type PreimageServiceConfig struct {
 	ArkClient     arksdk.Wallet
-	Introspector  introclient.TransportClient
+	Emulator      emulatorclient.TransportClient
 	SolverPrivKey *btcec.PrivateKey // ECIES decryption key (derived from wallet seed)
 	Log           logrus.FieldLogger
 }
@@ -28,12 +28,12 @@ type PreimageServiceConfig struct {
 // PreimageService runs the preimage solver loop and exposes the solver pubkey
 // for clients to encrypt against.
 type PreimageService struct {
-	cfg                PreimageServiceConfig
-	introspectorPubkey *btcec.PublicKey
-	serverPubkey       *btcec.PublicKey
-	checkpointScript   []byte
-	network            arklib.Network
-	log                logrus.FieldLogger
+	cfg              PreimageServiceConfig
+	emulatorPubkey   *btcec.PublicKey
+	serverPubkey     *btcec.PublicKey
+	checkpointScript []byte
+	network          arklib.Network
+	log              logrus.FieldLogger
 
 	cancel  context.CancelFunc
 	done    chan struct{}
@@ -45,8 +45,8 @@ func NewPreimageService(ctx context.Context, cfg PreimageServiceConfig) (*Preima
 	if cfg.ArkClient == nil {
 		return nil, fmt.Errorf("PreimageServiceConfig.ArkClient must not be nil")
 	}
-	if cfg.Introspector == nil {
-		return nil, fmt.Errorf("PreimageServiceConfig.Introspector must not be nil")
+	if cfg.Emulator == nil {
+		return nil, fmt.Errorf("PreimageServiceConfig.Emulator must not be nil")
 	}
 	if cfg.SolverPrivKey == nil {
 		return nil, fmt.Errorf("PreimageServiceConfig.SolverPrivKey must not be nil")
@@ -55,17 +55,17 @@ func NewPreimageService(ctx context.Context, cfg PreimageServiceConfig) (*Preima
 		cfg.Log = logrus.StandardLogger()
 	}
 
-	info, err := cfg.Introspector.GetInfo(ctx)
+	info, err := cfg.Emulator.GetInfo(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("get introspector info: %w", err)
+		return nil, fmt.Errorf("get emulator info: %w", err)
 	}
 	rawIntro, err := hex.DecodeString(info.SignerPublicKey)
 	if err != nil {
-		return nil, fmt.Errorf("decode introspector pubkey: %w", err)
+		return nil, fmt.Errorf("decode emulator pubkey: %w", err)
 	}
-	introPub, err := btcec.ParsePubKey(rawIntro)
+	emulatorPub, err := btcec.ParsePubKey(rawIntro)
 	if err != nil {
-		return nil, fmt.Errorf("parse introspector pubkey: %w", err)
+		return nil, fmt.Errorf("parse emulator pubkey: %w", err)
 	}
 
 	configData, err := cfg.ArkClient.GetConfigData(ctx)
@@ -78,12 +78,12 @@ func NewPreimageService(ctx context.Context, cfg PreimageServiceConfig) (*Preima
 	}
 
 	return &PreimageService{
-		cfg:                cfg,
-		introspectorPubkey: introPub,
-		serverPubkey:       configData.SignerPubKey,
-		checkpointScript:   checkpointBytes,
-		network:            configData.Network,
-		log:                cfg.Log,
+		cfg:              cfg,
+		emulatorPubkey:   emulatorPub,
+		serverPubkey:     configData.SignerPubKey,
+		checkpointScript: checkpointBytes,
+		network:          configData.Network,
+		log:              cfg.Log,
 	}, nil
 }
 
@@ -92,9 +92,9 @@ func (svc *PreimageService) Start() error {
 
 	plugin, err := preimage.NewPlugin(ctx, preimage.Config{
 		ArkClient:           svc.cfg.ArkClient,
-		Introspector:        svc.cfg.Introspector,
+		Emulator:            svc.cfg.Emulator,
 		SolverPrivKey:       svc.cfg.SolverPrivKey,
-		IntrospectorPubKey:  svc.introspectorPubkey,
+		EmulatorPubKey:      svc.emulatorPubkey,
 		ServerPubKey:        svc.serverPubkey,
 		CheckpointTapscript: svc.checkpointScript,
 		Network:             svc.network,
@@ -147,8 +147,8 @@ func (svc *PreimageService) SolverPubKey() *btcec.PublicKey {
 	return svc.cfg.SolverPrivKey.PubKey()
 }
 
-// IntrospectorPubKey returns the bot's configured introspector pubkey,
-// fetched at service construction time via Introspector.GetInfo().
-func (svc *PreimageService) IntrospectorPubKey() *btcec.PublicKey {
-	return svc.introspectorPubkey
+// EmulatorPubKey returns the bot's configured emulator pubkey,
+// fetched at service construction time via Emulator.GetInfo().
+func (svc *PreimageService) EmulatorPubKey() *btcec.PublicKey {
+	return svc.emulatorPubkey
 }

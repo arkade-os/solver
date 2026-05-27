@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	introclient "github.com/ArkLabsHQ/introspector/pkg/client"
+	emulatorclient "github.com/arkade-os/emulator/pkg/client"
 	arksdk "github.com/arkade-os/go-sdk"
 	sdktypes "github.com/arkade-os/go-sdk/types"
 	"github.com/btcsuite/btcd/btcec/v2"
@@ -109,18 +109,18 @@ func runTests(m *testing.M) int {
 	pairRepo = sqlitedb.NewPairRepository(db)
 	tradeRepo := sqlitedb.NewTradeRepository(db)
 
-	// Introspector client
-	introConn, err := grpc.NewClient(introspectorAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	// Emulator client
+	emulatorConn, err := grpc.NewClient(emulatorAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Errorf("failed to connect to introspector: %s", err)
+		log.Errorf("failed to connect to emulator: %s", err)
 		return 1
 	}
-	introClient := introclient.NewGRPCClient(introConn)
+	emulatorClient := emulatorclient.NewGRPCClient(emulatorConn)
 
 	// Build solver
 	plugin := banco.NewPlugin(banco.Config{
 		SolverClient:    takerClient,
-		Introspector:    introClient,
+		Emulator:        emulatorClient,
 		PairsRepository: pairRepo,
 		PriceFeed:       &mockPriceFeed{},
 		Log:             log.StandardLogger(),
@@ -141,7 +141,7 @@ func runTests(m *testing.M) int {
 	}
 	preimageSvc, err = application.NewPreimageService(ctx, application.PreimageServiceConfig{
 		ArkClient:     takerClient,
-		Introspector:  introClient,
+		Emulator:      emulatorClient,
 		SolverPrivKey: preimagePriv,
 		Log:           log.StandardLogger(),
 	})

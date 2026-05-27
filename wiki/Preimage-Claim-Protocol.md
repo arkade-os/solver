@@ -123,25 +123,25 @@ The funding output's taptree MUST contain a `ConditionMultisigClosure`:
 
 ```
 ConditionMultisigClosure {
-  MultisigClosure { ServerPubKey, IntrospectorTweakedKey }
+  MultisigClosure { ServerPubKey, EmulatorTweakedKey }
   Condition       : OP_HASH160 <RIPEMD160(SHA256(preimage))> OP_EQUAL
 }
 
-IntrospectorTweakedKey = ComputeArkadeScriptPublicKey(
-                            IntrospectorPubKey,
+EmulatorTweakedKey = ComputeArkadeScriptPublicKey(
+                            EmulatorPubKey,
                             ArkadeScriptHash(EnforcePayTo))
 ```
 
 -   The 2-of-2 multisig binds the Ark **server** key and a **tweaked
-    [introspector](https://github.com/ArkLabsHQ/introspector)** key. The tweak
+    [emulator](https://github.com/ArkLabsHQ/emulator)** key. The tweak
     commits to the exact `EnforcePayTo` script, so
-    the introspector co-signs only a transaction that pays the receiver.
+    the emulator co-signs only a transaction that pays the receiver.
 -   The `Condition` is satisfied by revealing a witness preimage whose HASH160
     matches — i.e. the secret the maker encrypted.
 
 The closure may sit in a taptree alongside any other leaves the maker wants
 (refund paths, escape hatches); the solver locates the claim leaf by matching
-the `(ServerPubKey, IntrospectorTweakedKey)` key pair.
+the `(ServerPubKey, EmulatorTweakedKey)` key pair.
 
 ## 5. Claim transaction
 
@@ -154,7 +154,7 @@ graph LR
     B --> C[Solver matches<br/>output taptree]
     C --> D[BuildClaim<br/>ark tx + checkpoints]
     D --> E[preimage set as<br/>ConditionWitness]
-    E --> F[Introspector.SubmitTx<br/>co-signs + finalizes]
+    E --> F[Emulator.SubmitTx<br/>co-signs + finalizes]
     F --> G[Receiver paid]
 ```
 
@@ -167,19 +167,19 @@ Inputs:
 
 Outputs:
   vout 0 : receiver payment — value = VTXO amount, pkScript = receiverPkScript
-  vout 1 : OP_RETURN extension — introspector packet carrying the plaintext arkade script
+  vout 1 : OP_RETURN extension — emulator packet carrying the plaintext arkade script
 ```
 
 -   The decrypted preimage is set as the `ConditionWitnessField` on input 0 of
     the ark transaction **and** of every checkpoint transaction.
--   The introspector packet is `IntrospectorEntry{ Vin: 0, Script: EnforcePayTo }`,
-    telling the introspector which Arkade-script gates the input.
+-   The emulator packet is `EmulatorEntry{ Vin: 0, Script: EnforcePayTo }`,
+    telling the emulator which Arkade-script gates the input.
 
 ### 5.2. Signing and finalization
 
 The solver b64-signs the ark transaction and every checkpoint with its Ark
-wallet key (the server-key half of the multisig), then calls the introspector's
-`SubmitTx`. The introspector evaluates `EnforcePayTo`, adds its tweaked-key
+wallet key (the server-key half of the multisig), then calls the emulator's
+`SubmitTx`. The emulator evaluates `EnforcePayTo`, adds its tweaked-key
 signature, finalizes, and returns the finalized ark txid. Build failures are
 logged and the claim is dropped — there is no retry.
 
@@ -200,7 +200,7 @@ simply not a claim for it); none are on-chain rejections.
     -   a non-empty `POutput.TaprootTapTree` decodable as a
         `TapscriptsVtxoScript`;
     -   a `ConditionMultisigClosure` whose two keys are exactly
-        `(ServerPubKey, IntrospectorTweakedKey(ArkadeScript, IntrospectorPubKey))`
+        `(ServerPubKey, EmulatorTweakedKey(ArkadeScript, EmulatorPubKey))`
         (compared by x-only Schnorr serialization);
     -   a `PkScript` equal to the P2TR derived from that taptree.
 -   **Spendable**: the funding VTXO MUST be currently spendable for the matched
@@ -216,7 +216,7 @@ simply not a claim for it); none are on-chain rejections.
     maker that fetched the key yesterday can still encrypt to it today.
 -   **`GetSolverPubKey` RPC.** Makers fetch the compressed solver public key over
     the bot's gRPC/REST API before encrypting. The same surface exposes the
-    introspector public key so the maker can compute `IntrospectorTweakedKey`
+    emulator public key so the maker can compute `EmulatorTweakedKey`
     and build the covenant closure.
 
 ## 8. Rationale and limitations
@@ -230,9 +230,9 @@ simply not a claim for it); none are on-chain rejections.
     would bloat the OP_RETURN and create a consistency hazard. The solver derives
     the expected P2TR from the tree and matches it against the output's
     `PkScript`, so a forged tree cannot fool it.
--   **Why the tweaked introspector key.** It is the covenant that forces the
+-   **Why the tweaked emulator key.** It is the covenant that forces the
     claim to pay the intended receiver. Without it, a solver holding the preimage
-    could redirect funds; with it, the introspector refuses to co-sign anything
+    could redirect funds; with it, the emulator refuses to co-sign anything
     but `EnforcePayTo(receiver)`.
 -   **V1 scope.** Only `EnforcePayTo` (single output, full amount to one
     receiver) is accepted. Multi-output splits, partial claims, and alternative

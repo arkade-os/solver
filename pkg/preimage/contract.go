@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/ArkLabsHQ/introspector/pkg/arkade"
 	"github.com/arkade-os/arkd/pkg/ark-lib/script"
+	"github.com/arkade-os/emulator/pkg/arkade"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/txscript"
 )
@@ -23,12 +23,12 @@ func p2trWitnessProgram(pkScript []byte) ([]byte, error) {
 	return pkScript[2:], nil
 }
 
-// EnforcePayTo assembles the arkade enforcement script the introspector
+// EnforcePayTo assembles the arkade enforcement script the emulator
 // evaluates for an HTLC claim input before signing. The script self-derives
 // the output index from OP_PUSHCURRENTINPUTINDEX, pinning output[i] to
 // receiverPkScript with output[i].value >= input[i].value.
 //
-// Witness arg: none. Layout (mirrors introspector/test/htlc_test.go:376-395):
+// Witness arg: none. Layout (mirrors emulator/test/htlc_test.go:376-395):
 //
 //	OP_PUSHCURRENTINPUTINDEX OP_DUP
 //	OP_INSPECTOUTPUTSCRIPTPUBKEY
@@ -79,19 +79,19 @@ func preimageCondition(preimageHash []byte) ([]byte, error) {
 // The closure shape:
 //
 //	ConditionMultisigClosure{
-//	    MultisigClosure{ serverPubKey, IntrospectorTweaked(EnforcePayTo) },
+//	    MultisigClosure{ serverPubKey, EmulatorTweaked(EnforcePayTo) },
 //	    Condition: OP_HASH160 <preimageHash> OP_EQUAL,
 //	}
 func CovenantClaimClosure(
 	preimageHash []byte,
 	receiverPkScript []byte,
-	serverPubKey, introspectorPubKey *btcec.PublicKey,
+	serverPubKey, emulatorPubKey *btcec.PublicKey,
 ) (script.Closure, error) {
 	if serverPubKey == nil {
 		return nil, fmt.Errorf("server pubkey must not be nil")
 	}
-	if introspectorPubKey == nil {
-		return nil, fmt.Errorf("introspector pubkey must not be nil")
+	if emulatorPubKey == nil {
+		return nil, fmt.Errorf("emulator pubkey must not be nil")
 	}
 	enforcement, err := EnforcePayTo(receiverPkScript)
 	if err != nil {
@@ -105,20 +105,20 @@ func CovenantClaimClosure(
 		MultisigClosure: script.MultisigClosure{
 			PubKeys: []*btcec.PublicKey{
 				serverPubKey,
-				introspectorTweakedKey(enforcement, introspectorPubKey),
+				emulatorTweakedKey(enforcement, emulatorPubKey),
 			},
 		},
 		Condition: condition,
 	}, nil
 }
 
-// introspectorTweakedKey derives the introspector pubkey tweaked by an arkade
+// emulatorTweakedKey derives the emulator pubkey tweaked by an arkade
 // script. It's the second pubkey in a CovenantClaimClosure's multisig and the
 // one the plugin matches against to identify a claim closure in a funder's
 // taptree.
-func introspectorTweakedKey(arkadeScript []byte, introspectorPubKey *btcec.PublicKey) *btcec.PublicKey {
+func emulatorTweakedKey(arkadeScript []byte, emulatorPubKey *btcec.PublicKey) *btcec.PublicKey {
 	return arkade.ComputeArkadeScriptPublicKey(
-		introspectorPubKey, arkade.ArkadeScriptHash(arkadeScript),
+		emulatorPubKey, arkade.ArkadeScriptHash(arkadeScript),
 	)
 }
 

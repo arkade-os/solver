@@ -84,19 +84,19 @@ services:
       - type: tmpfs
         target: /app/data
 
-  introspector:
-    image: ghcr.io/arklabshq/introspector:v0.0.1
-    container_name: solverd-introspector
+  emulator:
+    image: ghcr.io/arkade-os/emulator:v0.0.1
+    container_name: solverd-emulator
     restart: unless-stopped
     depends_on:
       - arkd
     ports:
       - "7173:7073"
     environment:
-      - INTROSPECTOR_SECRET_KEY=f40f6e7a5cf262f4093d4605b8f40cbaf9da9e59bf32f24bb27a4ffc74f71eab
-      - INTROSPECTOR_NO_TLS=true
-      - INTROSPECTOR_LOG_LEVEL=5
-      - INTROSPECTOR_ARKD_URL=solverd-arkd:7070
+      - EMULATOR_SECRET_KEY=f40f6e7a5cf262f4093d4605b8f40cbaf9da9e59bf32f24bb27a4ffc74f71eab
+      - EMULATOR_NO_TLS=true
+      - EMULATOR_LOG_LEVEL=5
+      - EMULATOR_ARKD_URL=solverd-arkd:7070
     volumes:
       - type: tmpfs
         target: /app/data

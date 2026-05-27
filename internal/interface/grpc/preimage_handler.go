@@ -21,7 +21,7 @@ func (h *preimageHandler) GetSolverPubKey(
 	_ context.Context, _ *bancov1.GetSolverPubKeyRequest,
 ) (*bancov1.GetSolverPubKeyResponse, error) {
 	return &bancov1.GetSolverPubKeyResponse{
-		SolverPubKey:       hex.EncodeToString(h.svc.SolverPubKey().SerializeCompressed()),
-		IntrospectorPubKey: hex.EncodeToString(h.svc.IntrospectorPubKey().SerializeCompressed()),
+		SolverPubKey:   hex.EncodeToString(h.svc.SolverPubKey().SerializeCompressed()),
+		EmulatorPubKey: hex.EncodeToString(h.svc.EmulatorPubKey().SerializeCompressed()),
 	}, nil
 }
