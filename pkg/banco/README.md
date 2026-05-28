@@ -68,12 +68,12 @@ plugin := banco.NewPlugin(banco.Config{
     Listener:        tradeListener,// persists FulfillmentEvent → trades table
     Log:             log,
 })
-s := solver.New(plugin).WithLogger(log)
+plugins = append(plugins, plugin)
 ```
 
 The application-level service (`internal/core/application/swap_service.go`)
-owns the run loop and exposes pair/trade CRUD; `pkg/banco` only owns
-match/validate/solve.
+exposes pair/trade CRUD; `cmd/solverd` wires the plugin into the shared solver
+runtime. `pkg/banco` only owns match/validate/solve.
 
 ## Files quick-reference
 

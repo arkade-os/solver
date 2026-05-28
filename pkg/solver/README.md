@@ -7,7 +7,7 @@
 A solver bot subscribes to arkd's transaction stream and reacts to txs that match a protocol it cares about. This package provides:
 
 1. A tx source (`arkdsource`) that turns the arkd gRPC stream into `<-chan *psbt.Packet`.
-2. A runtime (`solver.Solver`) that fans incoming txs out to one or more plugins, recovers panics, and waits for in-flight work on shutdown.
+2. A runtime (`solver.Solver`) that subscribes one or more plugins to a tx source, recovers panics, and waits for in-flight work on shutdown.
 3. A typed plugin-authoring toolkit (`builder`) that hides the OP_RETURN parse and exposes a stage-based pipeline (Filter → Decode → Validate → Solve) for protocol-specific code.
 4. A predicate library (`txmatch`) for cheap structural filters over `*psbt.Packet`.
 
@@ -51,24 +51,25 @@ type Solver struct { /* ... */ }
 
 func New(plugins ...Plugin) *Solver
 func (s *Solver) WithLogger(log logrus.FieldLogger) *Solver
-func (s *Solver) Run(ctx context.Context, txs <-chan *psbt.Packet) error
+func (s *Solver) Run(ctx context.Context, source Source) error
 ```
 
 `Run` semantics:
 
-- Reads txs sequentially.
-- For every tx, calls each plugin's `Match` in registration order.
+- Subscribes each plugin with its own filter.
+- For every tx from a plugin subscription, calls that plugin's `Match`.
 - Every accepted tx spawns `go p.Solve(ctx, intent)` — Solves run concurrently, but Match calls are sequential.
 - Panics in `Match` and `Solve` are recovered and reported via the configured logger (Error level with stack). The solver does NOT crash on plugin panics.
 - `Run` only returns after all in-flight Solve goroutines finish. Two exit conditions:
-  - `txs` channel closes → returns `nil` (after drain)
+  - all plugin streams close → returns `solver.ErrAllStreamsClosed` (after drain)
   - `ctx` cancels → returns `ctx.Err()` (after drain)
 - `WithLogger(nil)` disables panic logging entirely (panics still recovered, just silent). Default is `logrus.StandardLogger()`.
 
-### `arkdsource.Subscribe`
+### `arkdsource.Source`
 
 ```go
-func Subscribe(ctx context.Context, c arksdk.ArkClient, log logrus.FieldLogger) <-chan *psbt.Packet
+src := arkdsource.New(arkClient, log)
+txs, err := src.Subscribe(ctx, filter)
 ```
 
 Returns a channel that closes when:
@@ -238,14 +239,16 @@ Reference shape — every solver bot looks like this:
 arkClient    := /* arksdk client */
 emulator := /* emulator client */
 
-plugin := banco.NewPlugin(banco.Config{ ... })   // returns solver.Plugin
-s      := solver.New(plugin).WithLogger(log)
+plugin1 := banco.NewPlugin(banco.Config{ ... })   // returns solver.Plugin
+plugin2, err := preimage.NewPlugin(ctx, preimage.Config{ ... })
+if err != nil { /* handle */ }
+s := solver.New(plugin1, plugin2).WithLogger(log)
 
 ctx, cancel := context.WithCancel(...)
-txs := arkdsource.Subscribe(ctx, arkClient, log) // <-chan *psbt.Packet
+src := arkdsource.New(arkClient, log)
 
 go func() {
-    if err := s.Run(ctx, txs); err != nil && !errors.Is(err, context.Canceled) {
+    if err := s.Run(ctx, src); err != nil && !errors.Is(err, context.Canceled) {
         log.WithError(err).Error("solver run exited")
     }
 }()
@@ -253,13 +256,13 @@ go func() {
 // later: cancel() and wait. Run drains in-flight Solves before returning.
 ```
 
-`solver.Solver` accepts multiple plugins (`solver.New(p1, p2, p3)`); every plugin sees every tx, in registration order.
+`solver.Solver` accepts multiple plugins (`solver.New(p1, p2, p3)`); each plugin gets its own source subscription, so source-side filters can reduce traffic before `Match` runs.
 
 ---
 
 ## Invariants the runtime guarantees
 
-1. **`Match` is called sequentially** for each tx, in plugin-registration order. You can rely on Match not being called concurrently for the same plugin.
+1. **`Match` is called sequentially per plugin subscription.** You can rely on Match not being called concurrently for the same plugin.
 2. **`Solve` is called concurrently** with other Solves (potentially across plugins). If your Solve mutates shared state, you own the synchronization.
 3. **Panic recovery is unconditional** — `Match` or `Solve` panicking will not crash the bot. The panic is logged with stack and the tx is dropped.
 4. **Graceful shutdown drains in-flight Solves** — `Solver.Run` does not return until every Solve goroutine it dispatched has completed. Cancel ctx and wait.
@@ -291,7 +294,7 @@ The `builder` pipeline is a degenerate case of **Railway-Oriented Programming** 
 ## Files quick-reference
 
 - `solver.go` — `Plugin`, `Solver`, `Run`, panic recovery, graceful shutdown.
-- `arkdsource/arkdsource.go` — `Subscribe(ctx, ArkClient, log) <-chan *psbt.Packet`.
+- `arkdsource/arkdsource.go` — `New(ArkClient, log)` source with `Subscribe(ctx, filter)`.
 - `txmatch/txmatch.go` — `Predicate` + `All/Any/Not` + `HasOutput/HasInput/Has*` + functional options.
 - `builder/builder.go` — `Builder[T]`, stages, `ErrSkip`, `Build()`.
 - `builder/extension.go` — `ForExtension[T]`, `HasArkExtension()`.

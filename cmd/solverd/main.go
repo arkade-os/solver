@@ -28,7 +28,9 @@ import (
 	"github.com/arkade-os/solver/internal/infrastructure/pricefeed"
 	grpcservice "github.com/arkade-os/solver/internal/interface/grpc"
 	"github.com/arkade-os/solver/pkg/banco"
+	"github.com/arkade-os/solver/pkg/preimage"
 	"github.com/arkade-os/solver/pkg/solver"
+	"github.com/arkade-os/solver/pkg/solver/arkdsource"
 )
 
 // Version is injected at build time via -ldflags "-X main.Version=<tag>".
@@ -36,16 +38,24 @@ import (
 var Version = "dev"
 
 func main() {
+	log := logrus.New()
+
+	if err := run(log); err != nil {
+		log.Error(err)
+		os.Exit(1)
+	}
+}
+
+func run(log *logrus.Logger) error {
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		logrus.WithError(err).Fatal("failed to load config")
+		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	log := logrus.New()
 	log.SetLevel(logrus.Level(cfg.LogLevel))
 
 	if err := os.MkdirAll(cfg.Datadir, 0750); err != nil {
-		log.WithError(err).Fatal("failed to create datadir")
+		return fmt.Errorf("failed to create datadir: %w", err)
 	}
 
 	emulatorConn, err := grpc.NewClient(
@@ -53,108 +63,68 @@ func main() {
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
-		log.WithError(err).Fatal("failed to connect to emulator")
+		return fmt.Errorf("failed to connect to emulator: %w", err)
 	}
 	// nolint:errcheck
 	defer emulatorConn.Close()
 	emulator := emulatorclient.NewGRPCClient(emulatorConn)
 
 	ctx := context.Background()
-	identityStore, err := singlekeyfilestore.NewStore(cfg.Datadir)
+	arkClient, err := setupWallet(ctx, cfg)
 	if err != nil {
-		log.WithError(err).Fatal("failed to init identity store")
-	}
-	singleKeyIdentity, err := singlekey.NewIdentity(identityStore)
-	if err != nil {
-		log.WithError(err).Fatal("failed to init single-key identity")
-	}
-	walletOpts := []arksdk.WalletOption{arksdk.WithIdentity(singleKeyIdentity)}
-	arkClient, err := arksdk.LoadWallet(cfg.Datadir, walletOpts...)
-	if err != nil {
-		// Fresh datadir surfaces as either go-sdk's or client-lib's
-		// ErrNotInitialized depending on which layer first noticed the
-		// missing config — both are valid "no wallet yet" signals.
-		if !errors.Is(err, arksdk.ErrNotInitialized) &&
-			!errors.Is(err, arkdclient.ErrNotInitialized) {
-			log.WithError(err).Fatal("failed to load ark client")
-		}
-		// Fresh datadir — create and initialize the wallet.
-		arkClient, err = arksdk.NewWallet(cfg.Datadir, walletOpts...)
-		if err != nil {
-			log.WithError(err).Fatal("failed to create ark client")
-		}
-		if err := arkClient.Init(ctx, cfg.ArkURL, cfg.WalletSeed, cfg.WalletPassword); err != nil {
-			log.WithError(err).Fatal("failed to init ark client")
-		}
-	}
-	if err := arkClient.Unlock(ctx, cfg.WalletPassword); err != nil {
-		log.WithError(err).Fatal("failed to unlock ark client")
+		return fmt.Errorf("failed to setup wallet: %w", err)
 	}
 	defer arkClient.Stop()
 
-	var (
-		takerSvc    *application.TakerService
-		preimageSvc *application.PreimageService
-		srv         *grpcservice.Server
-		db          = optionalSqliteDB(cfg, log)
-	)
-	if db != nil {
-		// nolint:errcheck
-		defer db.Close()
-	}
+	plugins := make([]solver.Plugin, 0)
+	serverOpts := make([]grpcservice.Option, 0)
 
 	if cfg.BancoEnabled {
-		if db == nil {
-			log.Fatal("banco plugin requires sqlite datadir")
+		db, err := sqlitedb.OpenDB(cfg.Datadir)
+		if err != nil {
+			return fmt.Errorf("failed to open database: %w", err)
 		}
-		pairRepo := sqlitedb.NewPairRepository(db)
-		tradeRepo := sqlitedb.NewTradeRepository(db)
-		priceFeed := pricefeed.NewCoinGecko()
-		tradeListener := application.NewTradeListener(tradeRepo, log)
+		// nolint:errcheck
+		defer db.Close()
 
-		plugin := banco.NewPlugin(banco.Config{
-			SolverClient:    arkClient,
-			Emulator:        emulator,
-			PairsRepository: pairRepo,
-			PriceFeed:       priceFeed,
-			Listener:        tradeListener,
-			Log:             log,
-		})
-		s := solver.New(plugin).WithLogger(log)
+		svc, plugin, err := setupBanco(db, arkClient, emulator, log)
+		if err != nil {
+			return fmt.Errorf("failed to setup banco: %w", err)
+		}
+		plugins = append(plugins, plugin)
+		serverOpts = append(serverOpts, grpcservice.WithBancoService(svc))
 
-		takerSvc = application.NewTakerService(s, pairRepo, tradeRepo, arkClient, arkClient.Indexer(), log)
-		takerSvc.Start()
-		log.Info("banco plugin started")
+		log.Info("banco plugin enabled")
 	}
 
 	if cfg.PreimageEnabled {
-		solverPriv, err := deriveSolverPrivKey(cfg.WalletSeed)
+		svc, plugin, err := setupPreimage(ctx, cfg, arkClient, emulator, log)
 		if err != nil {
-			log.WithError(err).Fatal("failed to derive preimage solver privkey")
+			return fmt.Errorf("failed to setup preimage: %w", err)
 		}
-		preimageSvc, err = application.NewPreimageService(ctx, application.PreimageServiceConfig{
-			ArkClient:     arkClient,
-			Emulator:      emulator,
-			SolverPrivKey: solverPriv,
-			Log:           log,
-		})
-		if err != nil {
-			log.WithError(err).Fatal("failed to create preimage service")
-		}
-		if err := preimageSvc.Start(); err != nil {
-			log.WithError(err).Fatal("failed to start preimage service")
-		}
-		log.Info("preimage plugin started")
+		plugins = append(plugins, plugin)
+		serverOpts = append(serverOpts, grpcservice.WithPreimageService(svc))
+		log.Info("preimage plugin enabled")
 	}
 
 	// One gRPC + HTTP server hosts whichever services are enabled.
-	if cfg.BancoEnabled || cfg.PreimageEnabled {
-		srv = grpcservice.NewServer(takerSvc, cfg.GRPCPort, cfg.HTTPPort, log).
-			WithPreimageService(preimageSvc)
+	if len(serverOpts) > 0 {
+		srv := grpcservice.NewServer(cfg.GRPCPort, cfg.HTTPPort, log, serverOpts...)
 		if err := srv.Start(); err != nil {
-			log.WithError(err).Fatal("failed to start server")
+			return fmt.Errorf("failed to start server: %w", err)
 		}
+		defer srv.Stop()
 	}
+
+	solverCtx, cancelSolver := context.WithCancel(ctx)
+	defer cancelSolver()
+
+	solverDone := make(chan error, 1)
+	s := solver.New(plugins...).WithLogger(log)
+	src := arkdsource.New(arkClient.Client(), log)
+	go func() {
+		solverDone <- s.Run(solverCtx, src)
+	}()
 
 	log.WithField("version", Version).
 		WithField("banco", cfg.BancoEnabled).
@@ -163,31 +133,136 @@ func main() {
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	<-sigCh
 
-	log.Info("shutting down...")
-	if preimageSvc != nil {
-		preimageSvc.Stop()
+	select {
+	case <-sigCh:
+		log.Info("shutting down...")
+		cancelSolver()
+		signal.Stop(sigCh)
+		<-solverDone
+	case err := <-solverDone:
+		if !errors.Is(err, context.Canceled) {
+			return fmt.Errorf("solver runtime exited unexpectedly: %w", err)
+		}
 	}
-	if takerSvc != nil {
-		takerSvc.Stop()
-	}
-	if srv != nil {
-		srv.Stop()
-	}
-	log.Info("solverd stopped")
+
+	return nil
 }
 
-// optionalSqliteDB opens the sqlite DB iff banco plugin is enabled
-func optionalSqliteDB(cfg *config.Config, log logrus.FieldLogger) *sql.DB {
-	if !cfg.BancoEnabled {
-		return nil
-	}
-	db, err := sqlitedb.OpenDB(cfg.Datadir)
+func setupWallet(ctx context.Context, cfg *config.Config) (arksdk.Wallet, error) {
+	identityStore, err := singlekeyfilestore.NewStore(cfg.Datadir)
 	if err != nil {
-		log.WithError(err).Fatal("failed to open database")
+		return nil, fmt.Errorf("init identity store: %w", err)
 	}
-	return db
+	singleKeyIdentity, err := singlekey.NewIdentity(identityStore)
+	if err != nil {
+		return nil, fmt.Errorf("init single-key identity: %w", err)
+	}
+
+	walletOpts := []arksdk.WalletOption{arksdk.WithIdentity(singleKeyIdentity)}
+	arkClient, err := arksdk.LoadWallet(cfg.Datadir, walletOpts...)
+	if err != nil {
+		// Fresh datadir surfaces as either go-sdk's or client-lib's
+		// ErrNotInitialized depending on which layer first noticed the
+		// missing config — both are valid "no wallet yet" signals.
+		if !errors.Is(err, arksdk.ErrNotInitialized) &&
+			!errors.Is(err, arkdclient.ErrNotInitialized) {
+			return nil, fmt.Errorf("load ark client: %w", err)
+		}
+
+		arkClient, err = arksdk.NewWallet(cfg.Datadir, walletOpts...)
+		if err != nil {
+			return nil, fmt.Errorf("create ark client: %w", err)
+		}
+		if err := arkClient.Init(ctx, cfg.ArkURL, cfg.WalletSeed, cfg.WalletPassword); err != nil {
+			return nil, fmt.Errorf("init ark client: %w", err)
+		}
+	}
+	if err := arkClient.Unlock(ctx, cfg.WalletPassword); err != nil {
+		return nil, fmt.Errorf("unlock ark client: %w", err)
+	}
+
+	return arkClient, nil
+}
+
+func setupBanco(
+	db *sql.DB,
+	arkClient arksdk.Wallet,
+	emulator emulatorclient.TransportClient,
+	log logrus.FieldLogger,
+) (*application.TakerService, solver.Plugin, error) {
+	pairRepo := sqlitedb.NewPairRepository(db)
+	tradeRepo := sqlitedb.NewTradeRepository(db)
+	priceFeed := pricefeed.NewCoinGecko()
+	tradeListener := application.NewTradeListener(tradeRepo, log)
+
+	plugin := banco.NewPlugin(banco.Config{
+		SolverClient:    arkClient,
+		Emulator:        emulator,
+		PairsRepository: pairRepo,
+		PriceFeed:       priceFeed,
+		Listener:        tradeListener,
+		Log:             log,
+	})
+	takerSvc := application.NewTakerService(pairRepo, tradeRepo, arkClient, arkClient.Indexer(), log)
+
+	return takerSvc, plugin, nil
+}
+
+func setupPreimage(
+	ctx context.Context,
+	cfg *config.Config,
+	arkClient arksdk.Wallet,
+	emulator emulatorclient.TransportClient,
+	log logrus.FieldLogger,
+) (*application.PreimageService, solver.Plugin, error) {
+	solverPriv, err := deriveSolverPrivKey(cfg.WalletSeed)
+	if err != nil {
+		return nil, nil, fmt.Errorf("derive preimage solver privkey: %w", err)
+	}
+	info, err := emulator.GetInfo(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("get emulator info: %w", err)
+	}
+	rawEmulatorPub, err := hex.DecodeString(info.SignerPublicKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("decode emulator pubkey: %w", err)
+	}
+	emulatorPub, err := btcec.ParsePubKey(rawEmulatorPub)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse emulator pubkey: %w", err)
+	}
+	configData, err := arkClient.GetConfigData(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("get ark config: %w", err)
+	}
+	checkpointBytes, err := hex.DecodeString(configData.CheckpointTapscript)
+	if err != nil {
+		return nil, nil, fmt.Errorf("decode checkpoint tapscript: %w", err)
+	}
+	preimageSvc, err := application.NewPreimageService(application.PreimageServiceConfig{
+		SolverPrivKey:  solverPriv,
+		EmulatorPubKey: emulatorPub,
+		Log:            log,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("create preimage service: %w", err)
+	}
+	plugin, err := preimage.NewPlugin(ctx, preimage.Config{
+		ArkClient:           arkClient,
+		Emulator:            emulator,
+		SolverPrivKey:       solverPriv,
+		EmulatorPubKey:      emulatorPub,
+		ServerPubKey:        configData.SignerPubKey,
+		CheckpointTapscript: checkpointBytes,
+		Network:             configData.Network,
+		Log:                 log,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("build preimage plugin: %w", err)
+	}
+
+	return preimageSvc, plugin, nil
 }
 
 const preimageKeyDomain = "solverd/preimage-plugin/v1"

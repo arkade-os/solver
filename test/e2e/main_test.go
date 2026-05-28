@@ -2,6 +2,8 @@ package e2e_test
 
 import (
 	"context"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -23,7 +25,9 @@ import (
 	sqlitedb "github.com/arkade-os/solver/internal/infrastructure/db/sqlite"
 	grpcservice "github.com/arkade-os/solver/internal/interface/grpc"
 	"github.com/arkade-os/solver/pkg/banco"
+	"github.com/arkade-os/solver/pkg/preimage"
 	"github.com/arkade-os/solver/pkg/solver"
+	"github.com/arkade-os/solver/pkg/solver/arkdsource"
 )
 
 const (
@@ -117,19 +121,19 @@ func runTests(m *testing.M) int {
 	}
 	emulatorClient := emulatorclient.NewGRPCClient(emulatorConn)
 
-	// Build solver
-	plugin := banco.NewPlugin(banco.Config{
+	var plugins []solver.Plugin
+
+	// Build banco plugin
+	bancoPlugin := banco.NewPlugin(banco.Config{
 		SolverClient:    takerClient,
 		Emulator:        emulatorClient,
 		PairsRepository: pairRepo,
 		PriceFeed:       &mockPriceFeed{},
 		Log:             log.StandardLogger(),
 	})
-	s := solver.New(plugin)
+	plugins = append(plugins, bancoPlugin)
 
-	takerSvc = application.NewTakerService(s, pairRepo, tradeRepo, takerClient, takerClient.Indexer(), log.StandardLogger())
-	takerSvc.Start()
-	defer takerSvc.Stop()
+	takerSvc = application.NewTakerService(pairRepo, tradeRepo, takerClient, takerClient.Indexer(), log.StandardLogger())
 
 	// Preimage service: stateless — the solver privkey is generated fresh for
 	// the test and the preimage plugin recovers credentials from the tx stream
@@ -139,27 +143,80 @@ func runTests(m *testing.M) int {
 		log.Errorf("failed to generate preimage privkey: %s", err)
 		return 1
 	}
-	preimageSvc, err = application.NewPreimageService(ctx, application.PreimageServiceConfig{
-		ArkClient:     takerClient,
-		Emulator:      emulatorClient,
-		SolverPrivKey: preimagePriv,
-		Log:           log.StandardLogger(),
+	info, err := emulatorClient.GetInfo(ctx)
+	if err != nil {
+		log.Errorf("failed to get emulator info: %s", err)
+		return 1
+	}
+	rawIntro, err := hex.DecodeString(info.SignerPublicKey)
+	if err != nil {
+		log.Errorf("failed to decode emulator pubkey: %s", err)
+		return 1
+	}
+	emulatorPub, err := btcec.ParsePubKey(rawIntro)
+	if err != nil {
+		log.Errorf("failed to parse emulator pubkey: %s", err)
+		return 1
+	}
+	configData, err := takerClient.GetConfigData(ctx)
+	if err != nil {
+		log.Errorf("failed to get ark config: %s", err)
+		return 1
+	}
+	checkpointBytes, err := hex.DecodeString(configData.CheckpointTapscript)
+	if err != nil {
+		log.Errorf("failed to decode checkpoint tapscript: %s", err)
+		return 1
+	}
+	preimageSvc, err = application.NewPreimageService(application.PreimageServiceConfig{
+		SolverPrivKey:  preimagePriv,
+		EmulatorPubKey: emulatorPub,
+		Log:            log.StandardLogger(),
 	})
 	if err != nil {
 		log.Errorf("failed to create preimage service: %s", err)
 		return 1
 	}
-	if err := preimageSvc.Start(); err != nil {
-		log.Errorf("failed to start preimage service: %s", err)
+	preimagePlugin, err := preimage.NewPlugin(ctx, preimage.Config{
+		ArkClient:           takerClient,
+		Emulator:            emulatorClient,
+		SolverPrivKey:       preimagePriv,
+		EmulatorPubKey:      emulatorPub,
+		ServerPubKey:        configData.SignerPubKey,
+		CheckpointTapscript: checkpointBytes,
+		Network:             configData.Network,
+		Log:                 log.StandardLogger(),
+	})
+	if err != nil {
+		log.Errorf("failed to build preimage plugin: %s", err)
 		return 1
 	}
-	defer preimageSvc.Stop()
+	plugins = append(plugins, preimagePlugin)
+
+	solverCtx, solverCancel := context.WithCancel(ctx)
+	solverDone := make(chan error, 1)
+	s := solver.New(plugins...).WithLogger(log.StandardLogger())
+	src := arkdsource.New(takerClient.Client(), log.StandardLogger())
+	go func() {
+		solverDone <- s.Run(solverCtx, src)
+	}()
+	defer func() {
+		solverCancel()
+		if err := <-solverDone; err != nil && !errors.Is(err, context.Canceled) {
+			log.Errorf("solver exited during shutdown: %s", err)
+		}
+	}()
 
 	// Start the real gRPC + HTTP gateway server hosting both takerSvc and
 	// preimageSvc. e2e tests dial this server as a real client would, rather
 	// than calling application services directly.
-	srv := grpcservice.NewServer(takerSvc, e2eGRPCPort, e2eHTTPPort, log.StandardLogger()).
-		WithPreimageService(preimageSvc)
+	srv := grpcservice.NewServer(
+		e2eGRPCPort,
+		e2eHTTPPort,
+		log.StandardLogger(),
+		grpcservice.WithBancoService(takerSvc),
+		grpcservice.WithPreimageService(preimageSvc),
+	)
 	if err := srv.Start(); err != nil {
 		log.Errorf("failed to start grpc server: %s", err)
 		return 1

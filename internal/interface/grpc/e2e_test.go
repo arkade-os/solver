@@ -3,7 +3,6 @@ package grpcservice
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/arkade-os/arkd/pkg/ark-lib/asset"
 	"github.com/arkade-os/arkd/pkg/client-lib/indexer"
@@ -15,8 +14,6 @@ import (
 	bancov1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/solverd/v1"
 	"github.com/arkade-os/solver/internal/core/application"
 	sqlitedb "github.com/arkade-os/solver/internal/infrastructure/db/sqlite"
-	"github.com/arkade-os/solver/pkg/banco"
-	"github.com/arkade-os/solver/pkg/solver"
 )
 
 // mockArkClient implements arksdk.Wallet with stub methods for balance and address.
@@ -77,18 +74,13 @@ func setupHandler(t *testing.T) bancov1.BancoServiceServer {
 
 	pairRepo := sqlitedb.NewPairRepository(db)
 
-	plugin := banco.NewPlugin(banco.Config{
-		PriceCacheTTL: 5 * time.Minute,
-	})
-	s := solver.New(plugin)
-
 	idx := &mockIndexer{decimals: map[string]string{
 		"USDT": "6",
 		"ETH":  "18",
 		"LTC":  "8",
 	}}
 	tradeRepo := sqlitedb.NewTradeRepository(db)
-	svc := application.NewTakerService(s, pairRepo, tradeRepo, &mockArkClient{}, idx, nil)
+	svc := application.NewTakerService(pairRepo, tradeRepo, &mockArkClient{}, idx, nil)
 
 	return newHandler(svc)
 }
@@ -289,18 +281,6 @@ func TestAddPair_Duplicate(t *testing.T) {
 
 	_, err = h.AddPair(ctx, &bancov1.AddPairRequest{Pair: pair})
 	assert.Error(t, err, "adding duplicate pair should fail with PRIMARY KEY conflict")
-}
-
-// TestGetStatus verifies that GetStatus returns a valid response.
-func TestGetStatus(t *testing.T) {
-	h := setupHandler(t)
-	ctx := context.Background()
-
-	resp, err := h.GetStatus(ctx, &bancov1.GetStatusRequest{})
-	require.NoError(t, err)
-
-	// The solver has not been Started, so Running should be false.
-	assert.False(t, resp.Running)
 }
 
 // TestGetBalance verifies that GetBalance returns expected values from the mock client.

@@ -2,11 +2,9 @@ package application
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/arkade-os/arkd/pkg/client-lib/indexer"
 	arksdk "github.com/arkade-os/go-sdk"
@@ -14,37 +12,21 @@ import (
 
 	"github.com/arkade-os/solver/internal/core/ports"
 	"github.com/arkade-os/solver/pkg/banco"
-	"github.com/arkade-os/solver/pkg/solver"
-	"github.com/arkade-os/solver/pkg/solver/arkdsource"
 )
 
 const btcDecimals = 8
 
-// Status reports whether the solver run goroutine is currently active.
-type Status struct {
-	Running bool
-}
-
-// TakerService is the application-level service that owns the solver run
-// loop and provides CRUD for trading pairs plus wallet operations.
+// TakerService provides CRUD for trading pairs plus wallet operations.
 type TakerService struct {
-	solver    *solver.Solver
 	pairRepo  ports.PairRepository
 	tradeRepo ports.TradeRepository
 	arkClient arksdk.Wallet
 	indexer   indexer.Indexer
 	log       logrus.FieldLogger
-
-	cancel  context.CancelFunc
-	done    chan struct{}
-	mu      sync.RWMutex
-	running bool
 }
 
-// NewTakerService creates a new TakerService. The caller is responsible
-// for constructing the solver from a banco.Plugin.
+// NewTakerService creates a new TakerService.
 func NewTakerService(
-	s *solver.Solver,
 	pairRepo ports.PairRepository,
 	tradeRepo ports.TradeRepository,
 	arkClient arksdk.Wallet,
@@ -55,7 +37,6 @@ func NewTakerService(
 		log = logrus.StandardLogger()
 	}
 	return &TakerService{
-		solver:    s,
 		pairRepo:  pairRepo,
 		tradeRepo: tradeRepo,
 		arkClient: arkClient,
@@ -71,44 +52,6 @@ func (svc *TakerService) ListTrades(ctx context.Context, limit int) ([]ports.Tra
 		return nil, nil
 	}
 	return svc.tradeRepo.List(ctx, limit)
-}
-
-// Start spawns the solver run goroutine, subscribed to the arkd tx stream.
-func (svc *TakerService) Start() {
-	ctx, cancel := context.WithCancel(context.Background())
-	svc.cancel = cancel
-	svc.done = make(chan struct{})
-
-	src := arkdsource.New(svc.arkClient.Client(), svc.log)
-	svc.setRunning(true)
-	go func() {
-		defer close(svc.done)
-		defer svc.setRunning(false)
-		if err := svc.solver.Run(ctx, src); err != nil && !errors.Is(err, context.Canceled) {
-			svc.log.WithError(err).Error("solver run exited")
-		}
-	}()
-}
-
-// Stop signals the run goroutine to exit and waits for it.
-func (svc *TakerService) Stop() {
-	if svc.cancel != nil {
-		svc.cancel()
-		<-svc.done
-	}
-}
-
-// Status reports whether Run is active.
-func (svc *TakerService) Status() Status {
-	svc.mu.RLock()
-	defer svc.mu.RUnlock()
-	return Status{Running: svc.running}
-}
-
-func (svc *TakerService) setRunning(v bool) {
-	svc.mu.Lock()
-	svc.running = v
-	svc.mu.Unlock()
 }
 
 // AddPair validates, resolves decimals from the indexer, and adds a new pair.

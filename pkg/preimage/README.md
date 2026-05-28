@@ -67,13 +67,13 @@ plugin, err := preimage.NewPlugin(ctx, preimage.Config{
     Network:             configData.Network,
     Log:                 log,
 })
-s := solver.New(plugin).WithLogger(log)
+plugins = append(plugins, plugin)
 ```
 
 The application-level service (`internal/core/application/preimage_service.go`)
-fetches the emulator/server pubkeys at startup, owns the run loop,
-and exposes `SolverPubKey()` / `EmulatorPubKey()` so makers can encrypt
-preimages against the right keys.
+exposes `SolverPubKey()` / `EmulatorPubKey()` so makers can encrypt preimages
+against the right keys. `cmd/solverd` fetches ark/emulator metadata, constructs
+the plugin, and wires it into the shared solver runtime.
 
 ## Files quick-reference
 

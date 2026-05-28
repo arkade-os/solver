@@ -11,7 +11,7 @@ them atomically via an emulator-signed Arkade transaction.
 ```
 arkd tx stream  ─►  Solver  ─►  Plugin.Match(tx)  ─►  intent  ─►  Plugin.Solve(intent)
                        │
-                       └── fans every tx out to all registered plugins
+                       └── runs enabled plugins in one runtime
 ```
 
 A solver bot is a small runtime that subscribes to arkd's transaction stream and
@@ -41,8 +41,10 @@ two plugins ship with the daemon:
 - **`pkg/preimage`** — preimage-gated claim solver. Decrypts an ECIES payload
   attached to the funding tx and claims the VTXO when the arkade-script matches.
 
-Each enabled plugin owns its own `Solver` and arkd subscription, so adding a
-new protocol means writing a new `Plugin` and wiring it in `cmd/solverd`. See
+`solverd` composes enabled plugins into one `Solver` runtime. The runtime may
+still use per-plugin arkd subscriptions internally so server-side filters can
+drop unrelated txs before they reach the bot. Adding a new protocol means
+writing a new `Plugin` and wiring it in `cmd/solverd`. See
 [`pkg/solver/README.md`](pkg/solver/README.md) for the plugin authoring guide.
 
 ## Packages
@@ -76,9 +78,8 @@ dispatches each one to its registered plugins.
 - `Plugin` interface — `Match(ctx, *psbt.Packet) (intent any, ok bool)` decides
   whether a tx is interesting; `Solve(ctx, intent)` reacts to a match.
 - `Solver` / `New(plugins ...Plugin)` — runtime wrapping one or more plugins.
-- `Run(ctx, <-chan *psbt.Packet) error` — drains the channel sequentially,
-  fans matches out to `Solve` goroutines. Returns `ctx.Err()` on cancel,
-  `nil` when the channel closes.
+- `Run(ctx, source) error` — subscribes plugins, fans matches out to `Solve`
+  goroutines, and returns `ctx.Err()` on cancel.
 
 ### `pkg/banco`
 
@@ -143,8 +144,8 @@ web UI. Configured entirely through environment variables:
 | `SOLVER_BANCO_ENABLED` | | `true` | enable the swap plugin |
 | `SOLVER_PREIMAGE_ENABLED` | | `false` | enable the preimage-claim plugin |
 
-At least one plugin must be enabled. Each enabled plugin owns its own solver
-and arkd subscription.
+At least one plugin must be enabled. The daemon registers all enabled plugins
+in one solver runtime.
 
 ### `solver`
 

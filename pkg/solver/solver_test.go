@@ -134,7 +134,7 @@ func singleSource(ch chan *psbt.Packet) Source {
 	return newFakeSource().withFallback(ch)
 }
 
-func TestRun_ReturnsNilOnChannelClose(t *testing.T) {
+func TestRun_ReturnsErrAllStreamsClosedOnChannelClose(t *testing.T) {
 	plugin := &fakePlugin{}
 	s := New(plugin)
 	ctx := context.Background()
@@ -148,7 +148,7 @@ func TestRun_ReturnsNilOnChannelClose(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("Run did not return within 1s of channel close")
 	}
-	require.NoError(t, *errp)
+	require.ErrorIs(t, *errp, ErrAllStreamsClosed)
 }
 
 func TestRun_ReturnsCtxErrOnCancel(t *testing.T) {
@@ -181,7 +181,7 @@ func TestRun_MatchOkFalseDoesNotCallSolve(t *testing.T) {
 
 	done, errp := runEngine(t, s, ctx, singleSource(ch))
 	<-done
-	require.NoError(t, *errp)
+	require.ErrorIs(t, *errp, ErrAllStreamsClosed)
 	require.Empty(t, plugin.solved)
 }
 
@@ -200,7 +200,7 @@ func TestRun_MatchOkTrueCallsSolve(t *testing.T) {
 	done, errp := runEngine(t, s, ctx, singleSource(ch))
 	<-done
 	plugin.waitSolves(t)
-	require.NoError(t, *errp)
+	require.ErrorIs(t, *errp, ErrAllStreamsClosed)
 	require.Equal(t, []any{"intent-1"}, plugin.solved)
 }
 
@@ -216,7 +216,7 @@ func TestRun_NilTxIsSkipped(t *testing.T) {
 
 	done, errp := runEngine(t, s, ctx, singleSource(ch))
 	<-done
-	require.NoError(t, *errp)
+	require.ErrorIs(t, *errp, ErrAllStreamsClosed)
 	// Only the non-nil tx should have been Matched.
 	require.Equal(t, 1, plugin.matched)
 }
@@ -255,7 +255,7 @@ func TestRun_PerPluginFilteredSubscription(t *testing.T) {
 	<-done
 	p1.waitSolves(t)
 	p2.waitSolves(t)
-	require.NoError(t, *errp)
+	require.ErrorIs(t, *errp, ErrAllStreamsClosed)
 	require.ElementsMatch(t, []string{"tag == 'a'", "tag == 'b'"}, src.seenFilters())
 	// Each plugin saw exactly its own tx, not the other's.
 	require.Equal(t, 1, p1.matched)
@@ -289,7 +289,7 @@ func TestRun_SubscribeErrorSkipsPlugin(t *testing.T) {
 	done, errp := runEngine(t, s, ctx, src)
 	<-done
 	working.waitSolves(t)
-	require.NoError(t, *errp)
+	require.ErrorIs(t, *errp, ErrAllStreamsClosed)
 	require.Equal(t, 0, failing.matched)
 	require.Equal(t, []any{"ok"}, working.solved)
 }
@@ -331,7 +331,7 @@ func TestRun_WaitsForInflightSolvesOnChannelClose(t *testing.T) {
 		t.Fatal("Run did not return within 1s after Solve unblocked")
 	}
 	plugin.waitSolves(t)
-	require.NoError(t, *errp)
+	require.ErrorIs(t, *errp, ErrAllStreamsClosed)
 	require.Equal(t, int32(1), atomic.LoadInt32(&solveDone))
 }
 
@@ -394,7 +394,7 @@ func TestRun_RecoversMatchPanic(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("Run did not return within 1s after Match panic")
 	}
-	require.NoError(t, *errp)
+	require.ErrorIs(t, *errp, ErrAllStreamsClosed)
 	require.Empty(t, plugin.solved)
 }
 
@@ -420,5 +420,5 @@ func TestRun_RecoversSolvePanic(t *testing.T) {
 		t.Fatal("Run did not return within 1s after Solve panic")
 	}
 	plugin.waitSolves(t)
-	require.NoError(t, *errp)
+	require.ErrorIs(t, *errp, ErrAllStreamsClosed)
 }
