@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -12,22 +13,15 @@ import (
 	"testing"
 	"time"
 
-	emulatorclient "github.com/arkade-os/emulator/pkg/client"
 	arksdk "github.com/arkade-os/go-sdk"
 	sdktypes "github.com/arkade-os/go-sdk/types"
-	"github.com/btcsuite/btcd/btcec/v2"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/arkade-os/solver/internal/core/application"
-	"github.com/arkade-os/solver/internal/core/ports"
-	sqlitedb "github.com/arkade-os/solver/internal/infrastructure/db/sqlite"
-	grpcservice "github.com/arkade-os/solver/internal/interface/grpc"
-	"github.com/arkade-os/solver/pkg/banco"
-	"github.com/arkade-os/solver/pkg/preimage"
-	"github.com/arkade-os/solver/pkg/solver"
-	"github.com/arkade-os/solver/pkg/solver/arkdsource"
+	bancov1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/solverd/v1"
+	"github.com/arkade-os/solver/internal/config"
+	"github.com/arkade-os/solver/internal/solverd"
 )
 
 const (
@@ -42,18 +36,18 @@ const (
 // gRPC API.
 var e2eGRPCAddr = fmt.Sprintf("localhost:%d", e2eGRPCPort)
 
-// mockPriceFeed always returns a fixed price of 1.0.
-// This makes any offer with roughly 1:1 ratio pass the 1% margin check.
-type mockPriceFeed struct{}
+// mockPriceFeed returns deterministic prices keyed by the pair's feed URL.
+type mockPriceFeed map[string]float64
 
-func (m *mockPriceFeed) Fetch(_ context.Context, _ string) (float64, error) {
-	return 1.0, nil
+func (m mockPriceFeed) Fetch(_ context.Context, feedURL string) (float64, error) {
+	price, ok := m[feedURL]
+	if !ok {
+		return 0, fmt.Errorf("mock price feed missing price for %s", feedURL)
+	}
+	return price, nil
 }
 
 var (
-	takerSvc    *application.TakerService
-	preimageSvc *application.PreimageService
-	pairRepo    ports.PairRepository
 	takerClient arksdk.Wallet
 )
 
@@ -73,7 +67,6 @@ func runTests(m *testing.M) int {
 		return 1
 	}
 
-	// Create taker's ArkClient
 	takerDatadir, err := os.MkdirTemp("", "solverd-e2e-taker-*")
 	if err != nil {
 		log.Errorf("failed to create taker datadir: %s", err)
@@ -81,177 +74,114 @@ func runTests(m *testing.M) int {
 	}
 	// nolint:errcheck
 	defer os.RemoveAll(takerDatadir)
-	takerClient, err = setupTakerClient(ctx, takerDatadir)
+	walletSeed, err := randomSeedHex()
+	if err != nil {
+		log.Errorf("failed to generate wallet seed: %s", err)
+		return 1
+	}
+	cfg := &config.Config{
+		Datadir:         takerDatadir,
+		ArkURL:          arkdURL,
+		WalletSeed:      walletSeed,
+		WalletPassword:  password,
+		EmulatorURL:     emulatorAddr,
+		GRPCPort:        e2eGRPCPort,
+		HTTPPort:        e2eHTTPPort,
+		LogLevel:        int(log.DebugLevel),
+		BancoEnabled:    true,
+		PreimageEnabled: true,
+	}
+	takerClient, err = solverd.SetupWallet(ctx, cfg, arksdk.WithoutAutoSettle())
 	if err != nil {
 		log.Errorf("failed to setup taker client: %s", err)
 		return 1
 	}
+	defer takerClient.Stop()
 
-	// Fund taker with offchain BTC
+	runCtx, cancelSolver := context.WithCancel(ctx)
+	done := make(chan error, 1)
+	go func() {
+		done <- solverd.Run(runCtx, cfg, log.StandardLogger(), takerClient,
+			solverd.WithBancoPriceFeed(mockPriceFeed{
+				mockAssetBTCPriceFeed:   100_000_000,
+				mockBTCAssetPriceFeed:   0.00000001,
+				mockAssetAssetPriceFeed: 1,
+			}),
+		)
+	}()
+	defer func() {
+		cancelSolver()
+		if err := <-done; err != nil && !errors.Is(err, context.Canceled) {
+			log.Errorf("solverd exited during shutdown: %s", err)
+		}
+	}()
+
+	if err := waitBancoReady(ctx); err != nil {
+		log.Errorf("failed waiting for solverd readiness: %s", err)
+		return 1
+	}
+
+	if err := waitWalletSynced(ctx, takerClient); err != nil {
+		log.Errorf("failed to sync taker client: %s", err)
+		return 1
+	}
+
+	// Fund taker with offchain BTC.
 	if err := fundTaker(ctx, takerClient); err != nil {
 		log.Errorf("failed to fund taker: %s", err)
 		return 1
 	}
 
-	// SQLite pair repo in temp dir
-	tmpDir, err := os.MkdirTemp("", "solverd-e2e-*")
-	if err != nil {
-		log.Errorf("failed to create temp dir: %s", err)
-		return 1
-	}
-	// nolint:errcheck
-	defer os.RemoveAll(tmpDir)
-
-	db, err := sqlitedb.OpenDB(tmpDir)
-	if err != nil {
-		log.Errorf("failed to open db: %s", err)
-		return 1
-	}
-	// nolint:errcheck
-	defer db.Close()
-
-	pairRepo = sqlitedb.NewPairRepository(db)
-	tradeRepo := sqlitedb.NewTradeRepository(db)
-
-	// Emulator client
-	emulatorConn, err := grpc.NewClient(emulatorAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		log.Errorf("failed to connect to emulator: %s", err)
-		return 1
-	}
-	emulatorClient := emulatorclient.NewGRPCClient(emulatorConn)
-
-	var plugins []solver.Plugin
-
-	// Build banco plugin
-	bancoPlugin := banco.NewPlugin(banco.Config{
-		SolverClient:    takerClient,
-		Emulator:        emulatorClient,
-		PairsRepository: pairRepo,
-		PriceFeed:       &mockPriceFeed{},
-		Log:             log.StandardLogger(),
-	})
-	plugins = append(plugins, bancoPlugin)
-
-	takerSvc = application.NewTakerService(pairRepo, tradeRepo, takerClient, takerClient.Indexer(), log.StandardLogger())
-
-	// Preimage service: stateless — the solver privkey is generated fresh for
-	// the test and the preimage plugin recovers credentials from the tx stream
-	// (no DB).
-	preimagePriv, err := btcec.NewPrivateKey()
-	if err != nil {
-		log.Errorf("failed to generate preimage privkey: %s", err)
-		return 1
-	}
-	info, err := emulatorClient.GetInfo(ctx)
-	if err != nil {
-		log.Errorf("failed to get emulator info: %s", err)
-		return 1
-	}
-	rawIntro, err := hex.DecodeString(info.SignerPublicKey)
-	if err != nil {
-		log.Errorf("failed to decode emulator pubkey: %s", err)
-		return 1
-	}
-	emulatorPub, err := btcec.ParsePubKey(rawIntro)
-	if err != nil {
-		log.Errorf("failed to parse emulator pubkey: %s", err)
-		return 1
-	}
-	configData, err := takerClient.GetConfigData(ctx)
-	if err != nil {
-		log.Errorf("failed to get ark config: %s", err)
-		return 1
-	}
-	checkpointBytes, err := hex.DecodeString(configData.CheckpointTapscript)
-	if err != nil {
-		log.Errorf("failed to decode checkpoint tapscript: %s", err)
-		return 1
-	}
-	preimageSvc, err = application.NewPreimageService(application.PreimageServiceConfig{
-		SolverPrivKey:  preimagePriv,
-		EmulatorPubKey: emulatorPub,
-		Log:            log.StandardLogger(),
-	})
-	if err != nil {
-		log.Errorf("failed to create preimage service: %s", err)
-		return 1
-	}
-	preimagePlugin, err := preimage.NewPlugin(ctx, preimage.Config{
-		ArkClient:           takerClient,
-		Emulator:            emulatorClient,
-		SolverPrivKey:       preimagePriv,
-		EmulatorPubKey:      emulatorPub,
-		ServerPubKey:        configData.SignerPubKey,
-		CheckpointTapscript: checkpointBytes,
-		Network:             configData.Network,
-		Log:                 log.StandardLogger(),
-	})
-	if err != nil {
-		log.Errorf("failed to build preimage plugin: %s", err)
-		return 1
-	}
-	plugins = append(plugins, preimagePlugin)
-
-	solverCtx, solverCancel := context.WithCancel(ctx)
-	solverDone := make(chan error, 1)
-	s := solver.New(plugins...).WithLogger(log.StandardLogger())
-	src := arkdsource.New(takerClient.Client(), log.StandardLogger())
-	go func() {
-		solverDone <- s.Run(solverCtx, src)
-	}()
-	defer func() {
-		solverCancel()
-		if err := <-solverDone; err != nil && !errors.Is(err, context.Canceled) {
-			log.Errorf("solver exited during shutdown: %s", err)
-		}
-	}()
-
-	// Start the real gRPC + HTTP gateway server hosting both takerSvc and
-	// preimageSvc. e2e tests dial this server as a real client would, rather
-	// than calling application services directly.
-	srv := grpcservice.NewServer(
-		e2eGRPCPort,
-		e2eHTTPPort,
-		log.StandardLogger(),
-		grpcservice.WithBancoService(takerSvc),
-		grpcservice.WithPreimageService(preimageSvc),
-	)
-	if err := srv.Start(); err != nil {
-		log.Errorf("failed to start grpc server: %s", err)
-		return 1
-	}
-	defer srv.Stop()
-	// Give the listeners a moment to come up before tests dial.
-	time.Sleep(500 * time.Millisecond)
-
 	return m.Run()
 }
 
-// setupTakerClient builds, inits, and unlocks the bot's wallet. Same flow as
-// utils_test.go setupArkClient but adapted for TestMain (no *testing.T) and
-// with a caller-managed datadir whose lifetime spans the whole test run.
-func setupTakerClient(ctx context.Context, datadir string) (arksdk.Wallet, error) {
-	// Auto-settle disabled: the bot spends its VTXOs to fulfill offers,
-	// which races the scheduler and floods logs with VTXO_ALREADY_SPENT.
-	client, err := arksdk.NewWallet(datadir, arksdk.WithoutAutoSettle())
+func randomSeedHex() (string, error) {
+	seed := make([]byte, 32)
+	if _, err := rand.Read(seed); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(seed), nil
+}
+
+func waitBancoReady(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	conn, err := grpc.NewClient(e2eGRPCAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		return nil, err
+		return err
 	}
-	if err := client.Init(ctx, arkdURL, "", password); err != nil {
-		return nil, err
+	// nolint:errcheck
+	defer conn.Close()
+	client := bancov1.NewBancoServiceClient(conn)
+
+	for {
+		callCtx, callCancel := context.WithTimeout(ctx, time.Second)
+		resp, err := client.GetStatus(callCtx, &bancov1.GetStatusRequest{})
+		callCancel()
+		if err == nil && resp.GetRunning() {
+			return nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
 	}
-	if err := client.Unlock(ctx, password); err != nil {
-		return nil, err
-	}
+}
+
+func waitWalletSynced(ctx context.Context, client arksdk.Wallet) error {
 	synced := <-client.IsSynced(ctx)
 	if synced.Err != nil {
-		return nil, fmt.Errorf("taker client sync: %w", synced.Err)
+		return fmt.Errorf("taker client sync: %w", synced.Err)
 	}
 	if !synced.Synced {
-		return nil, fmt.Errorf("taker client failed to sync")
+		return fmt.Errorf("taker client failed to sync")
 	}
-	return client, nil
+	return nil
 }
 
 // fundTaker tops up the bot's offchain balance via an admin-issued note, using
