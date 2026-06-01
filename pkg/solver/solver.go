@@ -2,12 +2,17 @@ package solver
 
 import (
 	"context"
+	"errors"
 	"runtime/debug"
 	"sync"
 
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/sirupsen/logrus"
 )
+
+// ErrAllStreamsClosed reports that every plugin stream ended before the
+// runtime context was canceled.
+var ErrAllStreamsClosed = errors.New("solver: all plugin streams closed")
 
 // Plugin is the protocol-specific contract a Solver runs.
 type Plugin interface {
@@ -61,8 +66,8 @@ func (s *Solver) WithLogger(log logrus.FieldLogger) *Solver {
 // one buggy plugin can't crash the bot.
 //
 //   - returns ctx.Err() when ctx is canceled (after in-flight Solves drain)
-//   - returns nil when every per-plugin stream has closed (or no plugin
-//     subscribed successfully)
+//   - returns ErrAllStreamsClosed when every per-plugin stream has closed
+//     (or no plugin subscribed successfully)
 //
 // A Subscribe error for a single plugin is logged and that plugin is
 // skipped; the rest continue.
@@ -92,7 +97,10 @@ func (s *Solver) Run(ctx context.Context, source Source) error {
 		<-done
 		return ctx.Err()
 	case <-done:
-		return nil
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		return ErrAllStreamsClosed
 	}
 }
 

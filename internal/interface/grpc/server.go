@@ -36,33 +36,46 @@ type Server struct {
 	log             logrus.FieldLogger
 }
 
-// NewServer creates a new Server that serves both gRPC and HTTP. svc may be
-// nil when the banco plugin is disabled.
+// Option configures the services exposed by Server.
+type Option func(*Server)
+
+// NewServer creates a new Server that serves both gRPC and HTTP.
 func NewServer(
-	svc *application.TakerService,
 	grpcPort, httpPort int,
 	log logrus.FieldLogger,
+	opts ...Option,
 ) *Server {
 	s := &Server{
 		grpcPort: grpcPort,
 		httpPort: httpPort,
 		log:      log,
 	}
-	if svc != nil {
-		s.handler = newHandler(svc)
-		s.bancoSvc = svc
+	for _, opt := range opts {
+		opt(s)
 	}
 	return s
 }
 
-// WithPreimageService attaches the preimage handler so its RPCs are exposed
-// alongside the banco handler. Pass nil to leave it disabled.
-func (s *Server) WithPreimageService(svc *application.PreimageService) *Server {
-	if svc != nil {
-		s.preimageHandler = newPreimageHandler(svc)
-		s.preimageSvc = svc
+// WithBancoService exposes the banco RPC and HTTP routes. Pass nil to leave it
+// disabled.
+func WithBancoService(svc *application.TakerService) Option {
+	return func(s *Server) {
+		if svc != nil {
+			s.handler = newHandler(svc)
+			s.bancoSvc = svc
+		}
 	}
-	return s
+}
+
+// WithPreimageService exposes the preimage RPC and HTTP routes. Pass nil to
+// leave it disabled.
+func WithPreimageService(svc *application.PreimageService) Option {
+	return func(s *Server) {
+		if svc != nil {
+			s.preimageHandler = newPreimageHandler(svc)
+			s.preimageSvc = svc
+		}
+	}
 }
 
 // Start starts both the gRPC server and the HTTP gateway.
@@ -283,11 +296,11 @@ func (s *Server) pluginsHandler() http.Handler {
 		resp := pluginsResponse{}
 		if s.bancoSvc != nil {
 			resp.Banco.Enabled = true
-			resp.Banco.Running = s.bancoSvc.Status().Running
+			resp.Banco.Running = true
 		}
 		if s.preimageSvc != nil {
 			resp.Preimage.Enabled = true
-			resp.Preimage.Running = s.preimageSvc.Status().Running
+			resp.Preimage.Running = true
 		}
 		jsonResponse(w, resp)
 	})

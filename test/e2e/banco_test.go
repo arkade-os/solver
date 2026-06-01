@@ -9,17 +9,21 @@ import (
 	clientTypes "github.com/arkade-os/arkd/pkg/client-lib/types"
 	sdktypes "github.com/arkade-os/go-sdk/types"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
+	bancov1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/solverd/v1"
 	"github.com/arkade-os/solver/pkg/banco"
 	"github.com/arkade-os/solver/pkg/banco/contract"
 )
 
-const mockPriceFeedURL = "http://mock-price-feed"
+const (
+	mockAssetBTCPriceFeed   = "mock://asset-btc"
+	mockBTCAssetPriceFeed   = "mock://btc-asset"
+	mockAssetAssetPriceFeed = "mock://asset-asset"
+)
 
 // TestBancoAssetToBTC: maker deposits asset, wants BTC.
-// Mock price feed returns 1.0. With BaseDecimals=0, QuoteDecimals=0:
-//
-//	price = depositAmount/wantAmount = 500/500 = 1.0 ✓
 func TestBancoAssetToBTC(t *testing.T) {
 	ctx := t.Context()
 
@@ -28,21 +32,13 @@ func TestBancoAssetToBTC(t *testing.T) {
 	faucetOffchain(t, maker, 0.0005)
 	assetID := issueAsset(t, maker, 500)
 
-	// Configure taker pair: asset/BTC. We write directly to pairRepo
-	// (instead of going through takerSvc.AddPair) so we can pin
-	// BaseDecimals=QuoteDecimals=0; AddPair would resolve BTC's quote
-	// decimals to 8 and the mock price feed (1.0) would no longer match
-	// the 500/500 offer ratio.
 	pair := banco.Pair{
-		Pair:          assetID + "/BTC",
-		MinAmount:     1,
-		MaxAmount:     100000000,
-		BaseDecimals:  0,
-		QuoteDecimals: 0,
-		PriceFeed:     mockPriceFeedURL,
+		Pair:      assetID + "/BTC",
+		MinAmount: 1,
+		MaxAmount: 100000000,
+		PriceFeed: mockAssetBTCPriceFeed,
 	}
-	require.NoError(t, pairRepo.Add(ctx, pair))
-	t.Cleanup(func() { _ = pairRepo.Remove(ctx, pair.Pair) })
+	addPair(t, pair)
 
 	// Maker creates offer: deposit asset, want 500 sats BTC.
 	emulator := newEmulatorClient(t)
@@ -72,9 +68,6 @@ func TestBancoAssetToBTC(t *testing.T) {
 }
 
 // TestBancoBTCToAsset: maker deposits BTC, wants asset.
-// Mock price feed returns 1.0. With BaseDecimals=0, QuoteDecimals=0:
-//
-//	price = depositAmount/wantAmount = 500/500 = 1.0 ✓
 func TestBancoBTCToAsset(t *testing.T) {
 	ctx := t.Context()
 
@@ -84,11 +77,10 @@ func TestBancoBTCToAsset(t *testing.T) {
 	faucetOffchain(t, tempClient, 0.001)
 	assetID := issueAsset(t, tempClient, 1000)
 
-	takerAddr, err := takerSvc.GetAddress(ctx)
-	require.NoError(t, err)
+	takerAddr := getAddress(t)
 
 	takerVtxoCh := takerClient.GetVtxoEventChannel(ctx)
-	_, err = tempClient.SendOffChain(ctx, []clientTypes.Receiver{{
+	_, err := tempClient.SendOffChain(ctx, []clientTypes.Receiver{{
 		To:     takerAddr.OffchainAddress,
 		Amount: 1000,
 		Assets: []clientTypes.Asset{{AssetId: assetID, Amount: 1000}},
@@ -97,17 +89,13 @@ func TestBancoBTCToAsset(t *testing.T) {
 	// Wait for the taker wallet to see the incoming asset VTXO.
 	waitForVtxoAdded(t, ctx, takerVtxoCh, 30*time.Second)
 
-	// Configure pair: BTC/asset with both decimals=0.
 	pair := banco.Pair{
-		Pair:          "BTC/" + assetID,
-		MinAmount:     1,
-		MaxAmount:     100000000,
-		BaseDecimals:  0,
-		QuoteDecimals: 0,
-		PriceFeed:     mockPriceFeedURL,
+		Pair:      "BTC/" + assetID,
+		MinAmount: 1,
+		MaxAmount: 100000000,
+		PriceFeed: mockBTCAssetPriceFeed,
 	}
-	require.NoError(t, pairRepo.Add(ctx, pair))
-	t.Cleanup(func() { _ = pairRepo.Remove(ctx, pair.Pair) })
+	addPair(t, pair)
 
 	// Maker creates offer: deposit BTC, want 500 units of asset.
 	maker := setupArkClient(t)
@@ -125,8 +113,7 @@ func TestBancoBTCToAsset(t *testing.T) {
 	// Subscribe to maker vtxo events before funding the swap.
 	makerVtxoCh := maker.GetVtxoEventChannel(ctx)
 
-	// Fund swap address with 500 sats BTC + offer packet. Deposit must
-	// equal WantAmount for price=1.0 with decimals=0.
+	// Fund swap address with 500 sats BTC + offer packet.
 	sendOffChainWithExtension(t, maker, clientTypes.Receiver{
 		To:     offerResult.SwapAddress,
 		Amount: 500,
@@ -138,9 +125,6 @@ func TestBancoBTCToAsset(t *testing.T) {
 }
 
 // TestBancoAssetToAsset: maker deposits assetA, wants assetB.
-// Mock price feed returns 1.0. With BaseDecimals=0, QuoteDecimals=0:
-//
-//	price = depositAmount/wantAmount = 500/500 = 1.0 ✓
 func TestBancoAssetToAsset(t *testing.T) {
 	ctx := t.Context()
 
@@ -153,11 +137,10 @@ func TestBancoAssetToAsset(t *testing.T) {
 	faucetOffchain(t, tempClient, 0.001)
 	assetB := issueAsset(t, tempClient, 1000)
 
-	takerAddr, err := takerSvc.GetAddress(ctx)
-	require.NoError(t, err)
+	takerAddr := getAddress(t)
 
 	takerVtxoCh := takerClient.GetVtxoEventChannel(ctx)
-	_, err = tempClient.SendOffChain(ctx, []clientTypes.Receiver{{
+	_, err := tempClient.SendOffChain(ctx, []clientTypes.Receiver{{
 		To:     takerAddr.OffchainAddress,
 		Amount: 1000,
 		Assets: []clientTypes.Asset{{AssetId: assetB, Amount: 1000}},
@@ -166,15 +149,12 @@ func TestBancoAssetToAsset(t *testing.T) {
 	waitForVtxoAdded(t, ctx, takerVtxoCh, 30*time.Second)
 
 	pair := banco.Pair{
-		Pair:          assetA + "/" + assetB,
-		MinAmount:     1,
-		MaxAmount:     100000000,
-		BaseDecimals:  0,
-		QuoteDecimals: 0,
-		PriceFeed:     mockPriceFeedURL,
+		Pair:      assetA + "/" + assetB,
+		MinAmount: 1,
+		MaxAmount: 100000000,
+		PriceFeed: mockAssetAssetPriceFeed,
 	}
-	require.NoError(t, pairRepo.Add(ctx, pair))
-	t.Cleanup(func() { _ = pairRepo.Remove(ctx, pair.Pair) })
+	addPair(t, pair)
 
 	emulator := newEmulatorClient(t)
 	wantAssetID, err := asset.NewAssetIdFromString(assetB)
@@ -194,6 +174,36 @@ func TestBancoAssetToAsset(t *testing.T) {
 	}, offerResult.Packet)
 
 	requireAssetFulfillment(t, ctx, makerVtxoCh, assetB, 60*time.Second)
+}
+
+func dialBancoClient(t *testing.T) bancov1.BancoServiceClient {
+	t.Helper()
+	conn, err := grpc.NewClient(e2eGRPCAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close() })
+	return bancov1.NewBancoServiceClient(conn)
+}
+
+func addPair(t *testing.T, pair banco.Pair) {
+	t.Helper()
+	_, err := dialBancoClient(t).AddPair(t.Context(), &bancov1.AddPairRequest{
+		Pair: &bancov1.PairInfo{
+			Pair:        pair.Pair,
+			MinAmount:   pair.MinAmount,
+			MaxAmount:   pair.MaxAmount,
+			PriceFeed:   pair.PriceFeed,
+			InvertPrice: pair.InvertPrice,
+		},
+	})
+	require.NoError(t, err)
+}
+
+func getAddress(t *testing.T) *bancov1.GetAddressResponse {
+	t.Helper()
+	resp, err := dialBancoClient(t).GetAddress(t.Context(), &bancov1.GetAddressRequest{})
+	require.NoError(t, err)
+	require.NotEmpty(t, resp.OffchainAddress)
+	return resp
 }
 
 // waitForVtxoAdded blocks until vtxoCh delivers a VtxosAdded event or the
