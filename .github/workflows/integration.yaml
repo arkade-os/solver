@@ -15,14 +15,20 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - uses: actions/setup-go@v6
         with:
           go-version: '>=1.26.1'
           cache: true
 
-      - name: Run Nigiri
-        uses: vulpemventures/nigiri-github-action@v1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run arkade-regtest
+        run: node regtest/regtest.mjs start
 
       - name: Run arkd stack
         run: make docker-run
@@ -45,3 +51,7 @@ jobs:
       - name: Tear down
         if: always()
         run: make docker-stop
+
+      - name: Stop arkade-regtest
+        if: always()
+        run: node regtest/regtest.mjs clean

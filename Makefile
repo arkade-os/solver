@@ -88,7 +88,7 @@ test:
 	@echo "Running unit tests..."
 	@go test -v -race --count=1 $(shell go list ./... | grep -v /test/e2e)
 
-## docker-run: start arkd stack and fund wallet (assumes nigiri is running)
+## docker-run: start arkd stack and fund wallet (assumes arkade-regtest is running)
 docker-run:
 	@echo "Starting arkd stack..."
 	@docker compose -f test/docker-compose.yml up -d --build
@@ -98,7 +98,7 @@ docker-run:
 	@docker exec solverd-arkd arkd wallet create --password password || true
 	@docker exec solverd-arkd arkd wallet unlock --password password || true
 	@echo "Funding arkd..."
-	@for i in 1 2 3; do nigiri faucet $$(docker exec solverd-arkd arkd wallet address | tr -d '[:space:]') 1; done
+	@for i in 1 2 3; do node regtest/regtest.mjs faucet $$(docker exec solverd-arkd arkd wallet address | tr -d '[:space:]') 1 --confirm; done
 	@sleep 5
 	@echo "Test environment ready."
 
@@ -107,17 +107,17 @@ docker-stop:
 	@echo "Stopping arkd stack..."
 	@docker compose -f test/docker-compose.yml down -v --remove-orphans
 
-## setup-test-env: start nigiri + arkd stack for integration tests
+## setup-test-env: start arkade-regtest + arkd stack for integration tests
 setup-test-env:
-	@echo "Starting nigiri..."
-	@nigiri start
+	@echo "Starting arkade-regtest..."
+	@node regtest/regtest.mjs start
 	@$(MAKE) docker-run
 
-## teardown-test-env: stop arkd stack + nigiri
+## teardown-test-env: stop arkd stack + arkade-regtest
 teardown-test-env:
 	@$(MAKE) docker-stop
-	@echo "Stopping nigiri..."
-	@nigiri stop --delete
+	@echo "Stopping arkade-regtest..."
+	@node regtest/regtest.mjs clean
 
 ## integrationtest: run integration tests (requires setup-test-env)
 integrationtest:

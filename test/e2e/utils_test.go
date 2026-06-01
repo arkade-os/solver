@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -162,8 +164,19 @@ func runCommand(ctx context.Context, command string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+// repoRoot resolves the solver repository root from this source file's location
+// (test/e2e/), so the arkade-regtest CLI can be invoked by its repo-relative
+// path regardless of `go test`'s working directory.
+func repoRoot() string {
+	_, file, _, _ := runtime.Caller(0)
+	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
+}
+
 func faucet(ctx context.Context, address string, amount float64) error {
-	command := fmt.Sprintf("nigiri faucet %s %.8f", address, amount)
+	// --confirm mines a block immediately after the send so the tx confirms
+	// right away (arkade-regtest's faucet does not auto-mine like nigiri did).
+	regtest := filepath.Join(repoRoot(), "regtest", "regtest.mjs")
+	command := fmt.Sprintf("node %q faucet %s %.8f --confirm", regtest, address, amount)
 	_, err := runCommand(ctx, command)
 	return err
 }
