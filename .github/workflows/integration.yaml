@@ -28,7 +28,9 @@ jobs:
           node-version: '20'
 
       - name: Run arkade-regtest
-        run: node regtest/regtest.mjs start
+        # solver only needs the base chain + esplora (it runs its own arkd stack),
+        # so start just the base profile. AUTOMINE_INTERVAL=0 keeps mining explicit.
+        run: REGTEST_PROFILES=base AUTOMINE_INTERVAL=0 node regtest/regtest.mjs start
 
       - name: Run arkd stack
         run: make docker-run
