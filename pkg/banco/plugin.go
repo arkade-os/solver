@@ -13,7 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/arkade-os/solver/pkg/banco/contract"
-	"github.com/arkade-os/solver/pkg/solver"
+	"github.com/arkade-os/solver/pkg/executor"
 )
 
 // MatchedOffer is the typed intent produced by Match and consumed by Solve.
@@ -24,7 +24,7 @@ type MatchedOffer struct {
 	Pair  *Pair
 }
 
-// plugin implements solver.Plugin for banco. It's constructed by NewPlugin
+// plugin implements executor.Plugin for banco. It's constructed by NewPlugin
 // and never escapes the package.
 type plugin struct {
 	arkClient arksdk.Wallet
@@ -35,8 +35,8 @@ type plugin struct {
 	log       logrus.FieldLogger
 }
 
-// NewPlugin builds a banco solver.Plugin.
-func NewPlugin(cfg Config) solver.Plugin {
+// NewPlugin builds a banco executor.Plugin.
+func NewPlugin(cfg Config) executor.Plugin {
 	cfg = cfg.WithDefault()
 	return &plugin{
 		arkClient: cfg.SolverClient,

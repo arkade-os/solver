@@ -22,8 +22,8 @@ import (
 	sqlitedb "github.com/arkade-os/solver/internal/infrastructure/db/sqlite"
 	"github.com/arkade-os/solver/internal/infrastructure/pricefeed"
 	"github.com/arkade-os/solver/pkg/banco"
-	"github.com/arkade-os/solver/pkg/solver"
-	"github.com/arkade-os/solver/pkg/solver/arkdsource"
+	"github.com/arkade-os/solver/pkg/executor"
+	"github.com/arkade-os/solver/pkg/executor/arkdsource"
 )
 
 type Server interface {
@@ -44,7 +44,7 @@ type Service struct {
 
 	// runtime dependencies (set by New, used by Run)
 	cfg          *config.Config
-	plugin       solver.Plugin
+	plugin       executor.Plugin
 	db           *sql.DB
 	emulatorConn *grpc.ClientConn
 }
@@ -161,7 +161,7 @@ func (s *Service) Run(ctx context.Context, server Server) error {
 	defer cancel()
 
 	done := make(chan error, 1)
-	engine := solver.New(s.plugin).WithLogger(s.log)
+	engine := executor.New(s.plugin).WithLogger(s.log)
 	src := arkdsource.New(s.arkClient.Client(), s.log)
 	go func() {
 		done <- engine.Run(runtimeCtx, src)

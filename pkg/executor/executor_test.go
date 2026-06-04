@@ -1,4 +1,4 @@
-package solver
+package executor
 
 import (
 	"context"
@@ -351,7 +351,7 @@ func (f *fakePlugin) waitSolves(t *testing.T) {
 
 // fakeSource hands each Subscribe call a pre-loaded channel, indexed by
 // the filter string the plugin asked for. This lets tests assert that the
-// solver subscribed with the right filter and lets each plugin receive
+// executor subscribed with the right filter and lets each plugin receive
 // its own tagged stream.
 type fakeSource struct {
 	mu       sync.Mutex
@@ -407,7 +407,7 @@ func (s *fakeSource) seenFilters() []string {
 }
 
 // runEngine spawns Run in a goroutine, returns done channel + result holder.
-func runEngine(t *testing.T, s *Solver, ctx context.Context, src Source) (chan struct{}, *error) {
+func runEngine(t *testing.T, s *Executor, ctx context.Context, src Source) (chan struct{}, *error) {
 	t.Helper()
 	done := make(chan struct{})
 	var runErr error

@@ -26,7 +26,7 @@ type Plugin interface {
 ```
 
 `Match` is the cheap filter+decode pass; `Solve` is the (usually slow) reaction.
-The runtime (`pkg/solver`) calls `Match` sequentially for each plugin, then
+The runtime (`pkg/executor`) calls `Match` sequentially for each plugin, then
 spawns a goroutine for each matched `Solve`. Panics in either are recovered so
 one buggy plugin can't take the bot down, and `Run` waits for in-flight solves
 to drain on shutdown.
@@ -37,11 +37,11 @@ output of the funding tx. Today one plugin ships with the daemon:
 - **`pkg/banco`** — swap solver library. Decodes a swap offer, range-checks the
   amount and price, and fulfills via the emulator.
 
-`solverd` composes enabled plugins into one `Solver` runtime. The runtime may
+`solverd` composes enabled plugins into one `Executor` runtime. The runtime may
 still use per-plugin arkd subscriptions internally so server-side filters can
 drop unrelated txs before they reach the bot. Adding a new protocol means
 writing a new `Plugin` and wiring it in `cmd/solverd`. See
-[`pkg/solver/README.md`](pkg/solver/README.md) for the plugin authoring guide.
+[`pkg/executor/README.md`](pkg/executor/README.md) for the plugin authoring guide.
 
 ## Packages
 
@@ -66,14 +66,14 @@ Wire-protocol primitives for the swap.
   and returns change to the taker, signs it with the emulator, and submits
   it (`FulfillResult`).
 
-### `pkg/solver`
+### `pkg/executor`
 
-Generic plugin-based solver runtime. Consumes a stream of PSBT packets and
+Generic plugin-based executor runtime. Consumes a stream of PSBT packets and
 dispatches each one to its registered plugins.
 
 - `Plugin` interface — `Match(ctx, *psbt.Packet) (intent any, ok bool)` decides
   whether a tx is interesting; `Solve(ctx, intent)` reacts to a match.
-- `Solver` / `New(plugins ...Plugin)` — runtime wrapping one or more plugins.
+- `Executor` / `New(plugins ...Plugin)` — runtime wrapping one or more plugins.
 - `Run(ctx, source) error` — subscribes plugins, fans matches out to `Solve`
   goroutines, and returns `ctx.Err()` on cancel.
 
@@ -82,7 +82,7 @@ dispatches each one to its registered plugins.
 The solver plugin and its supporting types — the building block
 for a taker bot.
 
-- `Plugin` / `NewPlugin(Config)` — implements `solver.Plugin` for the
+- `Plugin` / `NewPlugin(Config)` — implements `executor.Plugin` for the
   swap protocol: decodes the offer from a tx, looks up a matching configured
   pair, range-checks `WantAmount`, validates price within 1% of the feed, and
   fulfills via `contract.FulfillOffer`.
@@ -100,7 +100,7 @@ for a taker bot.
 - `FulfillmentEvent` / `FulfillmentListener` — emitted after every successful
   fulfillment; the daemon wires a listener that persists trades to SQLite.
 - `SubscribeArkd` — helper that returns a `<-chan *psbt.Packet` from arkd's
-  transaction stream, suitable for feeding into `Solver.Run`.
+  transaction stream, suitable for feeding into `Executor.Run`.
 
 All `pkg/` packages are intended to be importable by other projects and do not
 depend on any `internal/` code.

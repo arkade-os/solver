@@ -1,4 +1,4 @@
-package solver
+package executor
 
 import (
 	"context"
@@ -12,9 +12,9 @@ import (
 
 // ErrAllStreamsClosed reports that every plugin stream ended before the
 // runtime context was canceled.
-var ErrAllStreamsClosed = errors.New("solver: all plugin streams closed")
+var ErrAllStreamsClosed = errors.New("executor: all plugin streams closed")
 
-// Plugin is the protocol-specific contract a Solver runs.
+// Plugin is the protocol-specific contract a Executor runs.
 type Plugin interface {
 	// Filter returns the CEL expression applied server-side to the upstream
 	// tx stream. Empty string means "no filter" (full stream).
@@ -38,20 +38,20 @@ type Source interface {
 	Subscribe(ctx context.Context, filter string) (<-chan *psbt.Packet, error)
 }
 
-// Solver is the runtime that drives Plugins against a tx stream.
-type Solver struct {
+// Executor is the runtime that drives Plugins against a tx stream.
+type Executor struct {
 	plugins []Plugin
 	log     logrus.FieldLogger
 }
 
-// New wraps Plugins in a Solver runtime.
-func New(plugins ...Plugin) *Solver {
-	return &Solver{plugins: plugins, log: logrus.StandardLogger()}
+// New wraps Plugins in a Executor runtime.
+func New(plugins ...Plugin) *Executor {
+	return &Executor{plugins: plugins, log: logrus.StandardLogger()}
 }
 
 // WithLogger returns a copy of s using the given logger for panic reports.
 // Pass nil to disable panic logging entirely (panics are still recovered).
-func (s *Solver) WithLogger(log logrus.FieldLogger) *Solver {
+func (s *Executor) WithLogger(log logrus.FieldLogger) *Executor {
 	cp := *s
 	cp.log = log
 	return &cp
@@ -71,7 +71,7 @@ func (s *Solver) WithLogger(log logrus.FieldLogger) *Solver {
 //
 // A Subscribe error for a single plugin is logged and that plugin is
 // skipped; the rest continue.
-func (s *Solver) Run(ctx context.Context, source Source) error {
+func (s *Executor) Run(ctx context.Context, source Source) error {
 	var wg sync.WaitGroup
 
 	for _, p := range s.plugins {
@@ -107,7 +107,7 @@ func (s *Solver) Run(ctx context.Context, source Source) error {
 // consume drives one plugin's tx stream until ctx is canceled or the
 // stream closes. Solves are launched concurrently and waited on via wg
 // so they drain before consume returns.
-func (s *Solver) consume(ctx context.Context, p Plugin, txs <-chan *psbt.Packet) {
+func (s *Executor) consume(ctx context.Context, p Plugin, txs <-chan *psbt.Packet) {
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
@@ -136,7 +136,7 @@ func (s *Solver) consume(ctx context.Context, p Plugin, txs <-chan *psbt.Packet)
 }
 
 // safeMatch runs p.Match with panic recovery.
-func (s *Solver) safeMatch(ctx context.Context, p Plugin, tx *psbt.Packet) (intent any, ok bool) {
+func (s *Executor) safeMatch(ctx context.Context, p Plugin, tx *psbt.Packet) (intent any, ok bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.logPanic(r, "plugin Match panicked")
@@ -147,7 +147,7 @@ func (s *Solver) safeMatch(ctx context.Context, p Plugin, tx *psbt.Packet) (inte
 }
 
 // safeSolve runs p.Solve with panic recovery.
-func (s *Solver) safeSolve(ctx context.Context, p Plugin, intent any) {
+func (s *Executor) safeSolve(ctx context.Context, p Plugin, intent any) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.logPanic(r, "plugin Solve panicked")
@@ -157,7 +157,7 @@ func (s *Solver) safeSolve(ctx context.Context, p Plugin, intent any) {
 }
 
 // logPanic emits a panic report unless the solver was configured without a logger.
-func (s *Solver) logPanic(r any, msg string) {
+func (s *Executor) logPanic(r any, msg string) {
 	if s.log == nil {
 		return
 	}

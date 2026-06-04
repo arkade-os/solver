@@ -1,5 +1,5 @@
-// Package arkdsource provides an arkd-backed solver.Source. It is split
-// from pkg/solver to keep the solver package free of any arkd/go-sdk
+// Package arkdsource provides an arkd-backed executor.Source. It is split
+// from pkg/executor to keep the executor package free of any arkd/go-sdk
 // dependency.
 package arkdsource
 
@@ -13,7 +13,7 @@ import (
 )
 
 // Source subscribes to arkd's transaction stream and exposes it as a
-// solver.Source. Each call to Subscribe opens a fresh upstream stream so
+// executor.Source. Each call to Subscribe opens a fresh upstream stream so
 // per-plugin server-side filtering stays isolated.
 type Source struct {
 	c   client.Client
