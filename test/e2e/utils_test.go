@@ -3,7 +3,6 @@ package e2e_test
 import (
 	"bytes"
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -14,20 +13,11 @@ import (
 
 	emulatorclient "github.com/arkade-os/emulator/pkg/client"
 
-	arklib "github.com/arkade-os/arkd/pkg/ark-lib"
 	"github.com/arkade-os/arkd/pkg/ark-lib/asset"
 	"github.com/arkade-os/arkd/pkg/ark-lib/extension"
-	"github.com/arkade-os/arkd/pkg/ark-lib/offchain"
-	"github.com/arkade-os/arkd/pkg/ark-lib/script"
 	clientTypes "github.com/arkade-os/arkd/pkg/client-lib/types"
 	arksdk "github.com/arkade-os/go-sdk"
-	sdkcontract "github.com/arkade-os/go-sdk/contract"
 	sdktypes "github.com/arkade-os/go-sdk/types"
-	"github.com/btcsuite/btcd/btcec/v2"
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcd/wire"
-	"github.com/btcsuite/btcwallet/waddrmgr"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -167,159 +157,6 @@ func faucet(ctx context.Context, address string, amount float64) error {
 	return err
 }
 
-// sendOffChainToVHTLC funds claimAddr while attaching pkt as the OP_RETURN
-// extension AND setting encodedTapTree on the funding output's
-// POutput.TaprootTapTree. go-sdk's SendOffChain wrapper does not expose
-// per-output TapTree, so this bypasses it and goes through
-// offchain.BuildTxs + Client().SubmitTx + Client().FinalizeTx directly.
-// It assumes one suitable spendable VTXO and BTC-only payment.
-func sendOffChainToVHTLC(
-	t *testing.T,
-	c arksdk.Wallet,
-	claimAddr string,
-	amount uint64,
-	encodedTapTree []byte,
-	pkt extension.Packet,
-) {
-	t.Helper()
-	ctx := t.Context()
-
-	cfgData, err := c.GetConfigData(ctx)
-	require.NoError(t, err)
-
-	spendable, _, err := c.ListVtxos(ctx)
-	require.NoError(t, err)
-
-	cm := c.ContractManager()
-	var (
-		chosen      clientTypes.Vtxo
-		tapscripts  []string
-		signingKeys map[string]string
-		found       bool
-	)
-	for _, v := range spendable {
-		if v.IsRecoverable() || v.Spent {
-			continue
-		}
-		if v.Amount < amount+cfgData.Dust {
-			continue
-		}
-		contracts, err := cm.GetContracts(ctx, sdkcontract.WithScripts([]string{v.Script}))
-		require.NoError(t, err)
-		if len(contracts) == 0 {
-			continue
-		}
-		handler, err := cm.GetHandler(ctx, contracts[0])
-		require.NoError(t, err)
-		ts, err := handler.GetTapscripts(contracts[0])
-		require.NoError(t, err)
-		// GetKeyRefs returns BOTH the contract's original script and the
-		// derived checkpoint script keyed to the same keyId. The ark tx
-		// spends a synthetic checkpoint VTXO whose pkScript is the latter,
-		// so the keys map must cover it for identity.SignTransaction.
-		keys, err := handler.GetKeyRefs(contracts[0])
-		require.NoError(t, err)
-		chosen = v
-		tapscripts = ts
-		signingKeys = keys
-		found = true
-		break
-	}
-	require.True(t, found, "no spendable VTXO with sufficient amount (need %d)", amount)
-
-	vs, err := script.ParseVtxoScript(tapscripts)
-	require.NoError(t, err)
-	forfeitClosures := vs.ForfeitClosures()
-	require.NotEmpty(t, forfeitClosures)
-	forfeitScript, err := forfeitClosures[0].Script()
-	require.NoError(t, err)
-	leafHash := txscript.NewBaseTapLeaf(forfeitScript).TapHash()
-
-	_, tapTree, err := vs.TapTree()
-	require.NoError(t, err)
-	merkleProof, err := tapTree.GetTaprootMerkleProof(leafHash)
-	require.NoError(t, err)
-	controlBlock, err := txscript.ParseControlBlock(merkleProof.ControlBlock)
-	require.NoError(t, err)
-
-	txidHash, err := chainhash.NewHashFromStr(chosen.Txid)
-	require.NoError(t, err)
-	in := offchain.VtxoInput{
-		Outpoint: &wire.OutPoint{Hash: *txidHash, Index: chosen.VOut},
-		Amount:   int64(chosen.Amount),
-		Tapscript: &waddrmgr.Tapscript{
-			ControlBlock:   controlBlock,
-			RevealedScript: forfeitScript,
-		},
-		RevealedTapscripts: tapscripts,
-	}
-
-	vhtlcArk, err := arklib.DecodeAddressV0(claimAddr)
-	require.NoError(t, err)
-	vhtlcPkScript, err := script.P2TRScript(vhtlcArk.VtxoTapKey)
-	require.NoError(t, err)
-
-	outputs := []*wire.TxOut{{Value: int64(amount), PkScript: vhtlcPkScript}}
-
-	if change := chosen.Amount - amount; change > 0 {
-		changeAddr, err := c.NewOffchainAddress(ctx)
-		require.NoError(t, err)
-		myArk, err := arklib.DecodeAddressV0(changeAddr)
-		require.NoError(t, err)
-		myPkScript, err := script.P2TRScript(myArk.VtxoTapKey)
-		require.NoError(t, err)
-		outputs = append(outputs, &wire.TxOut{Value: int64(change), PkScript: myPkScript})
-	}
-
-	ext, err := extension.NewExtensionFromPackets(pkt)
-	require.NoError(t, err)
-	extTxOut, err := ext.TxOut()
-	require.NoError(t, err)
-	outputs = append(outputs, extTxOut)
-
-	arkTx, checkpointTxs, err := offchain.BuildTxs(
-		[]offchain.VtxoInput{in}, outputs, cfgData.CheckpointExitPath(),
-	)
-	require.NoError(t, err)
-
-	vhtlcIdx := -1
-	for i, out := range arkTx.UnsignedTx.TxOut {
-		if bytes.Equal(out.PkScript, vhtlcPkScript) {
-			vhtlcIdx = i
-			break
-		}
-	}
-	require.GreaterOrEqual(t, vhtlcIdx, 0, "VHTLC output not found in built ark tx")
-	arkTx.Outputs[vhtlcIdx].TaprootTapTree = encodedTapTree
-
-	arkB64, err := arkTx.B64Encode()
-	require.NoError(t, err)
-	// The ark tx's input pkScript is the checkpoint script (not the
-	// original contract script), so c.SignTransaction's contract-based
-	// key lookup silently no-ops. Sign via the identity directly with
-	// the keys map that covers the checkpoint script (see GetKeyRefs).
-	signedArk, err := c.Identity().SignTransaction(ctx, arkB64, signingKeys)
-	require.NoError(t, err)
-
-	cpB64s := make([]string, len(checkpointTxs))
-	for i, cp := range checkpointTxs {
-		b64, err := cp.B64Encode()
-		require.NoError(t, err)
-		cpB64s[i] = b64
-	}
-
-	arkTxid, _, serverSignedCps, err := c.Client().SubmitTx(ctx, signedArk, cpB64s)
-	require.NoError(t, err)
-
-	finalCps := make([]string, len(serverSignedCps))
-	for i, cp := range serverSignedCps {
-		sig, err := c.SignTransaction(ctx, cp)
-		require.NoError(t, err)
-		finalCps[i] = sig
-	}
-	require.NoError(t, c.Client().FinalizeTx(ctx, arkTxid, finalCps))
-}
-
 // sendOffChainWithExtension funds an address with a receiver while attaching
 // an arbitrary extension packet to the ark transaction's OP_RETURN.
 func sendOffChainWithExtension(
@@ -354,26 +191,4 @@ func issueAsset(t *testing.T, client arksdk.Wallet, supply uint64) string {
 	require.NoError(t, err)
 	require.Len(t, assetIds, 1)
 	return assetIds[0].String()
-}
-
-// fetchIntroPubkey returns the emulator signer pubkey, parsed.
-func fetchIntroPubkey(t *testing.T, emulatorClient emulatorclient.TransportClient) *btcec.PublicKey {
-	t.Helper()
-	info, err := emulatorClient.GetInfo(t.Context())
-	require.NoError(t, err)
-	raw, err := hex.DecodeString(info.SignerPublicKey)
-	require.NoError(t, err)
-	pub, err := btcec.ParsePubKey(raw)
-	require.NoError(t, err)
-	return pub
-}
-
-// freshTaprootPkScript returns a fresh 34-byte P2TR script for a throwaway key.
-func freshTaprootPkScript(t *testing.T) []byte {
-	t.Helper()
-	priv, err := btcec.NewPrivateKey()
-	require.NoError(t, err)
-	pkScript, err := txscript.PayToTaprootScript(priv.PubKey())
-	require.NoError(t, err)
-	return pkScript
 }
