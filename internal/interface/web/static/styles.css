@@ -215,94 +215,6 @@ p {
   outline-offset: 2px;
 }
 
-.nav-item[data-disabled="true"] {
-  opacity: 0.45;
-  cursor: default;
-}
-.nav-item[data-disabled="true"]:hover {
-  background: transparent;
-  color: var(--text-muted);
-}
-
-.nav-off {
-  margin-left: auto;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-dim);
-}
-
-.sidebar-foot {
-  border-top: 1px solid var(--border);
-  padding-top: 14px;
-  margin-top: 14px;
-}
-
-.sidebar-foot-label {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  padding: 0 6px 8px;
-}
-
-.plugin-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.plugin-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  padding: 7px 11px;
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  font-size: 13px;
-  color: var(--text-muted);
-}
-
-.plugin-chip .dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--text-dim);
-  flex: none;
-}
-
-.plugin-chip .plugin-name {
-  color: var(--text);
-  font-weight: 500;
-}
-
-.plugin-chip .plugin-state {
-  margin-left: auto;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-dim);
-}
-
-.plugin-chip[data-state="running"] .dot {
-  background: var(--success);
-  box-shadow: 0 0 0 4px var(--success-soft);
-}
-.plugin-chip[data-state="running"] .plugin-state {
-  color: var(--success);
-}
-.plugin-chip[data-state="stopped"] .dot {
-  background: var(--danger);
-}
-.plugin-chip[data-state="stopped"] .plugin-state {
-  color: var(--danger);
-}
-.plugin-chip[data-state="disabled"] {
-  opacity: 0.5;
-}
-
 /* -------- Content -------- */
 
 .content {
@@ -1117,27 +1029,11 @@ tr:hover .row-actions {
     overflow-x: auto;
     flex: 1;
   }
-  .nav-section-label,
-  .sidebar-foot-label {
+  .nav-section-label {
     display: none;
   }
   .nav-item {
     white-space: nowrap;
-  }
-  .nav-off {
-    display: none;
-  }
-  .sidebar-foot {
-    border: 0;
-    padding: 0;
-    margin: 0;
-  }
-  .plugin-list {
-    flex-direction: row;
-    gap: 6px;
-  }
-  .plugin-chip .plugin-state {
-    display: none;
   }
   .content {
     padding: 24px 18px 60px;
