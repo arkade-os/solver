@@ -9,7 +9,8 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/arkade-os/solver/internal/config"
-	"github.com/arkade-os/solver/internal/solverd"
+	"github.com/arkade-os/solver/internal/core/application"
+	grpcservice "github.com/arkade-os/solver/internal/interface/grpc"
 )
 
 // Version is injected at build time via -ldflags "-X main.Version=<tag>".
@@ -35,17 +36,22 @@ func run(log *logrus.Logger) error {
 	defer stop()
 
 	log.WithField("version", Version).
-		WithField("banco", cfg.BancoEnabled).
-		WithField("preimage", cfg.PreimageEnabled).
 		Info("starting solverd")
 
-	wallet, err := solverd.SetupWallet(ctx, cfg)
+	wallet, err := application.SetupWallet(ctx, cfg)
 	if err != nil {
 		return err
 	}
 	defer wallet.Stop()
 
-	if err := solverd.Run(ctx, cfg, log, wallet); err != nil {
+	svc, err := application.New(cfg, log, wallet)
+	if err != nil {
+		return err
+	}
+
+	srv := grpcservice.NewServer(cfg.GRPCPort, cfg.HTTPPort, svc)
+
+	if err := svc.Run(ctx, srv); err != nil {
 		return err
 	}
 	log.Info("solverd stopped")

@@ -8,18 +8,27 @@ import (
 	"google.golang.org/grpc/status"
 
 	bancov1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/solverd/v1"
-	"github.com/arkade-os/solver/internal/core/application"
 	"github.com/arkade-os/solver/internal/core/ports"
 	"github.com/arkade-os/solver/pkg/banco"
 )
 
+type BancoService interface {
+	AddPair(ctx context.Context, pair banco.Pair) error
+	UpdatePair(ctx context.Context, pair banco.Pair) error
+	RemovePair(ctx context.Context, pairName string) error
+	ListPairs(ctx context.Context) ([]banco.Pair, error)
+	ListTrades(ctx context.Context, limit int) ([]ports.Trade, error)
+	GetBalance(ctx context.Context) (*ports.Balance, error)
+	GetAddress(ctx context.Context) (*ports.Address, error)
+}
+
 type handler struct {
 	bancov1.UnimplementedBancoServiceServer
 
-	svc *application.TakerService
+	svc BancoService
 }
 
-func newHandler(svc *application.TakerService) bancov1.BancoServiceServer {
+func newHandler(svc BancoService) bancov1.BancoServiceServer {
 	return &handler{svc: svc}
 }
 

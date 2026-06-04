@@ -20,37 +20,16 @@
 
       <nav class="nav" id="nav">
         <span class="nav-section-label">Banco solver</span>
-        <button class="nav-item" data-section="pairs" data-plugin="banco" aria-current="page">
+        <button class="nav-item" data-section="pairs" aria-current="page">
           <i data-icon="layers"></i> <span>Trading pairs</span>
         </button>
-        <button class="nav-item" data-section="balance" data-plugin="banco">
+        <button class="nav-item" data-section="balance">
           <i data-icon="wallet"></i> <span>Balance</span>
         </button>
-        <button class="nav-item" data-section="history" data-plugin="banco">
+        <button class="nav-item" data-section="history">
           <i data-icon="history"></i> <span>History</span>
         </button>
-
-        <span class="nav-section-label">Preimage solver</span>
-        <button class="nav-item" data-section="solverkeys" data-plugin="preimage">
-          <i data-icon="key"></i> <span>Solver keys</span>
-        </button>
       </nav>
-
-      <div class="sidebar-foot">
-        <div class="sidebar-foot-label">Plugins</div>
-        <div class="plugin-list" id="plugin-list">
-          <span class="plugin-chip" id="plugin-banco" data-state="unknown">
-            <span class="dot"></span>
-            <span class="plugin-name">banco</span>
-            <span class="plugin-state" id="plugin-banco-state">—</span>
-          </span>
-          <span class="plugin-chip" id="plugin-preimage" data-state="unknown">
-            <span class="dot"></span>
-            <span class="plugin-name">preimage</span>
-            <span class="plugin-state" id="plugin-preimage-state">—</span>
-          </span>
-        </div>
-      </div>
     </aside>
 
     <main class="content">
@@ -194,50 +173,6 @@
         </div>
       </section>
 
-      <!-- Solver keys (preimage) -->
-      <section class="view" id="view-solverkeys" hidden>
-        <header class="view-head">
-          <div>
-            <h1>Solver keys</h1>
-            <p class="muted">Public keys for building preimage-gated VTXOs the bot can claim.</p>
-          </div>
-          <button class="btn" id="btn-refresh-keys">
-            <i data-icon="refresh"></i> Refresh
-          </button>
-        </header>
-
-        <div class="card">
-          <div class="card-row">
-            <div class="card-row-label">Solver public key</div>
-            <div class="card-row-value">
-              <code id="solver-pubkey" class="mono trunc">—</code>
-              <button class="icon-btn" data-copy="#solver-pubkey" aria-label="Copy solver public key">
-                <i data-icon="copy"></i>
-              </button>
-            </div>
-          </div>
-          <div class="card-row">
-            <div class="card-row-label">Emulator public key</div>
-            <div class="card-row-value">
-              <code id="emulator-pubkey" class="mono trunc">—</code>
-              <button class="icon-btn" data-copy="#emulator-pubkey" aria-label="Copy emulator public key">
-                <i data-icon="copy"></i>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="note">
-          <i data-icon="info"></i>
-          <p>
-            Encrypt the claim credentials (preimage + taptree) to the
-            <strong>solver key</strong> and attach the ciphertext via an Ark
-            extension TLV — the bot decrypts and claims on the fly, with no
-            registration needed. Use the <strong>emulator key</strong> when
-            building VHTLCs whose offline-claim closure this bot should spend.
-          </p>
-        </div>
-      </section>
     </main>
 
     <!-- Pair form dialog -->

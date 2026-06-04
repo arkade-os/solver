@@ -32,14 +32,10 @@ one buggy plugin can't take the bot down, and `Run` waits for in-flight solves
 to drain on shutdown.
 
 Most plugins read protocol data from the Arkade **extension** TLV in the OP_RETURN
-output of the funding tx, so `pkg/solver/builder` provides a typed pipeline
-(`Filter → Decode → Validate → Solve`) that hides the OP_RETURN parse. Today
-two plugins ship with the daemon:
+output of the funding tx. Today one plugin ships with the daemon:
 
-- **`pkg/banco`** — solver library. Decodes a swap offer, range-checks the
+- **`pkg/banco`** — swap solver library. Decodes a swap offer, range-checks the
   amount and price, and fulfills via the emulator.
-- **`pkg/preimage`** — preimage-gated claim solver. Decrypts an ECIES payload
-  attached to the funding tx and claims the VTXO when the arkade-script matches.
 
 `solverd` composes enabled plugins into one `Solver` runtime. The runtime may
 still use per-plugin arkd subscriptions internally so server-side filters can
@@ -106,19 +102,6 @@ for a taker bot.
 - `SubscribeArkd` — helper that returns a `<-chan *psbt.Packet` from arkd's
   transaction stream, suitable for feeding into `Solver.Run`.
 
-### `pkg/preimage`
-
-A second solver plugin: preimage-gated VTXO claims. The bot is **stateless**
-— a maker fetches the bot's encryption pubkey via the `GetSolverPubKey`
-RPC, ECIES-encrypts `(preimage || arkade_script)` to that key, and attaches
-the ciphertext + plaintext taptree as an Arkade extension TLV packet
-(`PacketType = 0x04`) on the funding tx. The bot watches arkd's tx
-stream, parses the extension, decrypts on the fly, validates, and
-claims. No registration, no DB, no per-claim persistence. v1 only
-supports the `enforcePayTo` arkade-script shape (single-output,
-full-amount-to-receiver). The maker-side helper `preimage.CreateClaim`
-builds the address + packet from the local primitives.
-
 All `pkg/` packages are intended to be importable by other projects and do not
 depend on any `internal/` code.
 
@@ -142,9 +125,8 @@ web UI. Configured entirely through environment variables:
 | `SOLVER_HTTP_PORT` | | `7071` | HTTP REST + web UI listener |
 | `SOLVER_LOG_LEVEL` | | `4` (Info) | logrus level |
 | `SOLVER_BANCO_ENABLED` | | `true` | enable the swap plugin |
-| `SOLVER_PREIMAGE_ENABLED` | | `false` | enable the preimage-claim plugin |
 
-At least one plugin must be enabled. The daemon registers all enabled plugins
+The banco plugin must be enabled. The daemon registers all enabled plugins
 in one solver runtime.
 
 ### `solver`

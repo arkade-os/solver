@@ -80,12 +80,11 @@ const api = {
   addPair: (pair) => api._req("POST", "/v1/pair", { pair }),
   updatePair: (pair) => api._req("PUT", "/v1/pair", { pair }),
   removePair: (name) => api._req("DELETE", `/v1/pair/${encodeURIComponent(name)}`),
-  plugins: () => api._req("GET", "/v1/plugins"),
+  status: () => api._req("GET", "/v1/status"),
   balance: () => api._req("GET", "/v1/balance"),
   address: () => api._req("GET", "/v1/address"),
   listTrades: (limit = 100) =>
     api._req("GET", `/v1/trades?limit=${encodeURIComponent(limit)}`),
-  solverKeys: () => api._req("GET", "/v1/preimage/solver-pubkey"),
 };
 
 // -------- toast --------
@@ -166,112 +165,23 @@ async function copy(text) {
   }
 }
 
-// -------- plugin state, gating & connection banner --------
-
-// pluginsState mirrors GET /v1/plugins; null until first fetch.
-let pluginsState = null;
-
-function pluginEnabled(name) {
-  // Treat "unknown" as enabled so we don't gate before the first poll.
-  return !pluginsState || pluginsState[name]?.enabled !== false;
-}
-
-function setPluginChip(name, info) {
-  const chip = $(`#plugin-${name}`);
-  const stateEl = $(`#plugin-${name}-state`);
-  if (!chip || !stateEl) return;
-  if (!info || !info.enabled) {
-    chip.dataset.state = "disabled";
-    stateEl.textContent = "disabled";
-    return;
-  }
-  chip.dataset.state = info.running ? "running" : "stopped";
-  stateEl.textContent = info.running ? "running" : "stopped";
-}
-
-function applyGating() {
-  $$(".nav-item").forEach((btn) => {
-    const plug = btn.dataset.plugin;
-    const disabled = pluginsState && pluginsState[plug]?.enabled === false;
-    btn.dataset.disabled = disabled ? "true" : "false";
-    let off = btn.querySelector(".nav-off");
-    if (disabled && !off) {
-      off = document.createElement("span");
-      off.className = "nav-off";
-      off.textContent = "off";
-      btn.appendChild(off);
-    } else if (!disabled && off) {
-      off.remove();
-    }
-  });
-}
+// -------- connection banner --------
 
 function setConnected(ok) {
   $("#conn-banner").hidden = ok;
 }
 
-function setPluginsOffline() {
-  ["banco", "preimage"].forEach((name) => {
-    const chip = $(`#plugin-${name}`);
-    const stateEl = $(`#plugin-${name}-state`);
-    if (!chip || !stateEl) return;
-    chip.dataset.state = "stopped";
-    stateEl.textContent = "offline";
-  });
-}
-
+// refreshStatus pings the daemon and toggles the "disconnected" banner.
 async function refreshStatus() {
   try {
-    const p = await api.plugins();
-    pluginsState = p;
-    setPluginChip("banco", p.banco);
-    setPluginChip("preimage", p.preimage);
-    applyGating();
+    await api.status();
     setConnected(true);
   } catch (_) {
-    setPluginsOffline();
     setConnected(false);
   }
 }
 
-// renderDisabled hides a view's normal content and shows a "plugin disabled"
-// notice instead of letting its loader hit endpoints that 404.
-function renderDisabled(viewName, pluginName) {
-  $$(`#view-${viewName} > .card`).forEach((c) => (c.hidden = true));
-  $$(`#view-${viewName} .view-head button`).forEach((b) => (b.hidden = true));
-  let el = $(`#${viewName}-disabled`);
-  if (!el) {
-    el = document.createElement("div");
-    el.className = "card";
-    el.id = `${viewName}-disabled`;
-    el.innerHTML = `<div class="empty">${icon(
-      "power-off",
-      "empty-art"
-    )}<p>The <strong>${escapeHTML(
-      pluginName
-    )}</strong> plugin is disabled.</p><p class="muted">Enable it in the solverd configuration to use this section.</p></div>`;
-    $(`#view-${viewName}`).appendChild(el);
-  }
-  el.hidden = false;
-}
-
-function clearDisabled(viewName) {
-  const el = $(`#${viewName}-disabled`);
-  if (el) el.hidden = true;
-  $$(`#view-${viewName} > .card`).forEach((c) => {
-    if (c.id !== `${viewName}-disabled`) c.hidden = false;
-  });
-  $$(`#view-${viewName} .view-head button`).forEach((b) => (b.hidden = false));
-}
-
 // -------- navigation --------
-
-const VIEW_PLUGIN = {
-  pairs: "banco",
-  balance: "banco",
-  history: "banco",
-  solverkeys: "preimage",
-};
 
 function setSection(name) {
   $$(".nav-item").forEach((b) => {
@@ -283,29 +193,15 @@ function setSection(name) {
   const target = $(`#view-${name}`);
   if (target) target.hidden = false;
 
-  const plug = VIEW_PLUGIN[name];
-  if (plug && !pluginEnabled(plug)) {
-    renderDisabled(name, plug);
-    return;
-  }
-  clearDisabled(name);
   if (name === "balance") loadBalance();
   if (name === "pairs") loadPairs();
   if (name === "history") loadTrades();
-  if (name === "solverkeys") loadKeys();
 }
 
 $("#nav").addEventListener("click", (e) => {
   const btn = e.target.closest(".nav-item");
   if (btn) setSection(btn.dataset.section);
 });
-
-// firstEnabledSection picks the landing tab based on which plugins are on.
-function firstEnabledSection() {
-  if (pluginEnabled("banco")) return "pairs";
-  if (pluginEnabled("preimage")) return "solverkeys";
-  return "pairs";
-}
 
 // -------- pairs --------
 
@@ -682,22 +578,6 @@ function fmtAmount(raw, asset) {
 
 $("#btn-refresh-trades").addEventListener("click", loadTrades);
 
-// -------- solver keys --------
-
-async function loadKeys() {
-  try {
-    const k = await api.solverKeys();
-    $("#solver-pubkey").textContent = k.solver_pub_key || "—";
-    $("#emulator-pubkey").textContent = k.emulator_pub_key || "—";
-  } catch (err) {
-    toast(err.message, "error");
-    $("#solver-pubkey").textContent = "—";
-    $("#emulator-pubkey").textContent = "—";
-  }
-}
-
-$("#btn-refresh-keys").addEventListener("click", loadKeys);
-
 // delegate copy buttons (copies full textContent; CSS handles truncation)
 document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-copy]");
@@ -739,6 +619,6 @@ function safeHref(s) {
 hydrateIcons(document);
 (async () => {
   await refreshStatus();
-  setSection(firstEnabledSection());
+  setSection("pairs");
 })();
 setInterval(refreshStatus, 5000);

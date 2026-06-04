@@ -80,7 +80,7 @@ func setupHandler(t *testing.T) bancov1.BancoServiceServer {
 		"LTC":  "8",
 	}}
 	tradeRepo := sqlitedb.NewTradeRepository(db)
-	svc := application.NewTakerService(pairRepo, tradeRepo, &mockArkClient{}, idx, nil)
+	svc := application.NewService(pairRepo, tradeRepo, &mockArkClient{}, idx, nil)
 
 	return newHandler(svc)
 }

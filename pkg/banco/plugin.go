@@ -2,6 +2,7 @@ package banco
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -13,19 +14,18 @@ import (
 
 	"github.com/arkade-os/solver/pkg/banco/contract"
 	"github.com/arkade-os/solver/pkg/solver"
-	"github.com/arkade-os/solver/pkg/solver/builder"
 )
 
-// MatchedOffer is the typed intent produced by the banco Plugin's decode
-// stage and consumed by Solve. It carries the parsed offer plus the matched
-// pair so Solve doesn't redo lookups.
+// MatchedOffer is the typed intent produced by Match and consumed by Solve.
+// It carries the parsed offer plus the matched pair so Solve doesn't redo
+// lookups.
 type MatchedOffer struct {
 	Offer *Offer
 	Pair  *Pair
 }
 
-// plugin holds the runtime state shared across builder stages. It's
-// constructed by NewPlugin and never escapes the package.
+// plugin implements solver.Plugin for banco. It's constructed by NewPlugin
+// and never escapes the package.
 type plugin struct {
 	arkClient arksdk.Wallet
 	emulator  emulatorclient.TransportClient
@@ -35,13 +35,10 @@ type plugin struct {
 	log       logrus.FieldLogger
 }
 
-// NewPlugin builds a banco solver.Plugin. Authoring uses builder.ForExtension
-// because banco needs multi-TLV access (offer payload + asset packet); the
-// framework handles OP_RETURN parsing and we only write protocol-specific
-// decode + validators + solve.
+// NewPlugin builds a banco solver.Plugin.
 func NewPlugin(cfg Config) solver.Plugin {
 	cfg = cfg.WithDefault()
-	p := &plugin{
+	return &plugin{
 		arkClient: cfg.SolverClient,
 		emulator:  cfg.Emulator,
 		pairs:     cfg.PairsRepository,
@@ -49,30 +46,87 @@ func NewPlugin(cfg Config) solver.Plugin {
 		listener:  cfg.Listener,
 		log:       cfg.Log,
 	}
-	solverPlugin := builder.ForExtension(p.decode).
-		Validate(p.checkAmountInRange).
-		Validate(p.checkPriceTolerance).
-		Validate(p.checkBTCBalance).
-		Solve(p.fulfill).
-		WithLogger(p.log).
-		Build()
-
-	return solverPlugin
 }
 
-// decode turns a tx + parsed extension into a *MatchedOffer. Returns
-// builder.ErrSkip when the tx isn't a banco offer or no configured pair
-// matches.
-func (p *plugin) decode(ctx context.Context, tx *psbt.Packet, ext extension.Extension) (*MatchedOffer, error) {
+// Filter applies no server-side CEL filter: banco inspects every tx for an
+// ark extension OP_RETURN in Match.
+func (p *plugin) Filter() string { return "" }
+
+// Match decodes the tx into a *MatchedOffer and runs the validation gates.
+// It returns (nil, false) for any tx that isn't a banco offer, doesn't match
+// a configured pair, or fails a validation check. Errors are logged at Debug
+// and treated as a non-match so a single bad tx never stops the stream.
+func (p *plugin) Match(ctx context.Context, tx *psbt.Packet) (any, bool) {
+	m, err := p.decode(ctx, tx)
+	if err != nil {
+		p.log.WithError(err).Debug("banco decode failed")
+		return nil, false
+	}
+	if m == nil {
+		return nil, false
+	}
+
+	// offer is not in range, skip
+	if m.Offer.WantAmount < m.Pair.MinAmount || m.Offer.WantAmount > m.Pair.MaxAmount {
+		return nil, false
+	}
+
+	ok, err := p.checkPriceTolerance(ctx, m)
+	if err != nil {
+		p.log.WithError(err).Debug("checkPriceTolerance validation unexpected fail")
+		return nil, false
+	}
+	if !ok {
+		return nil, false
+	}
+
+	ok, err = p.checkBTCBalance(ctx, m)
+	if err != nil {
+		p.log.WithError(err).Debug("checkBTCBalance validation unexpected fail")
+		return nil, false
+	}
+	if !ok {
+		return nil, false
+	}
+
+	return m, true
+}
+
+// Solve atomically settles the matched offer and notifies the
+// FulfillmentListener if one is configured. It returns cleanly on a nil or
+// wrong-typed intent.
+func (p *plugin) Solve(ctx context.Context, intent any) {
+	m, ok := intent.(*MatchedOffer)
+	if !ok || m == nil {
+		return
+	}
+	p.fulfill(ctx, m)
+}
+
+// decode parses the tx's ark extension into a *MatchedOffer. It returns a nil
+// *MatchedOffer (with nil error) when the tx isn't a banco offer or no
+// configured pair matches; a non-nil error means an unexpected failure that
+// should be reported.
+func (p *plugin) decode(ctx context.Context, tx *psbt.Packet) (*MatchedOffer, error) {
+	if tx == nil || tx.UnsignedTx == nil {
+		return nil, nil
+	}
+	ext, err := extension.NewExtensionFromTx(tx.UnsignedTx)
+	if err != nil {
+		if errors.Is(err, extension.ErrExtensionNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
 	offer, err := NewOfferFromExtension(tx.UnsignedTx, ext)
 	if err != nil {
 		return nil, err
 	}
 	if offer == nil {
-		return nil, builder.ErrSkip
+		return nil, nil
 	}
 	if p.pairs == nil {
-		return nil, builder.ErrSkip
+		return nil, nil
 	}
 	pairs, err := p.pairs.List(ctx)
 	if err != nil {
@@ -80,18 +134,9 @@ func (p *plugin) decode(ctx context.Context, tx *psbt.Packet, ext extension.Exte
 	}
 	pair := findMatchingPair(pairs, offer)
 	if pair == nil {
-		return nil, builder.ErrSkip
+		return nil, nil
 	}
 	return &MatchedOffer{Offer: offer, Pair: pair}, nil
-}
-
-// checkAmountInRange silently rejects offers outside the configured pair's
-// MinAmount/MaxAmount window.
-func (p *plugin) checkAmountInRange(_ context.Context, m *MatchedOffer) (bool, error) {
-	if m.Offer.WantAmount < m.Pair.MinAmount || m.Offer.WantAmount > m.Pair.MaxAmount {
-		return false, nil
-	}
-	return true, nil
 }
 
 // checkPriceTolerance rejects offers whose price deviates more than 1% from

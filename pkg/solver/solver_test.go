@@ -12,128 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// fakePlugin drives engine tests.
-type fakePlugin struct {
-	mu      sync.Mutex
-	filter  string
-	matchFn func(context.Context, *psbt.Packet) (any, bool)
-	solveFn func(context.Context, any)
-	matched int
-	solved  []any
-	solveWg sync.WaitGroup
-}
-
-func (f *fakePlugin) Filter() string { return f.filter }
-
-func (f *fakePlugin) Match(ctx context.Context, tx *psbt.Packet) (any, bool) {
-	f.mu.Lock()
-	f.matched++
-	f.mu.Unlock()
-	if f.matchFn != nil {
-		return f.matchFn(ctx, tx)
-	}
-	return nil, false
-}
-
-func (f *fakePlugin) Solve(ctx context.Context, intent any) {
-	defer f.solveWg.Done()
-	f.mu.Lock()
-	f.solved = append(f.solved, intent)
-	f.mu.Unlock()
-	if f.solveFn != nil {
-		f.solveFn(ctx, intent)
-	}
-}
-
-// expectSolves marks how many Solve calls the test expects, so it can wait
-// for the (concurrent) Solve goroutines to finish before asserting.
-func (f *fakePlugin) expectSolves(n int) { f.solveWg.Add(n) }
-
-func (f *fakePlugin) waitSolves(t *testing.T) {
-	t.Helper()
-	done := make(chan struct{})
-	go func() { f.solveWg.Wait(); close(done) }()
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("Solve goroutines did not finish within 1s")
-	}
-}
-
-// fakeSource hands each Subscribe call a pre-loaded channel, indexed by
-// the filter string the plugin asked for. This lets tests assert that the
-// solver subscribed with the right filter and lets each plugin receive
-// its own tagged stream.
-type fakeSource struct {
-	mu       sync.Mutex
-	streams  map[string]chan *psbt.Packet
-	subErr   map[string]error
-	seen     []string
-	fallback chan *psbt.Packet // used when filter has no preconfigured stream
-}
-
-func newFakeSource() *fakeSource {
-	return &fakeSource{streams: map[string]chan *psbt.Packet{}, subErr: map[string]error{}}
-}
-
-func (s *fakeSource) withStream(filter string, ch chan *psbt.Packet) *fakeSource {
-	s.streams[filter] = ch
-	return s
-}
-
-func (s *fakeSource) withSubErr(filter string, err error) *fakeSource {
-	s.subErr[filter] = err
-	return s
-}
-
-func (s *fakeSource) withFallback(ch chan *psbt.Packet) *fakeSource {
-	s.fallback = ch
-	return s
-}
-
-func (s *fakeSource) Subscribe(_ context.Context, filter string) (<-chan *psbt.Packet, error) {
-	s.mu.Lock()
-	s.seen = append(s.seen, filter)
-	s.mu.Unlock()
-	if err, ok := s.subErr[filter]; ok {
-		return nil, err
-	}
-	if ch, ok := s.streams[filter]; ok {
-		return ch, nil
-	}
-	if s.fallback != nil {
-		return s.fallback, nil
-	}
-	// Default: empty stream that the caller closes externally.
-	ch := make(chan *psbt.Packet)
-	close(ch)
-	return ch, nil
-}
-
-func (s *fakeSource) seenFilters() []string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	out := append([]string(nil), s.seen...)
-	return out
-}
-
-// runEngine spawns Run in a goroutine, returns done channel + result holder.
-func runEngine(t *testing.T, s *Solver, ctx context.Context, src Source) (chan struct{}, *error) {
-	t.Helper()
-	done := make(chan struct{})
-	var runErr error
-	go func() {
-		defer close(done)
-		runErr = s.Run(ctx, src)
-	}()
-	return done, &runErr
-}
-
-// singleSource wraps a single channel as a Source for one-plugin tests.
-func singleSource(ch chan *psbt.Packet) Source {
-	return newFakeSource().withFallback(ch)
-}
-
 func TestRun_ReturnsErrAllStreamsClosedOnChannelClose(t *testing.T) {
 	plugin := &fakePlugin{}
 	s := New(plugin)
@@ -421,4 +299,126 @@ func TestRun_RecoversSolvePanic(t *testing.T) {
 	}
 	plugin.waitSolves(t)
 	require.ErrorIs(t, *errp, ErrAllStreamsClosed)
+}
+
+// fakePlugin drives engine tests.
+type fakePlugin struct {
+	mu      sync.Mutex
+	filter  string
+	matchFn func(context.Context, *psbt.Packet) (any, bool)
+	solveFn func(context.Context, any)
+	matched int
+	solved  []any
+	solveWg sync.WaitGroup
+}
+
+func (f *fakePlugin) Filter() string { return f.filter }
+
+func (f *fakePlugin) Match(ctx context.Context, tx *psbt.Packet) (any, bool) {
+	f.mu.Lock()
+	f.matched++
+	f.mu.Unlock()
+	if f.matchFn != nil {
+		return f.matchFn(ctx, tx)
+	}
+	return nil, false
+}
+
+func (f *fakePlugin) Solve(ctx context.Context, intent any) {
+	defer f.solveWg.Done()
+	f.mu.Lock()
+	f.solved = append(f.solved, intent)
+	f.mu.Unlock()
+	if f.solveFn != nil {
+		f.solveFn(ctx, intent)
+	}
+}
+
+// expectSolves marks how many Solve calls the test expects, so it can wait
+// for the (concurrent) Solve goroutines to finish before asserting.
+func (f *fakePlugin) expectSolves(n int) { f.solveWg.Add(n) }
+
+func (f *fakePlugin) waitSolves(t *testing.T) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() { f.solveWg.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Solve goroutines did not finish within 1s")
+	}
+}
+
+// fakeSource hands each Subscribe call a pre-loaded channel, indexed by
+// the filter string the plugin asked for. This lets tests assert that the
+// solver subscribed with the right filter and lets each plugin receive
+// its own tagged stream.
+type fakeSource struct {
+	mu       sync.Mutex
+	streams  map[string]chan *psbt.Packet
+	subErr   map[string]error
+	seen     []string
+	fallback chan *psbt.Packet // used when filter has no preconfigured stream
+}
+
+func newFakeSource() *fakeSource {
+	return &fakeSource{streams: map[string]chan *psbt.Packet{}, subErr: map[string]error{}}
+}
+
+func (s *fakeSource) withStream(filter string, ch chan *psbt.Packet) *fakeSource {
+	s.streams[filter] = ch
+	return s
+}
+
+func (s *fakeSource) withSubErr(filter string, err error) *fakeSource {
+	s.subErr[filter] = err
+	return s
+}
+
+func (s *fakeSource) withFallback(ch chan *psbt.Packet) *fakeSource {
+	s.fallback = ch
+	return s
+}
+
+func (s *fakeSource) Subscribe(_ context.Context, filter string) (<-chan *psbt.Packet, error) {
+	s.mu.Lock()
+	s.seen = append(s.seen, filter)
+	s.mu.Unlock()
+	if err, ok := s.subErr[filter]; ok {
+		return nil, err
+	}
+	if ch, ok := s.streams[filter]; ok {
+		return ch, nil
+	}
+	if s.fallback != nil {
+		return s.fallback, nil
+	}
+	// Default: empty stream that the caller closes externally.
+	ch := make(chan *psbt.Packet)
+	close(ch)
+	return ch, nil
+}
+
+func (s *fakeSource) seenFilters() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := append([]string(nil), s.seen...)
+	return out
+}
+
+// runEngine spawns Run in a goroutine, returns done channel + result holder.
+func runEngine(t *testing.T, s *Solver, ctx context.Context, src Source) (chan struct{}, *error) {
+	t.Helper()
+	done := make(chan struct{})
+	var runErr error
+	go func() {
+		defer close(done)
+		runErr = s.Run(ctx, src)
+	}()
+	return done, &runErr
+}
+
+// singleSource wraps a single channel as a Source for one-plugin tests.
+func singleSource(ch chan *psbt.Packet) Source {
+	return newFakeSource().withFallback(ch)
 }

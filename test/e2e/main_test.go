@@ -21,7 +21,8 @@ import (
 
 	bancov1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/solverd/v1"
 	"github.com/arkade-os/solver/internal/config"
-	"github.com/arkade-os/solver/internal/solverd"
+	"github.com/arkade-os/solver/internal/core/application"
+	grpcservice "github.com/arkade-os/solver/internal/interface/grpc"
 )
 
 const (
@@ -80,34 +81,40 @@ func runTests(m *testing.M) int {
 		return 1
 	}
 	cfg := &config.Config{
-		Datadir:         takerDatadir,
-		ArkURL:          arkdURL,
-		WalletSeed:      walletSeed,
-		WalletPassword:  password,
-		EmulatorURL:     emulatorAddr,
-		GRPCPort:        e2eGRPCPort,
-		HTTPPort:        e2eHTTPPort,
-		LogLevel:        int(log.DebugLevel),
-		BancoEnabled:    true,
-		PreimageEnabled: true,
+		Datadir:        takerDatadir,
+		ArkURL:         arkdURL,
+		WalletSeed:     walletSeed,
+		WalletPassword: password,
+		EmulatorURL:    emulatorAddr,
+		GRPCPort:       e2eGRPCPort,
+		HTTPPort:       e2eHTTPPort,
+		LogLevel:       int(log.DebugLevel),
 	}
-	takerClient, err = solverd.SetupWallet(ctx, cfg, arksdk.WithoutAutoSettle())
+	takerClient, err = application.SetupWallet(ctx, cfg, arksdk.WithoutAutoSettle())
 	if err != nil {
 		log.Errorf("failed to setup taker client: %s", err)
 		return 1
 	}
 	defer takerClient.Stop()
 
+	svc, err := application.New(cfg, log.StandardLogger(), takerClient,
+		application.WithBancoPriceFeed(mockPriceFeed{
+			mockAssetBTCPriceFeed:   100_000_000,
+			mockBTCAssetPriceFeed:   0.00000001,
+			mockAssetAssetPriceFeed: 1,
+		}),
+	)
+	if err != nil {
+		log.Errorf("failed to setup solver service: %s", err)
+		return 1
+	}
+
+	srv := grpcservice.NewServer(cfg.GRPCPort, cfg.HTTPPort, svc)
+
 	runCtx, cancelSolver := context.WithCancel(ctx)
 	done := make(chan error, 1)
 	go func() {
-		done <- solverd.Run(runCtx, cfg, log.StandardLogger(), takerClient,
-			solverd.WithBancoPriceFeed(mockPriceFeed{
-				mockAssetBTCPriceFeed:   100_000_000,
-				mockBTCAssetPriceFeed:   0.00000001,
-				mockAssetAssetPriceFeed: 1,
-			}),
-		)
+		done <- svc.Run(runCtx, srv)
 	}()
 	defer func() {
 		cancelSolver()

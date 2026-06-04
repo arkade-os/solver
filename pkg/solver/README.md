@@ -239,10 +239,8 @@ Reference shape — every solver bot looks like this:
 arkClient    := /* arksdk client */
 emulator := /* emulator client */
 
-plugin1 := banco.NewPlugin(banco.Config{ ... })   // returns solver.Plugin
-plugin2, err := preimage.NewPlugin(ctx, preimage.Config{ ... })
-if err != nil { /* handle */ }
-s := solver.New(plugin1, plugin2).WithLogger(log)
+plugin := banco.NewPlugin(banco.Config{ ... })   // returns solver.Plugin
+s := solver.New(plugin).WithLogger(log)
 
 ctx, cancel := context.WithCancel(...)
 src := arkdsource.New(arkClient, log)

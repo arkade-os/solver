@@ -4,16 +4,29 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
+
+	"github.com/spf13/viper"
+)
+
+const defaultDatadirName = ".solverd"
+
+// Environment variable keys, without the SOLVER_ prefix that viper prepends
+// (e.g. ArkURL is read from SOLVER_ARK_URL).
+var (
+	Datadir        = "DATADIR"
+	ArkURL         = "ARK_URL"
+	WalletSeed     = "WALLET_SEED"
+	WalletPassword = "WALLET_PASSWORD"
+	EmulatorURL    = "EMULATOR_URL"
+	GRPCPort       = "GRPC_PORT"
+	HTTPPort       = "HTTP_PORT"
+	LogLevel       = "LOG_LEVEL"
 )
 
 const (
-	defaultDatadir         = ".solverd"
-	defaultGRPCPort        = 7070
-	defaultHTTPPort        = 7071
-	defaultLogLevel        = 4 // logrus.InfoLevel
-	defaultBancoEnabled    = true
-	defaultPreimageEnabled = false
+	defaultGRPCPort = 7070
+	defaultHTTPPort = 7071
+	defaultLogLevel = 4 // logrus.InfoLevel
 )
 
 // Config holds all configuration for the solverd server.
@@ -26,113 +39,68 @@ type Config struct {
 	GRPCPort       int
 	HTTPPort       int
 	LogLevel       int
-
-	// Plugin toggles. At least one must be enabled.
-	BancoEnabled    bool
-	PreimageEnabled bool
 }
 
-// LoadConfig reads SOLVER_* environment variables and returns a Config
-// with defaults applied for optional values.
+// LoadConfig reads SOLVER_* environment variables via viper and returns a
+// Config with defaults applied for optional values.
 func LoadConfig() (*Config, error) {
-	arkURL := os.Getenv("SOLVER_ARK_URL")
+	viper.SetEnvPrefix("SOLVER")
+	viper.AutomaticEnv()
+
+	defaultDatadir, err := defaultDatadirPath()
+	if err != nil {
+		return nil, err
+	}
+
+	viper.SetDefault(Datadir, defaultDatadir)
+	viper.SetDefault(GRPCPort, defaultGRPCPort)
+	viper.SetDefault(HTTPPort, defaultHTTPPort)
+	viper.SetDefault(LogLevel, defaultLogLevel)
+
+	arkURL := viper.GetString(ArkURL)
 	if arkURL == "" {
-		return nil, fmt.Errorf("SOLVER_ARK_URL is required")
+		return nil, fmt.Errorf("ARK_URL is required")
 	}
 
-	walletSeed := os.Getenv("SOLVER_WALLET_SEED")
+	walletSeed := viper.GetString(WalletSeed)
 	if walletSeed == "" {
-		return nil, fmt.Errorf("SOLVER_WALLET_SEED is required")
+		return nil, fmt.Errorf("WALLET_SEED is required")
 	}
 
-	emulatorURL := os.Getenv("SOLVER_EMULATOR_URL")
+	emulatorURL := viper.GetString(EmulatorURL)
 	if emulatorURL == "" {
-		return nil, fmt.Errorf("SOLVER_EMULATOR_URL is required")
+		return nil, fmt.Errorf("EMULATOR_URL is required")
 	}
 
-	datadir := os.Getenv("SOLVER_DATADIR")
-	if datadir == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, fmt.Errorf("failed to determine home directory: %w", err)
-		}
-		datadir = filepath.Join(home, defaultDatadir)
-	}
-
-	walletPassword := os.Getenv("SOLVER_WALLET_PASSWORD")
-
-	grpcPort := defaultGRPCPort
-	if v := os.Getenv("SOLVER_GRPC_PORT"); v != "" {
-		p, err := strconv.Atoi(v)
-		if err != nil {
-			return nil, fmt.Errorf("invalid SOLVER_GRPC_PORT: %w", err)
-		}
-		grpcPort = p
-	}
-
-	httpPort := defaultHTTPPort
-	if v := os.Getenv("SOLVER_HTTP_PORT"); v != "" {
-		p, err := strconv.Atoi(v)
-		if err != nil {
-			return nil, fmt.Errorf("invalid SOLVER_HTTP_PORT: %w", err)
-		}
-		httpPort = p
-	}
-
-	logLevel := defaultLogLevel
-	if v := os.Getenv("SOLVER_LOG_LEVEL"); v != "" {
-		l, err := strconv.Atoi(v)
-		if err != nil {
-			return nil, fmt.Errorf("invalid SOLVER_LOG_LEVEL: %w", err)
-		}
-		logLevel = l
-	}
-
+	grpcPort := viper.GetInt(GRPCPort)
+	httpPort := viper.GetInt(HTTPPort)
 	if grpcPort < 1 || grpcPort > 65535 {
-		return nil, fmt.Errorf("SOLVER_GRPC_PORT must be between 1 and 65535")
+		return nil, fmt.Errorf("GRPC_PORT must be between 1 and 65535")
 	}
 	if httpPort < 1 || httpPort > 65535 {
-		return nil, fmt.Errorf("SOLVER_HTTP_PORT must be between 1 and 65535")
+		return nil, fmt.Errorf("HTTP_PORT must be between 1 and 65535")
 	}
 	if grpcPort == httpPort {
-		return nil, fmt.Errorf("SOLVER_GRPC_PORT and SOLVER_HTTP_PORT must be different")
-	}
-
-	bancoEnabled, err := parseBool("SOLVER_BANCO_ENABLED", defaultBancoEnabled)
-	if err != nil {
-		return nil, err
-	}
-	preimageEnabled, err := parseBool("SOLVER_PREIMAGE_ENABLED", defaultPreimageEnabled)
-	if err != nil {
-		return nil, err
-	}
-	if !bancoEnabled && !preimageEnabled {
-		return nil, fmt.Errorf("at least one plugin must be enabled (SOLVER_BANCO_ENABLED or SOLVER_PREIMAGE_ENABLED)")
+		return nil, fmt.Errorf("GRPC_PORT and HTTP_PORT must be different")
 	}
 
 	return &Config{
-		Datadir:         datadir,
-		ArkURL:          arkURL,
-		WalletSeed:      walletSeed,
-		WalletPassword:  walletPassword,
-		EmulatorURL:     emulatorURL,
-		GRPCPort:        grpcPort,
-		HTTPPort:        httpPort,
-		LogLevel:        logLevel,
-		BancoEnabled:    bancoEnabled,
-		PreimageEnabled: preimageEnabled,
+		Datadir:        viper.GetString(Datadir),
+		ArkURL:         arkURL,
+		WalletSeed:     walletSeed,
+		WalletPassword: viper.GetString(WalletPassword),
+		EmulatorURL:    emulatorURL,
+		GRPCPort:       grpcPort,
+		HTTPPort:       httpPort,
+		LogLevel:       viper.GetInt(LogLevel),
 	}, nil
 }
 
-// parseBool reads an env var as "true"/"false" (case-insensitive). Empty → fallback.
-func parseBool(key string, fallback bool) (bool, error) {
-	v := os.Getenv(key)
-	if v == "" {
-		return fallback, nil
-	}
-	b, err := strconv.ParseBool(v)
+// defaultDatadirPath returns $HOME/.solverd, the default data directory.
+func defaultDatadirPath() (string, error) {
+	home, err := os.UserHomeDir()
 	if err != nil {
-		return false, fmt.Errorf("invalid %s: %w (expected true/false)", key, err)
+		return "", fmt.Errorf("failed to determine home directory: %w", err)
 	}
-	return b, nil
+	return filepath.Join(home, defaultDatadirName), nil
 }

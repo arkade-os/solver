@@ -16,27 +16,21 @@ import (
 
 const btcDecimals = 8
 
-// TakerService provides CRUD for trading pairs plus wallet operations.
-type TakerService struct {
-	pairRepo  ports.PairRepository
-	tradeRepo ports.TradeRepository
-	arkClient arksdk.Wallet
-	indexer   indexer.Indexer
-	log       logrus.FieldLogger
-}
-
-// NewTakerService creates a new TakerService.
-func NewTakerService(
+// NewService builds a Service with only its service-layer dependencies wired
+// (pair/trade repositories, wallet, indexer). The runtime fields used by Run
+// are populated by New. This constructor is handy for testing the service
+// methods (and the gRPC handler) without standing up the full daemon.
+func NewService(
 	pairRepo ports.PairRepository,
 	tradeRepo ports.TradeRepository,
 	arkClient arksdk.Wallet,
 	idx indexer.Indexer,
 	log logrus.FieldLogger,
-) *TakerService {
+) *Service {
 	if log == nil {
 		log = logrus.StandardLogger()
 	}
-	return &TakerService{
+	return &Service{
 		pairRepo:  pairRepo,
 		tradeRepo: tradeRepo,
 		arkClient: arkClient,
@@ -47,7 +41,7 @@ func NewTakerService(
 
 // ListTrades returns up to `limit` most recent fulfilled trades, newest first.
 // Passing limit <= 0 uses the repository default.
-func (svc *TakerService) ListTrades(ctx context.Context, limit int) ([]ports.Trade, error) {
+func (svc *Service) ListTrades(ctx context.Context, limit int) ([]ports.Trade, error) {
 	if svc.tradeRepo == nil {
 		return nil, nil
 	}
@@ -55,7 +49,7 @@ func (svc *TakerService) ListTrades(ctx context.Context, limit int) ([]ports.Tra
 }
 
 // AddPair validates, resolves decimals from the indexer, and adds a new pair.
-func (svc *TakerService) AddPair(ctx context.Context, pair banco.Pair) error {
+func (svc *Service) AddPair(ctx context.Context, pair banco.Pair) error {
 	resolved, err := svc.resolveDecimals(ctx, pair)
 	if err != nil {
 		return err
@@ -67,7 +61,7 @@ func (svc *TakerService) AddPair(ctx context.Context, pair banco.Pair) error {
 }
 
 // UpdatePair validates, resolves decimals from the indexer, and updates an existing pair.
-func (svc *TakerService) UpdatePair(ctx context.Context, pair banco.Pair) error {
+func (svc *Service) UpdatePair(ctx context.Context, pair banco.Pair) error {
 	resolved, err := svc.resolveDecimals(ctx, pair)
 	if err != nil {
 		return err
@@ -79,7 +73,7 @@ func (svc *TakerService) UpdatePair(ctx context.Context, pair banco.Pair) error 
 }
 
 // RemovePair removes a trading pair by name.
-func (svc *TakerService) RemovePair(ctx context.Context, pairName string) error {
+func (svc *Service) RemovePair(ctx context.Context, pairName string) error {
 	if pairName == "" {
 		return fmt.Errorf("pair name is required")
 	}
@@ -87,19 +81,12 @@ func (svc *TakerService) RemovePair(ctx context.Context, pairName string) error 
 }
 
 // ListPairs returns all configured trading pairs.
-func (svc *TakerService) ListPairs(ctx context.Context) ([]banco.Pair, error) {
+func (svc *Service) ListPairs(ctx context.Context) ([]banco.Pair, error) {
 	return svc.pairRepo.List(ctx)
 }
 
-// Balance holds the wallet balance breakdown.
-type Balance struct {
-	OnchainSpendable uint64
-	OnchainLocked    uint64
-	OffchainTotal    uint64
-}
-
 // GetBalance returns the wallet balance from the ark client.
-func (svc *TakerService) GetBalance(ctx context.Context) (*Balance, error) {
+func (svc *Service) GetBalance(ctx context.Context) (*ports.Balance, error) {
 	bal, err := svc.arkClient.Balance(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get balance: %w", err)
@@ -110,21 +97,15 @@ func (svc *TakerService) GetBalance(ctx context.Context) (*Balance, error) {
 		lockedAmount += locked.Amount
 	}
 
-	return &Balance{
+	return &ports.Balance{
 		OnchainSpendable: bal.OnchainBalance.SpendableAmount,
 		OnchainLocked:    lockedAmount,
 		OffchainTotal:    bal.OffchainBalance.Total,
 	}, nil
 }
 
-// Address holds the wallet addresses.
-type Address struct {
-	OffchainAddress string
-	BoardingAddress string
-}
-
 // GetAddress returns a new offchain and boarding address from the ark client.
-func (svc *TakerService) GetAddress(ctx context.Context) (*Address, error) {
+func (svc *Service) GetAddress(ctx context.Context) (*ports.Address, error) {
 	offchain, err := svc.arkClient.NewOffchainAddress(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get offchain address: %w", err)
@@ -135,7 +116,7 @@ func (svc *TakerService) GetAddress(ctx context.Context) (*Address, error) {
 		return nil, fmt.Errorf("failed to get boarding address: %w", err)
 	}
 
-	return &Address{
+	return &ports.Address{
 		OffchainAddress: offchain,
 		BoardingAddress: boarding,
 	}, nil
@@ -144,7 +125,7 @@ func (svc *TakerService) GetAddress(ctx context.Context) (*Address, error) {
 // resolveDecimals parses the pair and fills BaseDecimals/QuoteDecimals using
 // the indexer. BTC always resolves to 8; any other side is treated as a hex
 // asset ID and looked up via indexer.GetAsset.
-func (svc *TakerService) resolveDecimals(ctx context.Context, pair banco.Pair) (banco.Pair, error) {
+func (svc *Service) resolveDecimals(ctx context.Context, pair banco.Pair) (banco.Pair, error) {
 	base, quote, ok := splitPair(pair.Pair)
 	if !ok {
 		return pair, fmt.Errorf("pair must be in format 'base/quote'")
@@ -164,7 +145,7 @@ func (svc *TakerService) resolveDecimals(ctx context.Context, pair banco.Pair) (
 	return pair, nil
 }
 
-func (svc *TakerService) assetDecimals(ctx context.Context, assetID string) (int, error) {
+func (svc *Service) assetDecimals(ctx context.Context, assetID string) (int, error) {
 	if assetID == "BTC" {
 		return btcDecimals, nil
 	}

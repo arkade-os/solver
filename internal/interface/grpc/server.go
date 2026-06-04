@@ -9,72 +9,38 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
 	bancov1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/solverd/v1"
-	"github.com/arkade-os/solver/internal/core/application"
 	"github.com/arkade-os/solver/internal/interface/web"
+	log "github.com/sirupsen/logrus"
 )
 
 const maxRequestBodySize = 1 << 20 // 1 MB
 
 // Server manages the gRPC server and HTTP REST gateway.
 type Server struct {
-	grpcServer      *grpc.Server
-	httpServer      *http.Server
-	grpcConn        *grpc.ClientConn
-	handler         bancov1.BancoServiceServer    // nil when banco is disabled
-	preimageHandler bancov1.PreimageServiceServer // nil when preimage is disabled
-	bancoSvc        *application.TakerService     // nil when banco is disabled
-	preimageSvc     *application.PreimageService  // nil when preimage is disabled
-	grpcPort        int
-	httpPort        int
-	log             logrus.FieldLogger
+	grpcServer *grpc.Server
+	httpServer *http.Server
+	grpcConn   *grpc.ClientConn
+	handler    bancov1.BancoServiceServer
+	grpcPort   int
+	httpPort   int
 }
 
-// Option configures the services exposed by Server.
-type Option func(*Server)
-
-// NewServer creates a new Server that serves both gRPC and HTTP.
+// NewServer creates a new Server that serves both gRPC and HTTP for the banco
+// service.
 func NewServer(
 	grpcPort, httpPort int,
-	log logrus.FieldLogger,
-	opts ...Option,
+	svc BancoService,
 ) *Server {
-	s := &Server{
+	return &Server{
 		grpcPort: grpcPort,
 		httpPort: httpPort,
-		log:      log,
-	}
-	for _, opt := range opts {
-		opt(s)
-	}
-	return s
-}
-
-// WithBancoService exposes the banco RPC and HTTP routes. Pass nil to leave it
-// disabled.
-func WithBancoService(svc *application.TakerService) Option {
-	return func(s *Server) {
-		if svc != nil {
-			s.handler = newHandler(svc)
-			s.bancoSvc = svc
-		}
-	}
-}
-
-// WithPreimageService exposes the preimage RPC and HTTP routes. Pass nil to
-// leave it disabled.
-func WithPreimageService(svc *application.PreimageService) Option {
-	return func(s *Server) {
-		if svc != nil {
-			s.preimageHandler = newPreimageHandler(svc)
-			s.preimageSvc = svc
-		}
+		handler:  newHandler(svc),
 	}
 }
 
@@ -87,17 +53,12 @@ func (s *Server) Start() error {
 	}
 
 	s.grpcServer = grpc.NewServer()
-	if s.handler != nil {
-		bancov1.RegisterBancoServiceServer(s.grpcServer, s.handler)
-	}
-	if s.preimageHandler != nil {
-		bancov1.RegisterPreimageServiceServer(s.grpcServer, s.preimageHandler)
-	}
+	bancov1.RegisterBancoServiceServer(s.grpcServer, s.handler)
 
 	go func() {
-		s.log.Infof("gRPC server listening on :%d", s.grpcPort)
+		log.Infof("gRPC server listening on :%d", s.grpcPort)
 		if err := s.grpcServer.Serve(grpcListener); err != nil {
-			s.log.WithError(err).Error("gRPC server failed")
+			log.WithError(err).Error("gRPC server failed")
 		}
 	}()
 
@@ -113,8 +74,7 @@ func (s *Server) Start() error {
 	s.grpcConn = conn
 
 	mux := http.NewServeMux()
-	gwHandler := newHTTPGateway(conn, s.handler, s.preimageHandler)
-	mux.Handle("/v1/plugins", s.pluginsHandler())
+	gwHandler := newHTTPGateway(s.handler)
 	mux.Handle("/v1/", gwHandler)
 	mux.Handle("/", web.Handler())
 
@@ -124,9 +84,9 @@ func (s *Server) Start() error {
 	}
 
 	go func() {
-		s.log.Infof("HTTP gateway listening on :%d", s.httpPort)
+		log.Infof("HTTP gateway listening on :%d", s.httpPort)
 		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			s.log.WithError(err).Error("HTTP gateway failed")
+			log.WithError(err).Error("HTTP gateway failed")
 		}
 	}()
 
@@ -139,38 +99,26 @@ func (s *Server) Stop() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := s.httpServer.Shutdown(ctx); err != nil {
-			s.log.WithError(err).Error("failed to shutdown HTTP server")
+			log.WithError(err).Error("failed to shutdown HTTP server")
 		}
 	}
 	if s.grpcConn != nil {
 		if err := s.grpcConn.Close(); err != nil {
-			s.log.WithError(err).Error("failed to close gRPC connection")
+			log.WithError(err).Error("failed to close gRPC connection")
 		}
 	}
 	if s.grpcServer != nil {
 		s.grpcServer.GracefulStop()
 	}
-	s.log.Info("servers stopped")
+	log.Info("servers stopped")
 }
 
 // newHTTPGateway creates a simple HTTP handler that routes REST requests
 // to the gRPC handlers. This is a lightweight alternative to grpc-gateway
 // that avoids the full protobuf dependency for hand-written types.
-//
-// Either service may be nil; routes are registered only for the services
-// that are present.
-func newHTTPGateway(
-	_ *grpc.ClientConn,
-	svc bancov1.BancoServiceServer,
-	preimageSvc bancov1.PreimageServiceServer,
-) http.Handler {
+func newHTTPGateway(svc bancov1.BancoServiceServer) http.Handler {
 	mux := http.NewServeMux()
-	if svc != nil {
-		registerBancoRoutes(mux, svc)
-	}
-	if preimageSvc != nil {
-		registerPreimageRoutes(mux, preimageSvc)
-	}
+	registerBancoRoutes(mux, svc)
 	return mux
 }
 
@@ -262,45 +210,6 @@ func registerBancoRoutes(mux *http.ServeMux, svc bancov1.BancoServiceServer) {
 		if err != nil {
 			httpGRPCError(w, err)
 			return
-		}
-		jsonResponse(w, resp)
-	})
-}
-
-func registerPreimageRoutes(mux *http.ServeMux, svc bancov1.PreimageServiceServer) {
-	mux.HandleFunc("GET /v1/preimage/solver-pubkey", func(w http.ResponseWriter, r *http.Request) {
-		resp, err := svc.GetSolverPubKey(r.Context(), &bancov1.GetSolverPubKeyRequest{})
-		if err != nil {
-			httpGRPCError(w, err)
-			return
-		}
-		jsonResponse(w, resp)
-	})
-}
-
-// pluginsHandler reports which plugins are enabled and whether they are running.
-func (s *Server) pluginsHandler() http.Handler {
-	type pluginState struct {
-		Enabled bool `json:"enabled"`
-		Running bool `json:"running"`
-	}
-	type pluginsResponse struct {
-		Banco    pluginState `json:"banco"`
-		Preimage pluginState `json:"preimage"`
-	}
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			httpError(w, fmt.Errorf("method not allowed"), http.StatusMethodNotAllowed)
-			return
-		}
-		resp := pluginsResponse{}
-		if s.bancoSvc != nil {
-			resp.Banco.Enabled = true
-			resp.Banco.Running = true
-		}
-		if s.preimageSvc != nil {
-			resp.Preimage.Enabled = true
-			resp.Preimage.Running = true
 		}
 		jsonResponse(w, resp)
 	})

@@ -19,7 +19,6 @@ import (
 	"github.com/arkade-os/arkd/pkg/ark-lib/extension"
 	"github.com/arkade-os/arkd/pkg/ark-lib/offchain"
 	"github.com/arkade-os/arkd/pkg/ark-lib/script"
-	"github.com/arkade-os/arkd/pkg/client-lib/indexer"
 	clientTypes "github.com/arkade-os/arkd/pkg/client-lib/types"
 	arksdk "github.com/arkade-os/go-sdk"
 	sdkcontract "github.com/arkade-os/go-sdk/contract"
@@ -377,34 +376,4 @@ func freshTaprootPkScript(t *testing.T) []byte {
 	pkScript, err := txscript.PayToTaprootScript(priv.PubKey())
 	require.NoError(t, err)
 	return pkScript
-}
-
-// indexerVtxo is a small projection of the bot indexer's GetVtxos response —
-// just the fields tests need.
-type indexerVtxo struct {
-	Txid   string
-	VOut   uint32
-	Amount uint64
-}
-
-// pollForVtxoAt polls the indexer for any spendable VTXO at the given pkScript.
-// Returns the first match or fails the test on timeout. Used when the address
-// isn't owned by a wallet (e.g. preimage receiver pkScripts), so wallet event
-// channels can't be used.
-func pollForVtxoAt(t *testing.T, ctx context.Context, idx indexer.Indexer, pkScript []byte, timeout time.Duration) indexerVtxo {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		resp, err := idx.GetVtxos(ctx,
-			indexer.WithScripts([]string{hex.EncodeToString(pkScript)}),
-			indexer.WithSpendableOnly(),
-		)
-		if err == nil && len(resp.Vtxos) > 0 {
-			v := resp.Vtxos[0]
-			return indexerVtxo{Txid: v.Txid, VOut: v.VOut, Amount: v.Amount}
-		}
-		time.Sleep(200 * time.Millisecond)
-	}
-	t.Fatalf("no VTXO appeared at pkScript %s within %v", hex.EncodeToString(pkScript), timeout)
-	return indexerVtxo{}
 }
