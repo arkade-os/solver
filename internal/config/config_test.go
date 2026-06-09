@@ -26,6 +26,7 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "localhost:7000", cfg.ArkURL)
+	require.Empty(t, cfg.ExplorerURL)
 	require.Equal(t, "deadbeef", cfg.WalletSeed)
 	require.Equal(t, "localhost:6000", cfg.EmulatorURL)
 	require.Equal(t, defaultGRPCPort, cfg.GRPCPort)
@@ -43,6 +44,7 @@ func TestLoadConfig_EnvOverrides(t *testing.T) {
 	setRequiredEnv(t)
 	t.Setenv("SOLVER_DATADIR", "/tmp/custom-solverd")
 	t.Setenv("SOLVER_WALLET_PASSWORD", "hunter2")
+	t.Setenv("SOLVER_EXPLORER_URL", "http://chopsticks:3000")
 	t.Setenv("SOLVER_GRPC_PORT", "9090")
 	t.Setenv("SOLVER_HTTP_PORT", "9091")
 	t.Setenv("SOLVER_LOG_LEVEL", "5")
@@ -52,6 +54,7 @@ func TestLoadConfig_EnvOverrides(t *testing.T) {
 
 	require.Equal(t, "/tmp/custom-solverd", cfg.Datadir)
 	require.Equal(t, "hunter2", cfg.WalletPassword)
+	require.Equal(t, "http://chopsticks:3000", cfg.ExplorerURL)
 	require.Equal(t, 9090, cfg.GRPCPort)
 	require.Equal(t, 9091, cfg.HTTPPort)
 	require.Equal(t, 5, cfg.LogLevel)

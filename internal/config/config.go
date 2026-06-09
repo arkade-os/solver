@@ -15,6 +15,7 @@ const defaultDatadirName = ".solverd"
 var (
 	Datadir        = "DATADIR"
 	ArkURL         = "ARK_URL"
+	ExplorerURL    = "EXPLORER_URL"
 	WalletSeed     = "WALLET_SEED"
 	WalletPassword = "WALLET_PASSWORD"
 	EmulatorURL    = "EMULATOR_URL"
@@ -33,6 +34,7 @@ const (
 type Config struct {
 	Datadir        string
 	ArkURL         string
+	ExplorerURL    string
 	WalletSeed     string
 	WalletPassword string
 	EmulatorURL    string
@@ -87,6 +89,7 @@ func LoadConfig() (*Config, error) {
 	return &Config{
 		Datadir:        viper.GetString(Datadir),
 		ArkURL:         arkURL,
+		ExplorerURL:    viper.GetString(ExplorerURL),
 		WalletSeed:     walletSeed,
 		WalletPassword: viper.GetString(WalletPassword),
 		EmulatorURL:    emulatorURL,

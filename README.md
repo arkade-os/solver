@@ -2,7 +2,7 @@
 
 `solver` is a Go implementation of a **solver bot** for the [Arkade Intents](https://arkadeos.com/). It ships the `solverd` daemon and the `solver` CLI.
 
-A *maker* posts a swap offer as a VTXO on an Arkade. The solver bot watches the arkd
+A _maker_ posts a swap offer as a VTXO on an Arkade. The solver bot watches the arkd
 transaction stream, finds offers that match its configured pairs and price ranges, and fulfills
 them atomically via an emulator-signed Arkade transaction.
 
@@ -114,17 +114,18 @@ depend on any `internal/` code.
 Daemon that boots a solver, a SQLite-backed wallet, the gRPC+REST API, and the
 web UI. Configured entirely through environment variables:
 
-| Variable | Required | Default | Purpose |
-|---|---|---|---|
-| `SOLVER_ARK_URL` | ✓ | — | arkd gRPC endpoint |
-| `SOLVER_WALLET_SEED` | ✓ | — | wallet seed (hex) |
-| `SOLVER_EMULATOR_URL` | ✓ | — | emulator endpoint |
-| `SOLVER_WALLET_PASSWORD` | | — | wallet unlock password |
-| `SOLVER_DATADIR` | | `$HOME/.solverd` | data directory (SQLite DB lives here) |
-| `SOLVER_GRPC_PORT` | | `7070` | gRPC listener |
-| `SOLVER_HTTP_PORT` | | `7071` | HTTP REST + web UI listener |
-| `SOLVER_LOG_LEVEL` | | `4` (Info) | logrus level |
-| `SOLVER_BANCO_ENABLED` | | `true` | enable the swap plugin |
+| Variable                 | Required | Default          | Purpose                                                        |
+| ------------------------ | -------- | ---------------- | -------------------------------------------------------------- |
+| `SOLVER_ARK_URL`         | ✓        | —                | arkd gRPC endpoint                                             |
+| `SOLVER_EXPLORER_URL`    |          | network default  | optional explorer endpoint override used by go-sdk wallet init |
+| `SOLVER_WALLET_SEED`     | ✓        | —                | wallet seed (hex)                                              |
+| `SOLVER_EMULATOR_URL`    | ✓        | —                | emulator endpoint                                              |
+| `SOLVER_WALLET_PASSWORD` |          | —                | wallet unlock password                                         |
+| `SOLVER_DATADIR`         |          | `$HOME/.solverd` | data directory (SQLite DB lives here)                          |
+| `SOLVER_GRPC_PORT`       |          | `7070`           | gRPC listener                                                  |
+| `SOLVER_HTTP_PORT`       |          | `7071`           | HTTP REST + web UI listener                                    |
+| `SOLVER_LOG_LEVEL`       |          | `4` (Info)       | logrus level                                                   |
+| `SOLVER_BANCO_ENABLED`   |          | `true`           | enable the swap plugin                                         |
 
 The banco plugin must be enabled. The daemon registers all enabled plugins
 in one solver runtime.
