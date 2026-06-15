@@ -18,6 +18,7 @@ var (
 	WalletSeed     = "WALLET_SEED"
 	WalletPassword = "WALLET_PASSWORD"
 	EmulatorURL    = "EMULATOR_URL"
+	ExplorerURL    = "EXPLORER_URL"
 	GRPCPort       = "GRPC_PORT"
 	HTTPPort       = "HTTP_PORT"
 	LogLevel       = "LOG_LEVEL"
@@ -36,6 +37,7 @@ type Config struct {
 	WalletSeed     string
 	WalletPassword string
 	EmulatorURL    string
+	ExplorerURL    string
 	GRPCPort       int
 	HTTPPort       int
 	LogLevel       int
@@ -90,6 +92,7 @@ func LoadConfig() (*Config, error) {
 		WalletSeed:     walletSeed,
 		WalletPassword: viper.GetString(WalletPassword),
 		EmulatorURL:    emulatorURL,
+		ExplorerURL:    viper.GetString(ExplorerURL),
 		GRPCPort:       grpcPort,
 		HTTPPort:       httpPort,
 		LogLevel:       viper.GetInt(LogLevel),

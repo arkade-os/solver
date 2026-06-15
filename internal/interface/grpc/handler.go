@@ -28,7 +28,7 @@ type handler struct {
 	svc BancoService
 }
 
-func newHandler(svc BancoService) bancov1.BancoServiceServer {
+func newHandler(svc BancoService) *handler {
 	return &handler{svc: svc}
 }
 
@@ -105,6 +105,7 @@ func (h *handler) GetBalance(
 		OnchainConfirmed:   bal.OnchainSpendable,
 		OnchainUnconfirmed: bal.OnchainLocked,
 		OffchainSettled:    bal.OffchainTotal,
+		AssetBalances:      bal.AssetBalances,
 	}, nil
 }
 

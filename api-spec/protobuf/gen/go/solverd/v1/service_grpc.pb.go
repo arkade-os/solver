@@ -24,8 +24,6 @@ const (
 	BancoService_RemovePair_FullMethodName = "/solverd.v1.BancoService/RemovePair"
 	BancoService_ListPairs_FullMethodName  = "/solverd.v1.BancoService/ListPairs"
 	BancoService_GetStatus_FullMethodName  = "/solverd.v1.BancoService/GetStatus"
-	BancoService_GetBalance_FullMethodName = "/solverd.v1.BancoService/GetBalance"
-	BancoService_GetAddress_FullMethodName = "/solverd.v1.BancoService/GetAddress"
 	BancoService_ListTrades_FullMethodName = "/solverd.v1.BancoService/ListTrades"
 )
 
@@ -38,8 +36,6 @@ type BancoServiceClient interface {
 	RemovePair(ctx context.Context, in *RemovePairRequest, opts ...grpc.CallOption) (*RemovePairResponse, error)
 	ListPairs(ctx context.Context, in *ListPairsRequest, opts ...grpc.CallOption) (*ListPairsResponse, error)
 	GetStatus(ctx context.Context, in *GetStatusRequest, opts ...grpc.CallOption) (*GetStatusResponse, error)
-	GetBalance(ctx context.Context, in *GetBalanceRequest, opts ...grpc.CallOption) (*GetBalanceResponse, error)
-	GetAddress(ctx context.Context, in *GetAddressRequest, opts ...grpc.CallOption) (*GetAddressResponse, error)
 	ListTrades(ctx context.Context, in *ListTradesRequest, opts ...grpc.CallOption) (*ListTradesResponse, error)
 }
 
@@ -101,26 +97,6 @@ func (c *bancoServiceClient) GetStatus(ctx context.Context, in *GetStatusRequest
 	return out, nil
 }
 
-func (c *bancoServiceClient) GetBalance(ctx context.Context, in *GetBalanceRequest, opts ...grpc.CallOption) (*GetBalanceResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetBalanceResponse)
-	err := c.cc.Invoke(ctx, BancoService_GetBalance_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *bancoServiceClient) GetAddress(ctx context.Context, in *GetAddressRequest, opts ...grpc.CallOption) (*GetAddressResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetAddressResponse)
-	err := c.cc.Invoke(ctx, BancoService_GetAddress_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *bancoServiceClient) ListTrades(ctx context.Context, in *ListTradesRequest, opts ...grpc.CallOption) (*ListTradesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListTradesResponse)
@@ -140,8 +116,6 @@ type BancoServiceServer interface {
 	RemovePair(context.Context, *RemovePairRequest) (*RemovePairResponse, error)
 	ListPairs(context.Context, *ListPairsRequest) (*ListPairsResponse, error)
 	GetStatus(context.Context, *GetStatusRequest) (*GetStatusResponse, error)
-	GetBalance(context.Context, *GetBalanceRequest) (*GetBalanceResponse, error)
-	GetAddress(context.Context, *GetAddressRequest) (*GetAddressResponse, error)
 	ListTrades(context.Context, *ListTradesRequest) (*ListTradesResponse, error)
 }
 
@@ -163,12 +137,6 @@ func (UnimplementedBancoServiceServer) ListPairs(context.Context, *ListPairsRequ
 }
 func (UnimplementedBancoServiceServer) GetStatus(context.Context, *GetStatusRequest) (*GetStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetStatus not implemented")
-}
-func (UnimplementedBancoServiceServer) GetBalance(context.Context, *GetBalanceRequest) (*GetBalanceResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetBalance not implemented")
-}
-func (UnimplementedBancoServiceServer) GetAddress(context.Context, *GetAddressRequest) (*GetAddressResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetAddress not implemented")
 }
 func (UnimplementedBancoServiceServer) ListTrades(context.Context, *ListTradesRequest) (*ListTradesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListTrades not implemented")
@@ -275,42 +243,6 @@ func _BancoService_GetStatus_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
-func _BancoService_GetBalance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetBalanceRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(BancoServiceServer).GetBalance(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: BancoService_GetBalance_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BancoServiceServer).GetBalance(ctx, req.(*GetBalanceRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _BancoService_GetAddress_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetAddressRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(BancoServiceServer).GetAddress(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: BancoService_GetAddress_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BancoServiceServer).GetAddress(ctx, req.(*GetAddressRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _BancoService_ListTrades_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListTradesRequest)
 	if err := dec(in); err != nil {
@@ -355,14 +287,6 @@ var BancoService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetStatus",
 			Handler:    _BancoService_GetStatus_Handler,
-		},
-		{
-			MethodName: "GetBalance",
-			Handler:    _BancoService_GetBalance_Handler,
-		},
-		{
-			MethodName: "GetAddress",
-			Handler:    _BancoService_GetAddress_Handler,
 		},
 		{
 			MethodName: "ListTrades",

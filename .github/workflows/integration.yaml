@@ -41,6 +41,10 @@ jobs:
           docker logs solverd-nbxplorer || true
           echo "=== emulator logs ==="
           docker logs solverd-emulator || true
+          echo "=== solverd logs ==="
+          docker logs solverd-solverd || true
+          echo "=== pricefeed logs ==="
+          docker logs solverd-pricefeed || true
 
       - name: Tear down
         if: always()

@@ -499,8 +499,30 @@ async function loadBalance() {
     $("#onchain-locked-btc").textContent = fmtBTC(b.onchain_unconfirmed);
     $("#offchain-address").textContent = a.offchain_address || "—";
     $("#boarding-address").textContent = a.boarding_address || "—";
+    renderAssetBalances(b.asset_balances || {});
   } catch (err) {
     toast(err.message, "error");
+  }
+}
+
+function renderAssetBalances(assets) {
+  const body = $("#assets-body");
+  const empty = $("#assets-empty");
+  const ids = Object.keys(assets);
+  body.innerHTML = "";
+  if (!ids.length) {
+    empty.hidden = false;
+    return;
+  }
+  empty.hidden = true;
+  for (const id of ids) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><code class="mono trunc" title="${escapeAttr(id)}">${escapeHTML(
+      assetLabel(id)
+    )}</code></td>
+      <td class="num">${escapeHTML(Number(assets[id]).toLocaleString("en-US"))}</td>`;
+    body.appendChild(tr);
   }
 }
 

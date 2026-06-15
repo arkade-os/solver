@@ -18,9 +18,9 @@ import (
 )
 
 const (
-	mockAssetBTCPriceFeed   = "mock://asset-btc"
-	mockBTCAssetPriceFeed   = "mock://btc-asset"
-	mockAssetAssetPriceFeed = "mock://asset-asset"
+	mockAssetBTCPriceFeed   = "http://solverd-pricefeed/asset-btc"
+	mockBTCAssetPriceFeed   = "http://solverd-pricefeed/btc-asset"
+	mockAssetAssetPriceFeed = "http://solverd-pricefeed/asset-asset"
 )
 
 // TestBancoAssetToBTC: maker deposits asset, wants BTC.
@@ -77,17 +77,16 @@ func TestBancoBTCToAsset(t *testing.T) {
 	faucetOffchain(t, tempClient, 0.001)
 	assetID := issueAsset(t, tempClient, 1000)
 
-	takerAddr := getAddress(t)
+	solverAddr := getAddress(t)
 
-	takerVtxoCh := takerClient.GetVtxoEventChannel(ctx)
 	_, err := tempClient.SendOffChain(ctx, []clientTypes.Receiver{{
-		To:     takerAddr.OffchainAddress,
+		To:     solverAddr.OffchainAddress,
 		Amount: 1000,
 		Assets: []clientTypes.Asset{{AssetId: assetID, Amount: 1000}},
 	}})
 	require.NoError(t, err)
-	// Wait for the taker wallet to see the incoming asset VTXO.
-	waitForVtxoAdded(t, ctx, takerVtxoCh, 30*time.Second)
+	// Wait for the dockerized solver to report the incoming asset balance.
+	pollSolverAssetBalance(t, ctx, assetID, 1000, 30*time.Second)
 
 	pair := banco.Pair{
 		Pair:      "BTC/" + assetID,
@@ -137,16 +136,15 @@ func TestBancoAssetToAsset(t *testing.T) {
 	faucetOffchain(t, tempClient, 0.001)
 	assetB := issueAsset(t, tempClient, 1000)
 
-	takerAddr := getAddress(t)
+	solverAddr := getAddress(t)
 
-	takerVtxoCh := takerClient.GetVtxoEventChannel(ctx)
 	_, err := tempClient.SendOffChain(ctx, []clientTypes.Receiver{{
-		To:     takerAddr.OffchainAddress,
+		To:     solverAddr.OffchainAddress,
 		Amount: 1000,
 		Assets: []clientTypes.Asset{{AssetId: assetB, Amount: 1000}},
 	}})
 	require.NoError(t, err)
-	waitForVtxoAdded(t, ctx, takerVtxoCh, 30*time.Second)
+	pollSolverAssetBalance(t, ctx, assetB, 1000, 30*time.Second)
 
 	pair := banco.Pair{
 		Pair:      assetA + "/" + assetB,
@@ -200,7 +198,7 @@ func addPair(t *testing.T, pair banco.Pair) {
 
 func getAddress(t *testing.T) *bancov1.GetAddressResponse {
 	t.Helper()
-	resp, err := dialBancoClient(t).GetAddress(t.Context(), &bancov1.GetAddressRequest{})
+	resp, err := dialWalletClient(t).GetAddress(t.Context(), &bancov1.GetAddressRequest{})
 	require.NoError(t, err)
 	require.NotEmpty(t, resp.OffchainAddress)
 	return resp
@@ -210,7 +208,7 @@ func getAddress(t *testing.T) *bancov1.GetAddressResponse {
 // timeout expires.
 func waitForVtxoAdded(
 	t *testing.T,
-	ctx context.Context, // see below
+	ctx context.Context,
 	vtxoCh <-chan sdktypes.VtxoEvent,
 	timeout time.Duration,
 ) []clientTypes.Vtxo {

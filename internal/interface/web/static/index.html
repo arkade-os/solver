@@ -112,6 +112,24 @@
         </div>
 
         <div class="card">
+          <div class="card-label">Asset balances</div>
+          <div class="table-wrap">
+            <table class="table" id="assets-table">
+              <thead>
+                <tr>
+                  <th>Asset</th>
+                  <th class="num">Amount</th>
+                </tr>
+              </thead>
+              <tbody id="assets-body"></tbody>
+            </table>
+          </div>
+          <div class="empty" id="assets-empty" hidden>
+            <p class="muted">No assets held.</p>
+          </div>
+        </div>
+
+        <div class="card">
           <div class="card-row">
             <div class="card-row-label">Offchain address</div>
             <div class="card-row-value">

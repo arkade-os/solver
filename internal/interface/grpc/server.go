@@ -26,7 +26,7 @@ type Server struct {
 	grpcServer *grpc.Server
 	httpServer *http.Server
 	grpcConn   *grpc.ClientConn
-	handler    bancov1.BancoServiceServer
+	handler    *handler
 	grpcPort   int
 	httpPort   int
 }
@@ -54,6 +54,7 @@ func (s *Server) Start() error {
 
 	s.grpcServer = grpc.NewServer()
 	bancov1.RegisterBancoServiceServer(s.grpcServer, s.handler)
+	bancov1.RegisterWalletServiceServer(s.grpcServer, s.handler)
 
 	go func() {
 		log.Infof("gRPC server listening on :%d", s.grpcPort)
@@ -116,13 +117,13 @@ func (s *Server) Stop() {
 // newHTTPGateway creates a simple HTTP handler that routes REST requests
 // to the gRPC handlers. This is a lightweight alternative to grpc-gateway
 // that avoids the full protobuf dependency for hand-written types.
-func newHTTPGateway(svc bancov1.BancoServiceServer) http.Handler {
+func newHTTPGateway(svc *handler) http.Handler {
 	mux := http.NewServeMux()
 	registerBancoRoutes(mux, svc)
 	return mux
 }
 
-func registerBancoRoutes(mux *http.ServeMux, svc bancov1.BancoServiceServer) {
+func registerBancoRoutes(mux *http.ServeMux, svc *handler) {
 	mux.HandleFunc("POST /v1/pair", func(w http.ResponseWriter, r *http.Request) {
 		var req bancov1.AddPairRequest
 		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)

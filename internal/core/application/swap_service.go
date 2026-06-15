@@ -101,6 +101,7 @@ func (svc *Service) GetBalance(ctx context.Context) (*ports.Balance, error) {
 		OnchainSpendable: bal.OnchainBalance.SpendableAmount,
 		OnchainLocked:    lockedAmount,
 		OffchainTotal:    bal.OffchainBalance.Total,
+		AssetBalances:    bal.AssetBalances,
 	}, nil
 }
 

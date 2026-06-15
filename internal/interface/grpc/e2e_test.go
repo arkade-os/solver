@@ -59,7 +59,7 @@ func (m *mockArkClient) NewBoardingAddress(_ context.Context) (string, error) {
 
 // setupHandler creates a full handler backed by a real SQLite DB in a temp dir.
 // It returns the handler and a cancel func for cleanup.
-func setupHandler(t *testing.T) bancov1.BancoServiceServer {
+func setupHandler(t *testing.T) *handler {
 	t.Helper()
 
 	tmpDir := t.TempDir()

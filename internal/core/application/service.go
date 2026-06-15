@@ -206,7 +206,11 @@ func SetupWallet(ctx context.Context, cfg *config.Config, extraOpts ...arksdk.Wa
 		if err != nil {
 			return nil, fmt.Errorf("create ark client: %w", err)
 		}
-		if err := arkClient.Init(ctx, cfg.ArkURL, cfg.WalletSeed, cfg.WalletPassword); err != nil {
+		var initOpts []arksdk.InitOption
+		if cfg.ExplorerURL != "" {
+			initOpts = append(initOpts, arksdk.WithExplorerURL(cfg.ExplorerURL))
+		}
+		if err := arkClient.Init(ctx, cfg.ArkURL, cfg.WalletSeed, cfg.WalletPassword, initOpts...); err != nil {
 			return nil, fmt.Errorf("init ark client: %w", err)
 		}
 	}

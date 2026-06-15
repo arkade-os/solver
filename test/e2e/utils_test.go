@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -21,6 +22,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	bancov1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/solverd/v1"
 )
 
 const (
@@ -191,4 +194,180 @@ func issueAsset(t *testing.T, client arksdk.Wallet, supply uint64) string {
 	require.NoError(t, err)
 	require.Len(t, assetIds, 1)
 	return assetIds[0].String()
+}
+
+// dialWalletClient dials the dockerized solver's WalletService.
+func dialWalletClient(t *testing.T) bancov1.WalletServiceClient {
+	t.Helper()
+	conn, err := grpc.NewClient(e2eGRPCAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close() })
+	return bancov1.NewWalletServiceClient(conn)
+}
+
+// solverOffchainAddress fetches the solver's offchain address over the
+// WalletService RPC (context variant for use in TestMain setup).
+func solverOffchainAddress(ctx context.Context) (string, error) {
+	conn, err := grpc.NewClient(e2eGRPCAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return "", err
+	}
+	// nolint:errcheck
+	defer conn.Close()
+	resp, err := bancov1.NewWalletServiceClient(conn).GetAddress(ctx, &bancov1.GetAddressRequest{})
+	if err != nil {
+		return "", err
+	}
+	if resp.GetOffchainAddress() == "" {
+		return "", fmt.Errorf("empty offchain address")
+	}
+	return resp.GetOffchainAddress(), nil
+}
+
+// pollSolverOffchain polls the solver's WalletService balance until offchain
+// settled >= target or the timeout expires.
+func pollSolverOffchain(ctx context.Context, target uint64, timeout time.Duration) error {
+	conn, err := grpc.NewClient(e2eGRPCAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return err
+	}
+	// nolint:errcheck
+	defer conn.Close()
+	client := bancov1.NewWalletServiceClient(conn)
+
+	deadline := time.Now().Add(timeout)
+	for {
+		resp, err := client.GetBalance(ctx, &bancov1.GetBalanceRequest{})
+		if err == nil && resp.GetOffchainSettled() >= target {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timed out waiting for solver offchain balance >= %d", target)
+		}
+		time.Sleep(time.Second)
+	}
+}
+
+// pollSolverAssetBalance polls until the solver's asset_balances shows
+// assetID >= amount, or fails the test on timeout.
+func pollSolverAssetBalance(t *testing.T, ctx context.Context, assetID string, amount uint64, timeout time.Duration) {
+	t.Helper()
+	client := dialWalletClient(t)
+	deadline := time.Now().Add(timeout)
+	for {
+		resp, err := client.GetBalance(ctx, &bancov1.GetBalanceRequest{})
+		if err == nil {
+			if got := resp.GetAssetBalances()[assetID]; got >= amount {
+				return
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for solver asset %s balance >= %d", assetID, amount)
+		}
+		time.Sleep(time.Second)
+	}
+}
+
+// newFunderWallet builds, inits, and unlocks a throwaway go-sdk wallet on a
+// temp datadir for funding the solver. Returns a cleanup that stops the wallet
+// and removes the datadir.
+func newFunderWallet(ctx context.Context) (arksdk.Wallet, func(), error) {
+	dir, err := os.MkdirTemp("", "solverd-e2e-funder-*")
+	if err != nil {
+		return nil, nil, err
+	}
+	w, err := arksdk.NewWallet(dir, arksdk.WithoutAutoSettle())
+	if err != nil {
+		// nolint:errcheck
+		os.RemoveAll(dir)
+		return nil, nil, err
+	}
+	if err := w.Init(ctx, arkdURL, "", password); err != nil {
+		// nolint:errcheck
+		os.RemoveAll(dir)
+		return nil, nil, err
+	}
+	if err := w.Unlock(ctx, password); err != nil {
+		// nolint:errcheck
+		os.RemoveAll(dir)
+		return nil, nil, err
+	}
+	synced := <-w.IsSynced(ctx)
+	if synced.Err != nil {
+		// nolint:errcheck
+		os.RemoveAll(dir)
+		return nil, nil, fmt.Errorf("funder sync: %w", synced.Err)
+	}
+	cleanup := func() {
+		w.Stop()
+		// nolint:errcheck
+		os.RemoveAll(dir)
+	}
+	return w, cleanup, nil
+}
+
+// faucetOffchainCtx redeems an admin note into the wallet and waits for the
+// resulting VTXO (context variant of faucetOffchain).
+func faucetOffchainCtx(ctx context.Context, w arksdk.Wallet, amount uint64) error {
+	note, err := generateNoteCtx(ctx, amount)
+	if err != nil {
+		return err
+	}
+	vtxoCh := w.GetVtxoEventChannel(ctx)
+	waitCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-waitCtx.Done():
+				return
+			case ev, ok := <-vtxoCh:
+				if !ok {
+					return
+				}
+				if ev.Type == sdktypes.VtxosAdded && len(ev.Vtxos) > 0 {
+					return
+				}
+			}
+		}
+	}()
+
+	if _, err := w.RedeemNotes(ctx, []string{note}); err != nil {
+		return err
+	}
+	select {
+	case <-done:
+		return nil
+	case <-waitCtx.Done():
+		return fmt.Errorf("faucetOffchainCtx: timed out waiting for VtxosAdded")
+	}
+}
+
+// fundSolver tops up the dockerized solver's offchain BTC balance by sending
+// from a throwaway funder wallet to the solver's offchain address (fetched over
+// the WalletService RPC), then polls the solver's balance until it lands.
+func fundSolver(ctx context.Context) error {
+	funder, cleanup, err := newFunderWallet(ctx)
+	if err != nil {
+		return fmt.Errorf("create funder wallet: %w", err)
+	}
+	defer cleanup()
+
+	if err := faucetOffchainCtx(ctx, funder, 200000); err != nil {
+		return fmt.Errorf("fund funder wallet: %w", err)
+	}
+
+	addr, err := solverOffchainAddress(ctx)
+	if err != nil {
+		return fmt.Errorf("get solver address: %w", err)
+	}
+
+	if _, err := funder.SendOffChain(ctx, []clientTypes.Receiver{{To: addr, Amount: 150000}}); err != nil {
+		return fmt.Errorf("send to solver: %w", err)
+	}
+
+	return pollSolverOffchain(ctx, 100000, 60*time.Second)
 }

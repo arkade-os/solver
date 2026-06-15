@@ -78,6 +78,23 @@ func TestLoadConfig_RequiredFields(t *testing.T) {
 	}
 }
 
+func TestLoadConfig_ExplorerURL(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("SOLVER_EXPLORER_URL", "http://chopsticks:3000")
+
+	cfg, err := LoadConfig()
+	require.NoError(t, err)
+	require.Equal(t, "http://chopsticks:3000", cfg.ExplorerURL)
+}
+
+func TestLoadConfig_ExplorerURL_OptionalEmpty(t *testing.T) {
+	setRequiredEnv(t)
+
+	cfg, err := LoadConfig()
+	require.NoError(t, err)
+	require.Empty(t, cfg.ExplorerURL)
+}
+
 func TestLoadConfig_PortValidation(t *testing.T) {
 	tests := []struct {
 		name string

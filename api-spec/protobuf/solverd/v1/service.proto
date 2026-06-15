@@ -20,12 +20,6 @@ service BancoService {
   rpc GetStatus(GetStatusRequest) returns (GetStatusResponse) {
     option (google.api.http) = { get: "/v1/status" };
   }
-  rpc GetBalance(GetBalanceRequest) returns (GetBalanceResponse) {
-    option (google.api.http) = { get: "/v1/balance" };
-  }
-  rpc GetAddress(GetAddressRequest) returns (GetAddressResponse) {
-    option (google.api.http) = { get: "/v1/address" };
-  }
   rpc ListTrades(ListTradesRequest) returns (ListTradesResponse) {
     option (google.api.http) = { get: "/v1/trades" };
   }
@@ -49,19 +43,6 @@ message ListPairsRequest {}
 message ListPairsResponse { repeated PairInfo pairs = 1; }
 message GetStatusRequest {}
 message GetStatusResponse { bool running = 1; }
-message GetBalanceRequest {}
-message GetBalanceResponse {
-  uint64 onchain_confirmed = 1;
-  uint64 onchain_unconfirmed = 2;
-  uint64 offchain_settled = 3;
-  uint64 offchain_pending = 4;
-  uint64 offchain_swept = 5;
-}
-message GetAddressRequest {}
-message GetAddressResponse {
-  string offchain_address = 1;
-  string boarding_address = 2;
-}
 
 message TradeInfo {
   int64 id = 1;
