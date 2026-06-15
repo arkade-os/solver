@@ -34,7 +34,6 @@ type FulfillResult struct {
 }
 
 // FulfillOffer constructs and submits the fulfillment transaction for a banco offer.
-// Matches ts-sdk/src/banco/taker.ts Taker.fulfillOffer().
 func FulfillOffer(
 	ctx context.Context,
 	offer Offer,

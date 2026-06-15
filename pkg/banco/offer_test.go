@@ -85,6 +85,7 @@ func buildMinimalOffer(t *testing.T) *contract.Offer {
 		SwapPkScript:   swapPkScript,
 		WantAmount:     1000,
 		MakerPkScript:  makerPkScript,
+		MakerPublicKey: makerPub,
 		EmulatorPubkey: emulatorPub,
 	}
 }

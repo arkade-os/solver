@@ -6,10 +6,15 @@ import (
 	"testing"
 
 	arklib "github.com/arkade-os/arkd/pkg/ark-lib"
+	"github.com/arkade-os/arkd/pkg/client-lib/identity"
 	"github.com/arkade-os/arkd/pkg/client-lib/indexer"
 	clientTypes "github.com/arkade-os/arkd/pkg/client-lib/types"
 	emulatorclient "github.com/arkade-os/emulator/pkg/client"
 	arksdk "github.com/arkade-os/go-sdk"
+	sdkcontract "github.com/arkade-os/go-sdk/contract"
+	"github.com/arkade-os/go-sdk/contract/handlers"
+	sdktypes "github.com/arkade-os/go-sdk/types"
+	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,17 +38,65 @@ func (m *mockEmulatorClient) GetInfo(ctx context.Context) (*emulatorclient.Info,
 // ---------------------------------------------------------------------------
 
 type mockArkClient struct {
-	arksdk.Wallet        // embed for unimplemented methods
-	getConfigDataFn      func(ctx context.Context) (*clientTypes.Config, error)
-	newOffchainAddressFn func(ctx context.Context) (string, error)
+	arksdk.Wallet     // embed for unimplemented methods
+	getConfigDataFn   func(ctx context.Context) (*clientTypes.Config, error)
+	contractManagerFn func() sdkcontract.Manager
 }
 
 func (m *mockArkClient) GetConfigData(ctx context.Context) (*clientTypes.Config, error) {
 	return m.getConfigDataFn(ctx)
 }
 
-func (m *mockArkClient) NewOffchainAddress(ctx context.Context) (string, error) {
-	return m.newOffchainAddressFn(ctx)
+func (m *mockArkClient) ContractManager() sdkcontract.Manager {
+	return m.contractManagerFn()
+}
+
+// ---------------------------------------------------------------------------
+// Mock: contract.Manager + handlers.Handler (only methods used by CreateOffer)
+// ---------------------------------------------------------------------------
+
+type mockContractManager struct {
+	sdkcontract.Manager // embed for unimplemented methods
+	newContractFn       func(ctx context.Context, t sdktypes.ContractType, opts ...sdkcontract.ContractOption) (*sdktypes.Contract, error)
+	getHandlerFn        func(ctx context.Context, c sdktypes.Contract) (handlers.Handler, error)
+}
+
+func (m *mockContractManager) NewContract(
+	ctx context.Context, t sdktypes.ContractType, opts ...sdkcontract.ContractOption,
+) (*sdktypes.Contract, error) {
+	return m.newContractFn(ctx, t, opts...)
+}
+
+func (m *mockContractManager) GetHandler(
+	ctx context.Context, c sdktypes.Contract,
+) (handlers.Handler, error) {
+	return m.getHandlerFn(ctx, c)
+}
+
+type mockHandler struct {
+	handlers.Handler // embed for unimplemented methods
+	getKeyRefFn      func(c sdktypes.Contract) (*identity.KeyRef, error)
+}
+
+func (m *mockHandler) GetKeyRef(c sdktypes.Contract) (*identity.KeyRef, error) {
+	return m.getKeyRefFn(c)
+}
+
+// makerContractManager returns a mock contract manager that yields a default
+// contract at the given address whose owner key is makerPub.
+func makerContractManager(address string, makerPub *btcec.PublicKey) sdkcontract.Manager {
+	return &mockContractManager{
+		newContractFn: func(ctx context.Context, t sdktypes.ContractType, opts ...sdkcontract.ContractOption) (*sdktypes.Contract, error) {
+			return &sdktypes.Contract{Type: t, Address: address}, nil
+		},
+		getHandlerFn: func(ctx context.Context, c sdktypes.Contract) (handlers.Handler, error) {
+			return &mockHandler{
+				getKeyRefFn: func(c sdktypes.Contract) (*identity.KeyRef, error) {
+					return &identity.KeyRef{Id: "0", PubKey: makerPub}, nil
+				},
+			}, nil
+		},
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -63,30 +116,14 @@ func (m *mockIndexer) GetVtxos(ctx context.Context, opts ...indexer.GetVtxosOpti
 // CreateOffer tests
 // ---------------------------------------------------------------------------
 
-func TestCreateOffer_CancelNotSupported(t *testing.T) {
-	params := CreateOfferParams{WantAmount: 100_000, CancelAt: 1700000000}
-	_, err := CreateOffer(context.Background(), params, nil, nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "cancel path not supported")
-}
-
-func TestCreateOffer_ExitNotSupported(t *testing.T) {
-	params := CreateOfferParams{
-		WantAmount: 100_000,
-		ExitDelay:  &arklib.RelativeLocktime{Type: arklib.LocktimeTypeBlock, Value: 144},
-	}
-	_, err := CreateOffer(context.Background(), params, nil, nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "exit not supported")
-}
-
 func TestCreateOffer_HappyPath(t *testing.T) {
 	// Generate keys for the mock services
 	_, signerPub := testKeyPair(t)
 	_, emulatorPub := testKeyPair(t)
 	_, vtxoPub := testKeyPair(t)
+	_, makerPub := testKeyPair(t)
 
-	// Build a valid Ark address that NewOffchainAddress will return
+	// Build a valid Ark address that the maker contract resolves to
 	addr := &arklib.Address{
 		HRP:        arklib.BitcoinRegTest.Addr,
 		Signer:     signerPub,
@@ -105,13 +142,14 @@ func TestCreateOffer_HappyPath(t *testing.T) {
 	}
 
 	arkClient := &mockArkClient{
-		newOffchainAddressFn: func(ctx context.Context) (string, error) {
-			return encodedAddr, nil
+		contractManagerFn: func() sdkcontract.Manager {
+			return makerContractManager(encodedAddr, makerPub)
 		},
 		getConfigDataFn: func(ctx context.Context) (*clientTypes.Config, error) {
 			return &clientTypes.Config{
-				SignerPubKey: signerPub,
-				Network:      arklib.BitcoinRegTest,
+				SignerPubKey:        signerPub,
+				Network:             arklib.BitcoinRegTest,
+				UnilateralExitDelay: arklib.RelativeLocktime{Type: arklib.LocktimeTypeBlock, Value: 144},
 			}, nil
 		},
 	}
@@ -137,6 +175,12 @@ func TestCreateOffer_HappyPath(t *testing.T) {
 		schnorr.SerializePubKey(emulatorPub),
 		schnorr.SerializePubKey(decoded.EmulatorPubkey),
 	)
+	// cancel path is mandatory: makerPublicKey must be present
+	require.NotNil(t, decoded.MakerPublicKey)
+	assert.Equal(t, schnorr.SerializePubKey(makerPub), schnorr.SerializePubKey(decoded.MakerPublicKey))
+	// exit path is always set from the server's unilateral exit delay
+	require.NotNil(t, decoded.ExitDelay)
+	assert.Equal(t, uint32(144), decoded.ExitDelay.Value)
 }
 
 func TestCreateOffer_EmulatorClientError(t *testing.T) {
@@ -178,7 +222,7 @@ func TestCreateOffer_InvalidIntroPubkey(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to parse emulator pubkey")
 }
 
-func TestCreateOffer_ArkClientAddressError(t *testing.T) {
+func TestCreateOffer_ContractError(t *testing.T) {
 	_, emulatorPub := testKeyPair(t)
 
 	emulatorClient := &mockEmulatorClient{
@@ -190,15 +234,19 @@ func TestCreateOffer_ArkClientAddressError(t *testing.T) {
 	}
 
 	arkClient := &mockArkClient{
-		newOffchainAddressFn: func(ctx context.Context) (string, error) {
-			return "", assert.AnError
+		contractManagerFn: func() sdkcontract.Manager {
+			return &mockContractManager{
+				newContractFn: func(ctx context.Context, tp sdktypes.ContractType, opts ...sdkcontract.ContractOption) (*sdktypes.Contract, error) {
+					return nil, assert.AnError
+				},
+			}
 		},
 	}
 
 	params := CreateOfferParams{WantAmount: 50_000}
 	_, err := CreateOffer(context.Background(), params, arkClient, emulatorClient)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get maker address")
+	assert.Contains(t, err.Error(), "failed to create maker contract")
 }
 
 func TestCreateOffer_GetConfigError(t *testing.T) {
@@ -222,9 +270,10 @@ func TestCreateOffer_GetConfigError(t *testing.T) {
 		},
 	}
 
+	_, makerPub := testKeyPair(t)
 	arkClient := &mockArkClient{
-		newOffchainAddressFn: func(ctx context.Context) (string, error) {
-			return encodedAddr, nil
+		contractManagerFn: func() sdkcontract.Manager {
+			return makerContractManager(encodedAddr, makerPub)
 		},
 		getConfigDataFn: func(ctx context.Context) (*clientTypes.Config, error) {
 			return nil, assert.AnError

@@ -63,8 +63,8 @@ func TestRoundtrip_MinimalOffer(t *testing.T) {
 	assert.Nil(t, got.WantAsset)
 	assert.Nil(t, got.OfferAsset)
 	assert.Nil(t, got.ExitDelay)
-	assert.Nil(t, got.MakerPublicKey)
-	assert.Equal(t, uint64(0), got.CancelAt)
+	require.NotNil(t, got.MakerPublicKey)
+	assert.Equal(t, schnorr.SerializePubKey(orig.MakerPublicKey), schnorr.SerializePubKey(got.MakerPublicKey))
 	assert.Equal(t, uint64(0), got.RatioNum)
 	assert.Equal(t, uint64(0), got.RatioDen)
 }
@@ -85,7 +85,6 @@ func TestRoundtrip_FullOffer(t *testing.T) {
 	assert.Equal(t, orig.MakerPkScript, got.MakerPkScript)
 	// x-only comparison: schnorr.ParsePubKey normalises to even parity
 	assert.Equal(t, schnorr.SerializePubKey(orig.EmulatorPubkey), schnorr.SerializePubKey(got.EmulatorPubkey))
-	assert.Equal(t, orig.CancelAt, got.CancelAt)
 	assert.Equal(t, orig.RatioNum, got.RatioNum)
 	assert.Equal(t, orig.RatioDen, got.RatioDen)
 	require.NotNil(t, got.MakerPublicKey)
@@ -109,6 +108,7 @@ func TestDeserializeOffer_MissingRequiredField(t *testing.T) {
 	wantField := tlvField{typ: tlvWantAmount, value: amountBytes}
 	makerField := tlvField{typ: tlvMakerPkScript, value: minimal.MakerPkScript}
 	emulatorField := tlvField{typ: tlvEmulatorPubkey, value: emulatorBytes}
+	makerPubKeyField := tlvField{typ: tlvMakerPublicKey, value: testXOnlyBytes(minimal.MakerPublicKey)}
 
 	tests := []struct {
 		name   string
@@ -117,23 +117,28 @@ func TestDeserializeOffer_MissingRequiredField(t *testing.T) {
 	}{
 		{
 			name:   "missing swapPkScript",
-			fields: []tlvField{wantField, makerField, emulatorField},
+			fields: []tlvField{wantField, makerField, emulatorField, makerPubKeyField},
 			errMsg: "missing required field: swapPkScript",
 		},
 		{
 			name:   "missing wantAmount",
-			fields: []tlvField{swapField, makerField, emulatorField},
+			fields: []tlvField{swapField, makerField, emulatorField, makerPubKeyField},
 			errMsg: "missing required field: wantAmount",
 		},
 		{
 			name:   "missing makerPkScript",
-			fields: []tlvField{swapField, wantField, emulatorField},
+			fields: []tlvField{swapField, wantField, emulatorField, makerPubKeyField},
 			errMsg: "missing required field: makerPkScript",
 		},
 		{
 			name:   "missing emulatorPubkey",
-			fields: []tlvField{swapField, wantField, makerField},
+			fields: []tlvField{swapField, wantField, makerField, makerPubKeyField},
 			errMsg: "missing required field: emulatorPubkey",
+		},
+		{
+			name:   "missing makerPublicKey",
+			fields: []tlvField{swapField, wantField, makerField, emulatorField},
+			errMsg: "missing required field: makerPublicKey",
 		},
 	}
 
@@ -175,17 +180,6 @@ func TestDeserializeOffer_InvalidFieldLength(t *testing.T) {
 				emulatorField,
 			},
 			errMsg: "invalid wantAmount",
-		},
-		{
-			name: "cancelDelay not 8 bytes",
-			fields: []tlvField{
-				swapField,
-				wantField,
-				makerField,
-				emulatorField,
-				{typ: tlvCancelDelay, value: []byte{0x01}},
-			},
-			errMsg: "invalid cancelDelay",
 		},
 		{
 			name: "ratioNum not 8 bytes",
@@ -237,6 +231,7 @@ func TestDeserializeOffer_InvalidFieldLength(t *testing.T) {
 				wantField,
 				{typ: tlvMakerPkScript, value: []byte{0x01, 0x02}},
 				emulatorField,
+				{typ: tlvMakerPublicKey, value: testXOnlyBytes(minimal.MakerPublicKey)},
 			},
 			errMsg: "invalid makerPkScript",
 		},
@@ -435,61 +430,39 @@ func TestFulfillScript_AssetPath(t *testing.T) {
 	assert.False(t, bytes.Equal(scriptBTC, scriptAsset), "BTC and asset fulfill scripts should differ")
 }
 
-func TestVtxoScript_FulfillOnly(t *testing.T) {
+func TestVtxoScript_RequiresMakerPublicKey(t *testing.T) {
 	_, serverPub := testKeyPair(t)
 	o := testMinimalOffer(t)
-	// no CancelAt, no ExitDelay
+	o.MakerPublicKey = nil
 
-	vtxo, err := o.VtxoScript(serverPub)
-	require.NoError(t, err)
-	require.NotNil(t, vtxo)
-	require.Len(t, vtxo.Closures, 1, "fulfill-only: expect 1 closure")
+	_, err := o.VtxoScript(serverPub)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "makerPublicKey is required")
 }
 
-func TestVtxoScript_WithCancel(t *testing.T) {
+func TestVtxoScript_FulfillAndCancel(t *testing.T) {
 	_, serverPub := testKeyPair(t)
-	_, makerPub := testKeyPair(t)
 	o := testMinimalOffer(t)
-	o.CancelAt = 1700000000
-	o.MakerPublicKey = makerPub
+	// cancel closure is mandatory (no exit set)
 
 	vtxo, err := o.VtxoScript(serverPub)
 	require.NoError(t, err)
 	require.NotNil(t, vtxo)
-	require.Len(t, vtxo.Closures, 2, "with cancel: expect 2 closures")
+	require.Len(t, vtxo.Closures, 2, "fulfill + cancel: expect 2 closures")
 }
 
 func TestVtxoScript_WithExit(t *testing.T) {
 	_, serverPub := testKeyPair(t)
-	_, makerPub := testKeyPair(t)
 	o := testMinimalOffer(t)
 	o.ExitDelay = &arklib.RelativeLocktime{
 		Type:  arklib.LocktimeTypeBlock,
 		Value: 144,
 	}
-	o.MakerPublicKey = makerPub
 
 	vtxo, err := o.VtxoScript(serverPub)
 	require.NoError(t, err)
 	require.NotNil(t, vtxo)
-	require.Len(t, vtxo.Closures, 2, "with exit: expect 2 closures")
-}
-
-func TestVtxoScript_WithBoth(t *testing.T) {
-	_, serverPub := testKeyPair(t)
-	_, makerPub := testKeyPair(t)
-	o := testMinimalOffer(t)
-	o.CancelAt = 1700000000
-	o.ExitDelay = &arklib.RelativeLocktime{
-		Type:  arklib.LocktimeTypeBlock,
-		Value: 144,
-	}
-	o.MakerPublicKey = makerPub
-
-	vtxo, err := o.VtxoScript(serverPub)
-	require.NoError(t, err)
-	require.NotNil(t, vtxo)
-	require.Len(t, vtxo.Closures, 3, "with both cancel and exit: expect 3 closures")
+	require.Len(t, vtxo.Closures, 3, "fulfill + cancel + exit: expect 3 closures")
 }
 
 // ---------------------------------------------------------------------------

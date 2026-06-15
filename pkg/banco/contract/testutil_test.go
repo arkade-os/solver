@@ -45,6 +45,7 @@ func testMinimalOffer(t *testing.T) *Offer {
 		SwapPkScript:   swapPkScript,
 		WantAmount:     1000,
 		MakerPkScript:  makerPkScript,
+		MakerPublicKey: makerPub,
 		EmulatorPubkey: emulatorPub,
 	}
 }
@@ -64,7 +65,6 @@ func testFullOffer(t *testing.T) *Offer {
 		WantAmount:     5000,
 		MakerPkScript:  makerPkScript,
 		EmulatorPubkey: emulatorPub,
-		CancelAt:       1700000000,
 		RatioNum:       3,
 		RatioDen:       4,
 		ExitDelay: &arklib.RelativeLocktime{

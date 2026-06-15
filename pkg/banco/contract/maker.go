@@ -12,6 +12,7 @@ import (
 	"github.com/arkade-os/arkd/pkg/client-lib/indexer"
 	emulatorclient "github.com/arkade-os/emulator/pkg/client"
 	arksdk "github.com/arkade-os/go-sdk"
+	"github.com/arkade-os/go-sdk/types"
 	"github.com/btcsuite/btcd/btcec/v2"
 )
 
@@ -19,8 +20,6 @@ import (
 type CreateOfferParams struct {
 	WantAmount uint64         // sats the maker wants to receive
 	WantAsset  *asset.AssetId // nil for BTC
-	CancelAt   uint64         // 0 = no cancel, TODO support cancel tapscript
-	ExitDelay  *arklib.RelativeLocktime
 }
 
 // CreateOfferResult contains the result of creating an offer.
@@ -39,21 +38,12 @@ type OfferStatus struct {
 }
 
 // CreateOffer creates a new banco swap offer.
-// Matches ts-sdk/src/banco/maker.ts Maker.createOffer().
 func CreateOffer(
 	ctx context.Context,
 	params CreateOfferParams,
 	arkClient arksdk.Wallet,
 	emulatorClient emulatorclient.TransportClient,
 ) (*CreateOfferResult, error) {
-	// TODO cancel and exit needs a way to get the wallet public key
-	if params.CancelAt > 0 {
-		return nil, fmt.Errorf("cancel path not supported")
-	}
-	if params.ExitDelay != nil {
-		return nil, fmt.Errorf("exit not supported")
-	}
-
 	// Get emulator pubkey
 	emulatorInfo, err := emulatorClient.GetInfo(ctx)
 	if err != nil {
@@ -69,12 +59,14 @@ func CreateOffer(
 		return nil, fmt.Errorf("failed to parse emulator pubkey: %w", err)
 	}
 
-	// Get maker address
-	makerAddr, err := arkClient.NewOffchainAddress(ctx)
+	// Derive the maker pkScript and public key from a single default contract,
+	// so both reference the same key (HD wallets derive a fresh key per call).
+	cm := arkClient.ContractManager()
+	makerContract, err := cm.NewContract(ctx, types.ContractTypeDefault)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get maker address: %w", err)
+		return nil, fmt.Errorf("failed to create maker contract: %w", err)
 	}
-	decodedAddr, err := arklib.DecodeAddressV0(makerAddr)
+	decodedAddr, err := arklib.DecodeAddressV0(makerContract.Address)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode maker address: %w", err)
 	}
@@ -82,18 +74,31 @@ func CreateOffer(
 	if err != nil {
 		return nil, fmt.Errorf("failed to build maker pkscript: %w", err)
 	}
+	handler, err := cm.GetHandler(ctx, *makerContract)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get maker contract handler: %w", err)
+	}
+	makerKeyRef, err := handler.GetKeyRef(*makerContract)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get maker public key: %w", err)
+	}
 
 	cfg, err := arkClient.GetConfigData(ctx)
 	if err != nil {
 		return nil, err
 	}
 
+	// Always include the cancel (mandatory, via MakerPublicKey) and exit paths,
+	// matching the client so both derive the same swap address. The exit delay
+	// is the server's unilateral exit delay.
+	exitDelay := cfg.UnilateralExitDelay
 	offer := &Offer{
 		WantAmount:     params.WantAmount,
 		WantAsset:      params.WantAsset,
-		CancelAt:       params.CancelAt,
 		MakerPkScript:  makerPkScript,
+		MakerPublicKey: makerKeyRef.PubKey,
 		EmulatorPubkey: emulatorPubkey,
+		ExitDelay:      &exitDelay,
 	}
 
 	// Compute swap address
@@ -141,7 +146,6 @@ func CreateOffer(
 }
 
 // GetOffers queries VTXOs at a swap address to check offer status.
-// Matches ts-sdk/src/banco/maker.ts Maker.getOffers().
 func GetOffers(
 	ctx context.Context,
 	swapAddress string,

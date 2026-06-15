@@ -23,7 +23,6 @@ const (
 	tlvSwapPkScript   = 0x01
 	tlvWantAmount     = 0x02
 	tlvWantAsset      = 0x03
-	tlvCancelDelay    = 0x04
 	tlvMakerPkScript  = 0x05
 	tlvMakerPublicKey = 0x07
 	tlvEmulatorPubkey = 0x08
@@ -41,9 +40,8 @@ type Offer struct {
 	OfferAsset     *asset.AssetId   // nil = BTC
 	RatioNum       uint64           // partial-fill numerator; 0 = not set
 	RatioDen       uint64           // partial-fill denominator; 0 = not set
-	CancelAt       uint64           // unix timestamp; 0 = no cancel path
 	MakerPkScript  []byte           // 34 bytes: OP_1 + PUSH32 + 32-byte key
-	MakerPublicKey *btcec.PublicKey // required if cancel or exit
+	MakerPublicKey *btcec.PublicKey // required; drives the cancel and exit paths
 	EmulatorPubkey *btcec.PublicKey // required; x-only 32 bytes
 	ExitDelay      *arklib.RelativeLocktime
 }
@@ -96,11 +94,6 @@ func DeserializeOffer(data []byte) (*Offer, error) {
 				return nil, fmt.Errorf("invalid wantAsset: %w", err)
 			}
 			offer.WantAsset = assetId
-		case tlvCancelDelay:
-			if len(value) != 8 {
-				return nil, fmt.Errorf("invalid cancelDelay: expected 8 bytes, got %d", len(value))
-			}
-			offer.CancelAt = binary.BigEndian.Uint64(value)
 		case tlvMakerPkScript:
 			offer.MakerPkScript = value
 			hasMakerPkScript = true
@@ -167,6 +160,9 @@ func DeserializeOffer(data []byte) (*Offer, error) {
 	if !hasEmulatorPubkey {
 		return nil, errors.New("missing required field: emulatorPubkey")
 	}
+	if offer.MakerPublicKey == nil {
+		return nil, errors.New("missing required field: makerPublicKey")
+	}
 
 	if len(offer.MakerPkScript) != 34 {
 		return nil, fmt.Errorf("invalid makerPkScript: expected 34 bytes, got %d", len(offer.MakerPkScript))
@@ -176,7 +172,6 @@ func DeserializeOffer(data []byte) (*Offer, error) {
 }
 
 // Serialize encodes a BancoOffer into TLV bytes.
-// Matches ts-sdk Offer.encode().
 func (o *Offer) Serialize() ([]byte, error) {
 	var buf bytes.Buffer
 
@@ -210,12 +205,6 @@ func (o *Offer) Serialize() ([]byte, error) {
 			return nil, fmt.Errorf("failed to serialize offerAsset: %w", err)
 		}
 		encodeTLV(&buf, tlvOfferAsset, assetBytes)
-	}
-
-	if o.CancelAt > 0 {
-		delayBuf := make([]byte, 8)
-		binary.BigEndian.PutUint64(delayBuf, o.CancelAt)
-		encodeTLV(&buf, tlvCancelDelay, delayBuf)
 	}
 
 	encodeTLV(&buf, tlvMakerPkScript, o.MakerPkScript)
@@ -294,8 +283,14 @@ func (o *Offer) FulfillScript() ([]byte, error) {
 	return b.Script()
 }
 
-// VtxoScript builds the full VTXO taptree (fulfill + optional cancel + exit).
+// VtxoScript builds the full VTXO taptree (fulfill + cancel + optional exit).
+// The cancel path is a mandatory, unconditional maker+server multisig (no
+// timelock), so MakerPublicKey is required.
 func (s *Offer) VtxoScript(server *btcec.PublicKey) (*script.TapscriptsVtxoScript, error) {
+	if s.MakerPublicKey == nil {
+		return nil, fmt.Errorf("makerPublicKey is required to build the vtxo script")
+	}
+
 	fulfillScript, err := s.FulfillScript()
 	if err != nil {
 		return nil, err
@@ -304,18 +299,14 @@ func (s *Offer) VtxoScript(server *btcec.PublicKey) (*script.TapscriptsVtxoScrip
 	scriptHash := arkade.ArkadeScriptHash(fulfillScript)
 	tweakedKey := arkade.ComputeArkadeScriptPublicKey(s.EmulatorPubkey, scriptHash)
 
-	closures := []script.Closure{&script.MultisigClosure{
-		PubKeys: []*btcec.PublicKey{server, tweakedKey},
-	}}
-
-	if s.CancelAt > 0 {
-		cancelClosure := &script.CLTVMultisigClosure{
-			MultisigClosure: script.MultisigClosure{
-				PubKeys: []*btcec.PublicKey{s.MakerPublicKey, server},
-			},
-			Locktime: arklib.AbsoluteLocktime(s.CancelAt),
-		}
-		closures = append(closures, cancelClosure)
+	closures := []script.Closure{
+		&script.MultisigClosure{
+			PubKeys: []*btcec.PublicKey{server, tweakedKey},
+		},
+		// cancel: unconditional maker+server multisig
+		&script.MultisigClosure{
+			PubKeys: []*btcec.PublicKey{s.MakerPublicKey, server},
+		},
 	}
 
 	if s.ExitDelay != nil {
