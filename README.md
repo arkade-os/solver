@@ -157,14 +157,20 @@ make test           # unit tests
 
 ## Integration tests
 
-End-to-end tests run against a local nigiri + arkd stack:
+End-to-end tests run against a local [arkade-regtest](https://github.com/ArkLabsHQ/arkade-regtest)
++ arkd stack. arkade-regtest is vendored as a git submodule at `regtest/` and driven by its
+zero-dependency Node CLI (`regtest.mjs`, requires Node >= 18). Make sure submodules are checked
+out first: `git submodule update --init --recursive`.
 
 ```sh
-make setup-test-env     # boot nigiri + arkd + emulator, fund arkd wallet
+make setup-test-env     # boot arkade-regtest + arkd + emulator, fund arkd wallet
 make integrationtest    # run ./test/e2e/...
 make teardown-test-env
 ```
 
-If nigiri is already running (e.g. in CI, where the `vulpemventures/nigiri-github-action`
-sets it up), use `make docker-run` and `make docker-stop` instead — they bring up
-the solverd-side stack and fund the arkd wallet without touching nigiri.
+If arkade-regtest is already running, use `make docker-run` and `make docker-stop` instead —
+they bring up the solverd-side stack (which joins arkade-regtest's `arkade-regtest_default`
+network) and fund the arkd wallet without touching arkade-regtest itself.
+
+> Mining note: arkade-regtest's `faucet` does not auto-mine the way nigiri did. The funding
+> and faucet helpers pass `--confirm` so the funding tx is mined into a block immediately.

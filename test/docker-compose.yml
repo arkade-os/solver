@@ -17,7 +17,7 @@ services:
   nbxplorer:
     restart: unless-stopped
     container_name: solverd-nbxplorer
-    image: nicolasdorier/nbxplorer:2.5.30
+    image: nicolasdorier/nbxplorer:2.6.7
     environment:
       - NBXPLORER_NETWORK=regtest
       - NBXPLORER_CHAINS=btc
@@ -41,7 +41,7 @@ services:
 
   arkd-wallet:
     restart: unless-stopped
-    image: ghcr.io/arkade-os/arkd-wallet:v0.9.3
+    image: ghcr.io/arkade-os/arkd-wallet:v0.9.6
     container_name: solverd-arkd-wallet
     depends_on:
       - nbxplorer
@@ -57,7 +57,7 @@ services:
         target: /app/data
 
   arkd:
-    image: ghcr.io/arkade-os/arkd:v0.9.3
+    image: ghcr.io/arkade-os/arkd:v0.9.6
     container_name: solverd-arkd
     restart: unless-stopped
     depends_on:
@@ -74,7 +74,7 @@ services:
       - ARKD_BOARDING_EXIT_DELAY=30
       - ARKD_CHECKPOINT_EXIT_DELAY=10
       - ARKD_WALLET_ADDR=solverd-arkd-wallet:6060
-      - ARKD_ESPLORA_URL=http://chopsticks:3000
+      - ARKD_ESPLORA_URL=http://mempool_web/api
       - ARKD_VTXO_MIN_AMOUNT=1
       - ARKD_LIVE_STORE_TYPE=inmemory
       - ARKD_EVENT_DB_TYPE=badger
@@ -135,6 +135,10 @@ services:
         target: /app/data
 
 networks:
+  # Join the arkade-regtest stack's network so this solverd-side stack can reach
+  # the shared bitcoin node + mempool esplora (`mempool_web/api`) by service name.
+  # `node regtest/regtest.mjs start` creates the compose project `arkade-regtest`,
+  # whose default network is `arkade-regtest_default`.
   default:
-    name: nigiri
+    name: arkade-regtest_default
     external: true
