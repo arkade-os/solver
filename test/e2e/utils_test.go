@@ -28,8 +28,8 @@ import (
 
 const (
 	password     = "secret"
-	arkdURL      = "localhost:7170"
-	arkdHTTPURL  = "http://localhost:7171"
+	arkdURL      = "localhost:7070"
+	arkdHTTPURL  = "http://localhost:7071"
 	emulatorAddr = "localhost:7173"
 )
 
@@ -172,7 +172,7 @@ func sendOffChainWithExtension(
 	_, err := c.SendOffChain(
 		t.Context(),
 		[]clientTypes.Receiver{receiver},
-		arksdk.WithExtension(pkt),
+		arksdk.WithExtraPacket(pkt),
 	)
 	require.NoError(t, err)
 }

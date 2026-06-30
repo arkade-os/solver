@@ -21,11 +21,7 @@ type Pair struct {
 
 // Base returns the base asset of the pair (e.g. "BTC" from "BTC/USDT").
 func (p Pair) Base() string {
-	parts := strings.SplitN(p.Pair, "/", 2)
-	if len(parts) > 0 {
-		return parts[0]
-	}
-	return ""
+	return strings.SplitN(p.Pair, "/", 2)[0] // SplitN always returns at least one element
 }
 
 // Quote returns the quote asset of the pair (e.g. "USDT" from "BTC/USDT").

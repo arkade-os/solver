@@ -8,10 +8,18 @@ import (
 	"github.com/spf13/viper"
 )
 
-const defaultDatadirName = ".solverd"
+type Config struct {
+	Datadir        string
+	ArkURL         string
+	WalletSeed     string
+	WalletPassword string
+	EmulatorURL    string
+	ExplorerURL    string
+	GRPCPort       int
+	HTTPPort       int
+	LogLevel       int
+}
 
-// Environment variable keys, without the SOLVER_ prefix that viper prepends
-// (e.g. ArkURL is read from SOLVER_ARK_URL).
 var (
 	Datadir        = "DATADIR"
 	ArkURL         = "ARK_URL"
@@ -25,27 +33,14 @@ var (
 )
 
 const (
-	defaultGRPCPort = 7070
-	defaultHTTPPort = 7071
-	defaultLogLevel = 4 // logrus.InfoLevel
+	defaultGRPCPort = 7170
+	defaultHTTPPort = 7171
+	defaultLogLevel = 4 // logrus.InfoLevel 
+	defaultDatadirName = ".solverd"
 )
 
-// Config holds all configuration for the solverd server.
-type Config struct {
-	Datadir        string
-	ArkURL         string
-	WalletSeed     string
-	WalletPassword string
-	EmulatorURL    string
-	ExplorerURL    string
-	GRPCPort       int
-	HTTPPort       int
-	LogLevel       int
-}
-
-// LoadConfig reads SOLVER_* environment variables via viper and returns a
-// Config with defaults applied for optional values.
-func LoadConfig() (*Config, error) {
+// Load config from env variables
+func Load() (*Config, error) {
 	viper.SetEnvPrefix("SOLVER")
 	viper.AutomaticEnv()
 
@@ -99,7 +94,6 @@ func LoadConfig() (*Config, error) {
 	}, nil
 }
 
-// defaultDatadirPath returns $HOME/.solverd, the default data directory.
 func defaultDatadirPath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {

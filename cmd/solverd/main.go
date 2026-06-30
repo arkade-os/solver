@@ -13,8 +13,6 @@ import (
 	grpcservice "github.com/arkade-os/solver/internal/interface/grpc"
 )
 
-// Version is injected at build time via -ldflags "-X main.Version=<tag>".
-// Defaults to "dev" for local builds.
 var Version = "dev"
 
 func main() {
@@ -27,10 +25,11 @@ func main() {
 }
 
 func run(log *logrus.Logger) error {
-	cfg, err := config.LoadConfig()
+	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
+	log.SetLevel(logrus.Level(cfg.LogLevel))
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -44,14 +43,21 @@ func run(log *logrus.Logger) error {
 	}
 	defer wallet.Stop()
 
-	svc, err := application.New(cfg, log, wallet)
+	log.Info("wallet initialized")
+
+	svc, err := application.New(cfg, wallet)
 	if err != nil {
 		return err
 	}
+	defer svc.Close()
 
 	srv := grpcservice.NewServer(cfg.GRPCPort, cfg.HTTPPort, svc)
+	if err := srv.Start(); err != nil {
+		return err
+	}
+	defer srv.Stop()
 
-	if err := svc.Run(ctx, srv); err != nil {
+	if err := svc.Run(ctx); err != nil {
 		return err
 	}
 	log.Info("solverd stopped")

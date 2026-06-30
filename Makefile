@@ -1,4 +1,4 @@
-.PHONY: build build-all clean cov docker docker-run docker-stop format help integrationtest lint proto run setup-test-env sqlc teardown-test-env test vet
+.PHONY: build build-all clean cov docker docker-run docker-stop format help init-solverd integrationtest lint proto run setup-test-env sqlc teardown-test-env test vet
 
 VERSION ?= dev
 LDFLAGS := -s -w -X main.Version=$(VERSION)
@@ -18,15 +18,20 @@ build:
 run: build
 	@echo "Running solverd against local test stack..."
 	@SOLVER_ARK_URL=localhost:7070 \
-	SOLVER_EMULATOR_URL=localhost:7273 \
+	SOLVER_EMULATOR_URL=localhost:7173 \
 	SOLVER_WALLET_SEED=ed1f6ad1c0aa1bbdcc14a4dc26ff5d31cca6df11617f2bbb24a4e0e6f72f7a5d \
 	SOLVER_WALLET_PASSWORD=password \
-	SOLVER_GRPC_PORT=7270 \
-	SOLVER_HTTP_PORT=7271 \
-	SOLVER_BANCO_ENABLED=false \
-	SOLVER_PREIMAGE_ENABLED=true \
 	SOLVER_DATADIR=$${SOLVER_DATADIR:-$$(mktemp -d)} \
-	./solverd
+	go run ./cmd/solverd/main.go
+
+## init-solverd: fund the running solverd, mint an asset, and register pairs (run after `make run`)
+init-solverd:
+	@echo "Initializing solverd (fund + mint asset + register pairs)..."
+	@ARK_URL=$${ARK_URL:-localhost:7070} \
+	ARK_HTTP_URL=$${ARK_HTTP_URL:-http://localhost:7071} \
+	SOLVER_GRPC=$${SOLVER_GRPC:-localhost:7170} \
+	PRICEFEED_URL=$${PRICEFEED_URL:-http://localhost:8088} \
+	go run ./test/init/
 
 ## build-all: cross-compile solverd and solver for linux/darwin × amd64/arm64 (release artifacts)
 build-all:

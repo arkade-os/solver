@@ -121,8 +121,8 @@ web UI. Configured entirely through environment variables:
 | `SOLVER_EMULATOR_URL` | ✓ | — | emulator endpoint |
 | `SOLVER_WALLET_PASSWORD` | | — | wallet unlock password |
 | `SOLVER_DATADIR` | | `$HOME/.solverd` | data directory (SQLite DB lives here) |
-| `SOLVER_GRPC_PORT` | | `7070` | gRPC listener |
-| `SOLVER_HTTP_PORT` | | `7071` | HTTP REST + web UI listener |
+| `SOLVER_GRPC_PORT` | | `7170` | gRPC listener |
+| `SOLVER_HTTP_PORT` | | `7171` | HTTP REST + web UI listener |
 | `SOLVER_LOG_LEVEL` | | `4` (Info) | logrus level |
 | `SOLVER_BANCO_ENABLED` | | `true` | enable the swap plugin |
 

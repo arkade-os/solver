@@ -9,19 +9,16 @@ import (
 	"github.com/arkade-os/solver/pkg/banco"
 )
 
-// PairRepository implements ports.PairRepository backed by SQLite.
 type PairRepository struct {
 	queries *sqlc.Queries
 }
 
-// NewPairRepository creates a new SQLite-backed PairRepository.
 func NewPairRepository(db *sql.DB) *PairRepository {
 	return &PairRepository{
 		queries: sqlc.New(db),
 	}
 }
 
-// List returns all configured trading pairs.
 func (r *PairRepository) List(ctx context.Context) ([]banco.Pair, error) {
 	rows, err := r.queries.ListPairs(ctx)
 	if err != nil {
@@ -35,7 +32,6 @@ func (r *PairRepository) List(ctx context.Context) ([]banco.Pair, error) {
 	return pairs, nil
 }
 
-// Add inserts a new trading pair.
 func (r *PairRepository) Add(ctx context.Context, pair banco.Pair) error {
 	return r.queries.InsertPair(ctx, sqlc.InsertPairParams{
 		Pair:          pair.Pair,
@@ -48,8 +44,6 @@ func (r *PairRepository) Add(ctx context.Context, pair banco.Pair) error {
 	})
 }
 
-// Update modifies an existing trading pair.
-// Returns ports.ErrPairNotFound if no row matched.
 func (r *PairRepository) Update(ctx context.Context, pair banco.Pair) error {
 	rows, err := r.queries.UpdatePair(ctx, sqlc.UpdatePairParams{
 		Pair:          pair.Pair,
@@ -69,7 +63,6 @@ func (r *PairRepository) Update(ctx context.Context, pair banco.Pair) error {
 	return nil
 }
 
-// Remove deletes a trading pair by name.
 func (r *PairRepository) Remove(ctx context.Context, pairName string) error {
 	return r.queries.DeletePair(ctx, pairName)
 }

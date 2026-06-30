@@ -23,8 +23,8 @@
         <button class="nav-item" data-section="pairs" aria-current="page">
           <i data-icon="layers"></i> <span>Trading pairs</span>
         </button>
-        <button class="nav-item" data-section="balance">
-          <i data-icon="wallet"></i> <span>Balance</span>
+        <button class="nav-item" data-section="wallet">
+          <i data-icon="wallet"></i> <span>Wallet</span>
         </button>
         <button class="nav-item" data-section="history">
           <i data-icon="history"></i> <span>History</span>
@@ -81,51 +81,38 @@
       </section>
 
       <!-- Balance -->
-      <section class="view" id="view-balance" hidden>
+      <section class="view" id="view-wallet" hidden>
         <header class="view-head">
           <div>
-            <h1>Balance</h1>
-            <p class="muted">Wallet funds available to the solver.</p>
+            <h1>Wallet</h1>
+            <p class="muted">Funds held by the solver. Send, settle, and receive.</p>
           </div>
-          <button class="btn" id="btn-refresh-balance">
-            <i data-icon="refresh"></i> Refresh
-          </button>
+          <div class="head-actions">
+            <button class="btn" id="btn-settle">
+              <i data-icon="anchor"></i> Settle
+            </button>
+            <button class="btn btn-primary" id="btn-send">
+              <i data-icon="send"></i> Send
+            </button>
+            <button class="btn btn-icon-only" id="btn-refresh-balance" aria-label="Refresh">
+              <i data-icon="refresh"></i>
+            </button>
+          </div>
         </header>
 
-        <div class="card card-hero">
-          <div class="hero-label">Offchain total</div>
-          <div class="hero-value tnum" id="offchain-sats">—</div>
-          <div class="hero-sub" id="offchain-btc">—</div>
-        </div>
-
-        <div class="grid-2">
-          <div class="card">
-            <div class="card-label">Onchain confirmed</div>
-            <div class="card-value" id="onchain-confirmed">—</div>
-            <div class="card-sub" id="onchain-confirmed-btc">—</div>
-          </div>
-          <div class="card">
-            <div class="card-label">Onchain locked</div>
-            <div class="card-value" id="onchain-locked">—</div>
-            <div class="card-sub" id="onchain-locked-btc">—</div>
-          </div>
-        </div>
-
         <div class="card">
-          <div class="card-label">Asset balances</div>
+          <div class="card-label">Balances</div>
           <div class="table-wrap">
-            <table class="table" id="assets-table">
+            <table class="table table-balances" id="balances-table">
               <thead>
                 <tr>
                   <th>Asset</th>
-                  <th class="num">Amount</th>
+                  <th class="num">Offchain balance</th>
+                  <th class="actions-col"></th>
                 </tr>
               </thead>
-              <tbody id="assets-body"></tbody>
+              <tbody id="balances-body"></tbody>
             </table>
-          </div>
-          <div class="empty" id="assets-empty" hidden>
-            <p class="muted">No assets held.</p>
           </div>
         </div>
 
@@ -133,7 +120,7 @@
           <div class="card-row">
             <div class="card-row-label">Offchain address</div>
             <div class="card-row-value">
-              <code id="offchain-address" class="mono trunc">—</code>
+              <code id="offchain-address" class="mono addr">—</code>
               <button class="icon-btn" data-copy="#offchain-address" aria-label="Copy offchain address">
                 <i data-icon="copy"></i>
               </button>
@@ -142,7 +129,7 @@
           <div class="card-row">
             <div class="card-row-label">Boarding address</div>
             <div class="card-row-value">
-              <code id="boarding-address" class="mono trunc">—</code>
+              <code id="boarding-address" class="mono addr">—</code>
               <button class="icon-btn" data-copy="#boarding-address" aria-label="Copy boarding address">
                 <i data-icon="copy"></i>
               </button>
@@ -297,6 +284,100 @@
         <footer class="dialog-foot">
           <button type="button" class="btn" data-close>Cancel</button>
           <button type="submit" class="btn btn-primary" id="pair-submit">Add pair</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <!-- Send dialog -->
+    <dialog id="send-dialog" class="dialog">
+      <form method="dialog" id="send-form" class="dialog-form">
+        <header class="dialog-head">
+          <h2>Send</h2>
+          <button type="button" class="icon-btn" data-close aria-label="Close">
+            <i data-icon="x"></i>
+          </button>
+        </header>
+
+        <div class="dialog-body">
+          <div class="form-section">
+            <span class="form-section-title">Destination</span>
+            <div class="seg" role="radiogroup" aria-label="Destination layer">
+              <label>
+                <input type="radio" name="layer" value="offchain" checked />
+                <span>Offchain (Ark)</span>
+              </label>
+              <label>
+                <input type="radio" name="layer" value="onchain" />
+                <span>Onchain (exit)</span>
+              </label>
+            </div>
+            <small class="muted" id="send-layer-hint">Send to an Ark address. Settles instantly off-chain.</small>
+          </div>
+
+          <div class="form-section">
+            <label class="field">
+              <span id="send-asset-label">Asset</span>
+              <select name="asset" id="send-asset"></select>
+            </label>
+            <label class="field">
+              <span>Address</span>
+              <input class="mono" name="address" type="text" autocomplete="off"
+                spellcheck="false" placeholder="ark1… / tark1…" required />
+            </label>
+            <label class="field">
+              <span>Amount</span>
+              <div class="input-suffix">
+                <input name="amount" type="number" min="1" step="1" inputmode="numeric" required />
+                <span class="suffix" id="send-amount-suffix">sats</span>
+              </div>
+              <small class="muted" id="send-available">Available: —</small>
+            </label>
+          </div>
+
+          <div class="form-section">
+            <label class="field">
+              <span>Wallet password</span>
+              <input name="password" type="password" autocomplete="off" required
+                placeholder="Authorize this transfer" />
+            </label>
+          </div>
+
+          <p class="field-error" id="send-error"></p>
+        </div>
+
+        <footer class="dialog-foot">
+          <button type="button" class="btn" data-close>Cancel</button>
+          <button type="submit" class="btn btn-primary" id="send-submit">Send</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <!-- Settle dialog -->
+    <dialog id="settle-dialog" class="dialog">
+      <form method="dialog" id="settle-form" class="dialog-form">
+        <header class="dialog-head">
+          <h2>Settle</h2>
+          <button type="button" class="icon-btn" data-close aria-label="Close">
+            <i data-icon="x"></i>
+          </button>
+        </header>
+
+        <div class="dialog-body">
+          <p class="muted">
+            Boards any pending boarding UTXOs and pending VTXOs into fresh settled
+            funds by joining the next batch round. This can take a moment.
+          </p>
+          <label class="field">
+            <span>Wallet password</span>
+            <input name="password" type="password" autocomplete="off" required
+              placeholder="Authorize settlement" />
+          </label>
+          <p class="field-error" id="settle-error"></p>
+        </div>
+
+        <footer class="dialog-foot">
+          <button type="button" class="btn" data-close>Cancel</button>
+          <button type="submit" class="btn btn-primary" id="settle-submit">Settle now</button>
         </footer>
       </form>
     </dialog>

@@ -9,24 +9,19 @@ import (
 	"time"
 )
 
-// CoinGecko implements banco.PriceFeed by fetching prices from a URL
-// that returns a JSON object with a nested price value.
 type CoinGecko struct {
-	client *http.Client
+	*http.Client
 }
 
-// NewCoinGecko creates a new CoinGecko price feed adapter.
 func NewCoinGecko() *CoinGecko {
 	return &CoinGecko{
-		client: &http.Client{
+		&http.Client{
 			Timeout: 10 * time.Second,
 		},
 	}
 }
 
-// Fetch fetches the price from the given feed URL. The URL should return
-// a JSON response where the price is extracted from the first key's first
-// nested value (standard CoinGecko simple/price format).
+// Fetch fetches the price from the given feed URL.
 // Example response: {"bitcoin":{"usd":50000}}
 func (cg *CoinGecko) Fetch(ctx context.Context, feedURL string) (float64, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, feedURL, nil)
@@ -34,7 +29,7 @@ func (cg *CoinGecko) Fetch(ctx context.Context, feedURL string) (float64, error)
 		return 0, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	resp, err := cg.client.Do(req)
+	resp, err := cg.Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch price: %w", err)
 	}

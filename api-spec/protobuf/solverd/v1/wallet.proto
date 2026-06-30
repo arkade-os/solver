@@ -11,6 +11,26 @@ service WalletService {
   rpc GetAddress(GetAddressRequest) returns (GetAddressResponse) {
     option (google.api.http) = { get: "/v1/address" };
   }
+  // ListAssets returns every asset held offchain, enriched with the issuer's
+  // metadata (ticker/name/icon/decimals) resolved from the indexer.
+  rpc ListAssets(ListAssetsRequest) returns (ListAssetsResponse) {
+    option (google.api.http) = { get: "/v1/assets" };
+  }
+  // SendOffchain sends BTC or an asset to an Ark (offchain) address. Requires
+  // the wallet password.
+  rpc SendOffchain(SendOffchainRequest) returns (SendOffchainResponse) {
+    option (google.api.http) = { post: "/v1/wallet/send"; body: "*" };
+  }
+  // CollaborativeExit sends BTC offchain funds to an onchain address via a
+  // collaborative batch session. Requires the wallet password.
+  rpc CollaborativeExit(CollaborativeExitRequest) returns (CollaborativeExitResponse) {
+    option (google.api.http) = { post: "/v1/wallet/exit"; body: "*" };
+  }
+  // Settle boards pending boarding UTXOs and pending VTXOs into fresh settled
+  // VTXOs. Requires the wallet password.
+  rpc Settle(SettleRequest) returns (SettleResponse) {
+    option (google.api.http) = { post: "/v1/wallet/settle"; body: "*" };
+  }
 }
 
 message GetBalanceRequest {}
@@ -27,3 +47,39 @@ message GetAddressResponse {
   string offchain_address = 1;
   string boarding_address = 2;
 }
+
+// AssetInfo describes a single held asset. Ticker/name/icon_url are empty when
+// the issuer published no such metadata.
+message AssetInfo {
+  string asset_id = 1;
+  string ticker = 2;
+  string name = 3;
+  string icon_url = 4;
+  uint32 decimals = 5;
+  uint64 balance = 6;
+}
+message ListAssetsRequest {}
+message ListAssetsResponse { repeated AssetInfo assets = 1; }
+
+message SendOffchainRequest {
+  string password = 1;
+  // address is the destination Ark (offchain) address.
+  string address = 2;
+  // asset_id is empty or "BTC" to send BTC, otherwise the hex asset id.
+  string asset_id = 3;
+  // amount is in satoshis for BTC, or the asset's smallest unit otherwise.
+  uint64 amount = 4;
+}
+message SendOffchainResponse { string txid = 1; }
+
+message CollaborativeExitRequest {
+  string password = 1;
+  // address is the destination onchain BTC address.
+  string address = 2;
+  // amount is in satoshis.
+  uint64 amount = 3;
+}
+message CollaborativeExitResponse { string txid = 1; }
+
+message SettleRequest { string password = 1; }
+message SettleResponse { string txid = 1; }

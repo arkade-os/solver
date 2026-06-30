@@ -8,6 +8,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	bancov1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/solverd/v1"
+	"github.com/arkade-os/solver/internal/core/application"
 	"github.com/arkade-os/solver/internal/core/ports"
 	"github.com/arkade-os/solver/pkg/banco"
 )
@@ -18,8 +19,12 @@ type BancoService interface {
 	RemovePair(ctx context.Context, pairName string) error
 	ListPairs(ctx context.Context) ([]banco.Pair, error)
 	ListTrades(ctx context.Context, limit int) ([]ports.Trade, error)
-	GetBalance(ctx context.Context) (*ports.Balance, error)
-	GetAddress(ctx context.Context) (*ports.Address, error)
+	GetBalance(ctx context.Context) (*application.Balance, error)
+	GetAddress(ctx context.Context) (*application.Address, error)
+	ListAssets(ctx context.Context) ([]application.AssetInfo, error)
+	SendOffchain(ctx context.Context, password, address, assetID string, amount uint64) (string, error)
+	CollaborativeExit(ctx context.Context, password, address string, amount uint64) (string, error)
+	Settle(ctx context.Context, password string) (string, error)
 }
 
 type handler struct {
@@ -120,6 +125,67 @@ func (h *handler) GetAddress(
 		OffchainAddress: addr.OffchainAddress,
 		BoardingAddress: addr.BoardingAddress,
 	}, nil
+}
+
+func (h *handler) ListAssets(
+	ctx context.Context, _ *bancov1.ListAssetsRequest,
+) (*bancov1.ListAssetsResponse, error) {
+	assets, err := h.svc.ListAssets(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to list assets: %s", err)
+	}
+	out := make([]*bancov1.AssetInfo, 0, len(assets))
+	for _, a := range assets {
+		out = append(out, &bancov1.AssetInfo{
+			AssetId:  a.AssetID,
+			Ticker:   a.Ticker,
+			Name:     a.Name,
+			IconUrl:  a.IconURL,
+			Decimals: a.Decimals,
+			Balance:  a.Balance,
+		})
+	}
+	return &bancov1.ListAssetsResponse{Assets: out}, nil
+}
+
+func (h *handler) SendOffchain(
+	ctx context.Context, req *bancov1.SendOffchainRequest,
+) (*bancov1.SendOffchainResponse, error) {
+	txid, err := h.svc.SendOffchain(ctx, req.GetPassword(), req.GetAddress(), req.GetAssetId(), req.GetAmount())
+	if err != nil {
+		return nil, walletOpError(err)
+	}
+	return &bancov1.SendOffchainResponse{Txid: txid}, nil
+}
+
+func (h *handler) CollaborativeExit(
+	ctx context.Context, req *bancov1.CollaborativeExitRequest,
+) (*bancov1.CollaborativeExitResponse, error) {
+	txid, err := h.svc.CollaborativeExit(ctx, req.GetPassword(), req.GetAddress(), req.GetAmount())
+	if err != nil {
+		return nil, walletOpError(err)
+	}
+	return &bancov1.CollaborativeExitResponse{Txid: txid}, nil
+}
+
+func (h *handler) Settle(
+	ctx context.Context, req *bancov1.SettleRequest,
+) (*bancov1.SettleResponse, error) {
+	txid, err := h.svc.Settle(ctx, req.GetPassword())
+	if err != nil {
+		return nil, walletOpError(err)
+	}
+	return &bancov1.SettleResponse{Txid: txid}, nil
+}
+
+// walletOpError maps wallet operation errors to gRPC status codes: a bad
+// password is Unauthenticated, everything else is treated as an invalid
+// argument so the operator sees the underlying message.
+func walletOpError(err error) error {
+	if errors.Is(err, application.ErrInvalidPassword) {
+		return status.Error(codes.Unauthenticated, err.Error())
+	}
+	return status.Errorf(codes.InvalidArgument, "%s", err)
 }
 
 func (h *handler) ListTrades(

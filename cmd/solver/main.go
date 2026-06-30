@@ -56,11 +56,7 @@ var pairCommand = &cli.Command{
 			Usage: "add a new trading pair",
 			Flags: pairFlags(),
 			Action: func(c *cli.Context) error {
-				pair, err := parsePairFlags(c)
-				if err != nil {
-					return err
-				}
-				return doPost(c, "/v1/pair", map[string]any{"pair": pair})
+				return doPost(c, "/v1/pair", map[string]any{"pair": parsePairFlags(c)})
 			},
 		},
 		{
@@ -68,11 +64,7 @@ var pairCommand = &cli.Command{
 			Usage: "update an existing trading pair",
 			Flags: pairFlags(),
 			Action: func(c *cli.Context) error {
-				pair, err := parsePairFlags(c)
-				if err != nil {
-					return err
-				}
-				return doPut(c, "/v1/pair", map[string]any{"pair": pair})
+				return doPut(c, "/v1/pair", map[string]any{"pair": parsePairFlags(c)})
 			},
 		},
 		{
@@ -108,7 +100,7 @@ func pairFlags() []cli.Flag {
 	}
 }
 
-func parsePairFlags(c *cli.Context) (map[string]any, error) {
+func parsePairFlags(c *cli.Context) map[string]any {
 	return map[string]any{
 		"pair":           c.String("pair"),
 		"min_amount":     c.Uint64("min"),
@@ -117,7 +109,7 @@ func parsePairFlags(c *cli.Context) (map[string]any, error) {
 		"quote_decimals": c.Int("quote-decimals"),
 		"price_feed":     c.String("price-feed"),
 		"invert_price":   c.Bool("invert-price"),
-	}, nil
+	}
 }
 
 // --- simple commands ---

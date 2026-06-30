@@ -17,7 +17,7 @@ services:
   nbxplorer:
     restart: unless-stopped
     container_name: solverd-nbxplorer
-    image: nicolasdorier/nbxplorer:2.5.30
+    image: nicolasdorier/nbxplorer:2.6.7
     environment:
       - NBXPLORER_NETWORK=regtest
       - NBXPLORER_CHAINS=btc
@@ -41,7 +41,7 @@ services:
 
   arkd-wallet:
     restart: unless-stopped
-    image: ghcr.io/arkade-os/arkd-wallet:v0.9.3
+    image: ghcr.io/arkade-os/arkd-wallet:v0.9.9
     container_name: solverd-arkd-wallet
     depends_on:
       - nbxplorer
@@ -57,14 +57,14 @@ services:
         target: /app/data
 
   arkd:
-    image: ghcr.io/arkade-os/arkd:v0.9.3
+    image: ghcr.io/arkade-os/arkd:v0.9.9
     container_name: solverd-arkd
     restart: unless-stopped
     depends_on:
       - arkd-wallet
     ports:
-      - "7170:7070"
-      - "7171:7071"
+      - "7070:7070"
+      - "7071:7071"
     environment:
       - ARKD_LOG_LEVEL=5
       - ARKD_NO_MACAROONS=true
@@ -85,7 +85,7 @@ services:
         target: /app/data
 
   emulator:
-    image: ghcr.io/arkade-os/emulator:v0.0.1
+    image: ghcr.io/arkade-os/emulator:v0.0.3
     container_name: solverd-emulator
     restart: unless-stopped
     depends_on:
@@ -105,6 +105,8 @@ services:
     image: nginx:alpine
     container_name: solverd-pricefeed
     restart: unless-stopped
+    ports:
+      - "8088:80"
     volumes:
       - ./pricefeed:/usr/share/nginx/html:ro
 
@@ -119,16 +121,14 @@ services:
       - emulator
       - solverd-pricefeed
     ports:
-      - "17070:7070"
-      - "17071:7071"
+      - "7170:7170"
+      - "7171:7171"
     environment:
       - SOLVER_ARK_URL=solverd-arkd:7070
       - SOLVER_EMULATOR_URL=solverd-emulator:7073
       - SOLVER_EXPLORER_URL=http://chopsticks:3000
       - SOLVER_WALLET_SEED=ed1f6ad1c0aa1bbdcc14a4dc26ff5d31cca6df11617f2bbb24a4e0e6f72f7a5d
       - SOLVER_WALLET_PASSWORD=password
-      - SOLVER_GRPC_PORT=7070
-      - SOLVER_HTTP_PORT=7071
       - SOLVER_LOG_LEVEL=5
     volumes:
       - type: tmpfs

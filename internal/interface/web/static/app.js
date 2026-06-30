@@ -33,6 +33,11 @@ const ICONS = {
     '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
   "wifi-off":
     '<path d="M12 20h.01"/><path d="M8.5 16.43a5 5 0 0 1 7 0"/><path d="M5 12.86a10 10 0 0 1 5.17-2.69"/><path d="M19 12.86a10 10 0 0 0-2.01-1.52"/><path d="M2 8.82a15 15 0 0 1 4.18-2.64"/><path d="M22 8.82a15 15 0 0 0-11.29-3.76"/><path d="m2 2 20 20"/>',
+  send:
+    '<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/>',
+  anchor:
+    '<path d="M12 22V8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/><circle cx="12" cy="5" r="3"/>',
+  "chevron-down": '<path d="m6 9 6 6 6-6"/>',
 };
 
 function icon(name, cls = "") {
@@ -79,6 +84,10 @@ const api = {
   status: () => api._req("GET", "/v1/status"),
   balance: () => api._req("GET", "/v1/balance"),
   address: () => api._req("GET", "/v1/address"),
+  listAssets: () => api._req("GET", "/v1/assets"),
+  sendOffchain: (body) => api._req("POST", "/v1/wallet/send", body),
+  collaborativeExit: (body) => api._req("POST", "/v1/wallet/exit", body),
+  settle: (body) => api._req("POST", "/v1/wallet/settle", body),
   listTrades: (limit = 100) =>
     api._req("GET", `/v1/trades?limit=${encodeURIComponent(limit)}`),
 };
@@ -117,11 +126,6 @@ function toast(message, kind = "info", actionLabel, onAction) {
 function fmtSats(n) {
   if (n == null) return "—";
   return Number(n).toLocaleString("en-US") + " sats";
-}
-
-function fmtBTC(n) {
-  if (n == null) return "—";
-  return (Number(n) / 1e8).toFixed(8) + " BTC";
 }
 
 function truncMid(s, head = 8, tail = 6) {
@@ -189,7 +193,7 @@ function setSection(name) {
   const target = $(`#view-${name}`);
   if (target) target.hidden = false;
 
-  if (name === "balance") loadBalance();
+  if (name === "wallet") loadWallet();
   if (name === "pairs") loadPairs();
   if (name === "history") loadTrades();
 }
@@ -486,47 +490,349 @@ async function deletePair(pair) {
   }
 }
 
-// -------- balance --------
+// -------- wallet --------
 
-async function loadBalance() {
+// wallet holds the latest snapshot used by the send dialog (BTC balance + the
+// list of held assets with their metadata).
+const wallet = { offchainSats: 0, assets: [] };
+
+async function loadWallet() {
   try {
-    const [b, a] = await Promise.all([api.balance(), api.address()]);
-    $("#offchain-sats").textContent = fmtSats(b.offchain_settled);
-    $("#offchain-btc").textContent = fmtBTC(b.offchain_settled);
-    $("#onchain-confirmed").textContent = fmtSats(b.onchain_confirmed);
-    $("#onchain-confirmed-btc").textContent = fmtBTC(b.onchain_confirmed);
-    $("#onchain-locked").textContent = fmtSats(b.onchain_unconfirmed);
-    $("#onchain-locked-btc").textContent = fmtBTC(b.onchain_unconfirmed);
+    const [b, a, assetsResp] = await Promise.all([
+      api.balance(),
+      api.address(),
+      api.listAssets(),
+    ]);
+    wallet.offchainSats = Number(b.offchain_settled || 0);
+    wallet.assets = assetsResp.assets || [];
+
     $("#offchain-address").textContent = a.offchain_address || "—";
     $("#boarding-address").textContent = a.boarding_address || "—";
-    renderAssetBalances(b.asset_balances || {});
+
+    // BTC is rendered as the first row, just another asset. Its extra layers
+    // (onchain confirmed/locked, offchain pending) live in an expandable detail
+    // since the asset API exposes no equivalent dimensions for other assets.
+    const btcRow = {
+      asset_id: "BTC",
+      ticker: "BTC",
+      decimals: 8,
+      balance: Number(b.offchain_settled || 0),
+      detail: {
+        onchainConfirmed: Number(b.onchain_confirmed || 0),
+        onchainLocked: Number(b.onchain_unconfirmed || 0),
+        offchainPending: Number(b.offchain_pending || 0),
+      },
+    };
+    renderBalances([btcRow, ...wallet.assets]);
   } catch (err) {
     toast(err.message, "error");
   }
 }
 
-function renderAssetBalances(assets) {
-  const body = $("#assets-body");
-  const empty = $("#assets-empty");
-  const ids = Object.keys(assets);
-  body.innerHTML = "";
-  if (!ids.length) {
-    empty.hidden = false;
-    return;
+// assetTicker returns the best short label for an asset: its ticker, else its
+// name, else a truncated id.
+function assetTicker(a) {
+  return a.ticker || a.name || assetLabel(a.asset_id);
+}
+
+// btcAvatar is the official Bitcoin logo (orange roundel + ₿), used for the BTC
+// row instead of a generated monogram.
+const btcAvatar = `<span class="asset-avatar btc"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="32" fill="#F7931A"/><path fill="#fff" d="M46.1 27.4c.6-4.2-2.6-6.5-7-8l1.4-5.7-3.5-.9-1.4 5.6c-.9-.2-1.9-.4-2.8-.6l1.4-5.7-3.5-.9-1.4 5.7c-.7-.2-1.5-.3-2.2-.5l-4.8-1.2-.9 3.7s2.6.6 2.5.6c1.4.4 1.7 1.3 1.6 2.1l-1.6 6.5c.1 0 .2.1.4.1-.1 0-.3-.1-.4-.1l-2.3 9c-.2.4-.6 1.1-1.6.8 0 .1-2.5-.6-2.5-.6l-1.7 4 4.5 1.1c.8.2 1.7.4 2.5.6l-1.4 5.8 3.5.9 1.4-5.7c1 .3 1.9.5 2.8.7l-1.4 5.6 3.5.9 1.4-5.8c6 1.1 10.5.7 12.4-4.7 1.5-4.4-.1-6.9-3.2-8.5 2.3-.5 4-2 4.5-5.1zm-8 11.2c-1.1 4.4-8.5 2-10.8 1.4l1.9-7.6c2.4.6 10 1.7 8.9 6.2zm1.1-11.3c-1 4-7.1 2-9.1 1.5l1.7-6.9c2 .5 8.4 1.4 7.4 5.4z"/></svg></span>`;
+
+// assetAvatar renders the asset icon: the official BTC logo for BTC, the issuer's
+// icon_url when present, else a deterministic colored monogram derived from the id.
+function assetAvatar(a) {
+  if (a.asset_id === "BTC") return btcAvatar;
+  if (a.icon_url && /^https?:\/\//.test(a.icon_url)) {
+    return `<img class="asset-avatar" src="${escapeAttr(
+      a.icon_url
+    )}" alt="" loading="lazy" />`;
   }
-  empty.hidden = true;
-  for (const id of ids) {
+  let hash = 0;
+  for (const ch of a.asset_id || "") hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  const hue = hash % 360;
+  const mono = (a.ticker || a.asset_id || "?").slice(0, 2).toUpperCase();
+  return `<span class="asset-avatar gen" style="--h:${hue}">${escapeHTML(
+    mono
+  )}</span>`;
+}
+
+// fmtAssetAmount scales a raw smallest-unit balance by the asset's decimals and
+// appends its ticker. With decimals=0 it renders the raw integer.
+function fmtAssetAmount(raw, decimals, ticker) {
+  const n = Number(raw || 0);
+  const d = Number(decimals || 0);
+  const valStr =
+    d > 0
+      ? (n / 10 ** d).toLocaleString("en-US", {
+          minimumFractionDigits: d,
+          maximumFractionDigits: d,
+        })
+      : n.toLocaleString("en-US");
+  return ticker ? `${valStr} ${ticker}` : valStr;
+}
+
+// renderBalances renders one row per asset (BTC first, as a regular asset).
+// Rows carrying a `detail` object get an expandable sub-row with their extra
+// balance layers; today only BTC has one.
+function renderBalances(rows) {
+  const body = $("#balances-body");
+  body.innerHTML = "";
+  for (const a of rows) {
+    const isBTC = a.asset_id === "BTC";
+    const decimals = Number(a.decimals || 0);
+    // realLabel is a genuine ticker/name; empty when the asset has no metadata.
+    // We use it as the amount unit and only then show the id on its own line, so
+    // a metadata-less asset isn't rendered with its id repeated three times.
+    const realLabel = isBTC ? "BTC" : a.ticker || a.name || "";
+    const label = realLabel || assetLabel(a.asset_id);
+    const primary = fmtAssetAmount(a.balance, decimals, realLabel);
+    // Secondary line shows the raw smallest-unit value when decimals hide it.
+    const sub = isBTC
+      ? fmtSats(a.balance)
+      : decimals > 0
+      ? Number(a.balance || 0).toLocaleString("en-US")
+      : "";
+    const expandable = !!a.detail;
+
     const tr = document.createElement("tr");
+    tr.className = "balance-row";
     tr.innerHTML = `
-      <td><code class="mono trunc" title="${escapeAttr(id)}">${escapeHTML(
-      assetLabel(id)
-    )}</code></td>
-      <td class="num">${escapeHTML(Number(assets[id]).toLocaleString("en-US"))}</td>`;
+      <td>
+        <div class="asset-cell">
+          ${
+            expandable
+              ? `<button class="expand-toggle" aria-label="Toggle details" aria-expanded="false">${icon(
+                  "chevron-down"
+                )}</button>`
+              : `<span class="expand-spacer"></span>`
+          }
+          ${assetAvatar(a)}
+          <div class="asset-meta">
+            <span class="asset-ticker">${escapeHTML(label)}</span>
+            ${
+              realLabel && !isBTC
+                ? `<code class="mono trunc asset-id" title="${escapeAttr(
+                    a.asset_id
+                  )}">${escapeHTML(assetLabel(a.asset_id))}</code>`
+                : ""
+            }
+          </div>
+        </div>
+      </td>
+      <td class="num">
+        <div class="bal-primary">${escapeHTML(primary)}</div>
+        ${sub ? `<div class="bal-sub">${escapeHTML(sub)}</div>` : ""}
+      </td>
+      <td class="actions-col">
+        <button class="icon-btn" data-send-asset aria-label="Send ${escapeAttr(
+          label
+        )}">${icon("send")}</button>
+      </td>`;
+    tr.querySelector("[data-send-asset]").addEventListener("click", () =>
+      openSend(a.asset_id)
+    );
     body.appendChild(tr);
+
+    if (expandable) {
+      const detail = document.createElement("tr");
+      detail.className = "balance-detail";
+      detail.hidden = true;
+      detail.innerHTML = `
+        <td colspan="3">
+          <div class="detail-grid">
+            <div class="detail-item">
+              <span class="detail-label">Onchain confirmed</span>
+              <span class="detail-val tnum">${escapeHTML(
+                fmtSats(a.detail.onchainConfirmed)
+              )}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Onchain locked</span>
+              <span class="detail-val tnum">${escapeHTML(
+                fmtSats(a.detail.onchainLocked)
+              )}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Offchain pending</span>
+              <span class="detail-val tnum">${escapeHTML(
+                fmtSats(a.detail.offchainPending)
+              )}</span>
+            </div>
+          </div>
+        </td>`;
+      body.appendChild(detail);
+
+      const toggle = tr.querySelector(".expand-toggle");
+      toggle.addEventListener("click", () => {
+        const open = detail.hidden;
+        detail.hidden = !open;
+        tr.classList.toggle("expanded", open);
+        toggle.setAttribute("aria-expanded", String(open));
+      });
+    }
   }
 }
 
-$("#btn-refresh-balance").addEventListener("click", loadBalance);
+$("#btn-refresh-balance").addEventListener("click", loadWallet);
+
+// -------- send dialog --------
+
+const sendDialog = $("#send-dialog");
+const sendForm = $("#send-form");
+
+// sendLayer returns the selected destination layer ("offchain" | "onchain").
+function sendLayer() {
+  return sendForm.elements.layer.value;
+}
+
+// selectedAsset returns the asset id chosen in the picker ("BTC" or hex id).
+function selectedAsset() {
+  if (sendLayer() === "onchain") return "BTC";
+  return sendForm.elements.asset.value || "BTC";
+}
+
+function populateSendAssets(preset) {
+  const sel = $("#send-asset");
+  sel.innerHTML = "";
+  const opts = [{ value: "BTC", label: "BTC" }];
+  for (const a of wallet.assets) {
+    opts.push({ value: a.asset_id, label: assetTicker(a) });
+  }
+  for (const o of opts) {
+    const el = document.createElement("option");
+    el.value = o.value;
+    el.textContent = o.label;
+    sel.appendChild(el);
+  }
+  sel.value = preset && opts.some((o) => o.value === preset) ? preset : "BTC";
+}
+
+function assetBalanceOf(id) {
+  if (id === "BTC") return wallet.offchainSats;
+  const a = wallet.assets.find((x) => x.asset_id === id);
+  return a ? Number(a.balance) : 0;
+}
+
+function updateSendForm() {
+  const onchain = sendLayer() === "onchain";
+  const assetField = $("#send-asset").closest(".field");
+  // Onchain exit is BTC-only.
+  assetField.hidden = onchain;
+  $("#send-asset").disabled = onchain;
+
+  const asset = selectedAsset();
+  const isBtc = asset === "BTC";
+  $("#send-amount-suffix").textContent = isBtc ? "sats" : "units";
+  $("#send-layer-hint").textContent = onchain
+    ? "Collaborative exit: moves BTC to an onchain address via a batch round."
+    : "Send to an Ark address. Settles instantly off-chain.";
+
+  const avail = assetBalanceOf(asset);
+  const unit = isBtc ? "sats" : "units";
+  $("#send-available").textContent = `Available: ${Number(avail).toLocaleString(
+    "en-US"
+  )} ${unit}`;
+
+  const addr = sendForm.elements.address;
+  addr.placeholder = onchain ? "bcrt1… / bc1…" : "ark1… / tark1…";
+}
+
+function openSend(presetAsset) {
+  sendForm.reset();
+  $("#send-error").textContent = "";
+  sendForm.elements.layer.value = "offchain";
+  populateSendAssets(presetAsset);
+  updateSendForm();
+  sendDialog.showModal();
+}
+
+sendForm.addEventListener("change", updateSendForm);
+sendForm.addEventListener("input", updateSendForm);
+$("#btn-send").addEventListener("click", () => openSend());
+$$("#send-dialog [data-close]").forEach((b) =>
+  b.addEventListener("click", () => sendDialog.close())
+);
+
+sendForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("#send-error").textContent = "";
+  const onchain = sendLayer() === "onchain";
+  const asset = selectedAsset();
+  const address = String(sendForm.elements.address.value).trim();
+  const amount = Number(sendForm.elements.amount.value);
+  const password = sendForm.elements.password.value;
+
+  if (!address) {
+    $("#send-error").textContent = "Destination address is required.";
+    return;
+  }
+  if (!(amount > 0)) {
+    $("#send-error").textContent = "Amount must be greater than 0.";
+    return;
+  }
+  if (amount > assetBalanceOf(asset)) {
+    $("#send-error").textContent = "Amount exceeds the available balance.";
+    return;
+  }
+
+  const submit = $("#send-submit");
+  submit.disabled = true;
+  try {
+    let res;
+    if (onchain) {
+      res = await api.collaborativeExit({ password, address, amount });
+    } else {
+      res = await api.sendOffchain({
+        password,
+        address,
+        asset_id: asset,
+        amount,
+      });
+    }
+    sendDialog.close();
+    toast(`Sent — ${truncMid(res.txid || "", 8, 8)}`, "success");
+    await loadWallet();
+  } catch (err) {
+    $("#send-error").textContent = err.message;
+  } finally {
+    submit.disabled = false;
+  }
+});
+
+// -------- settle dialog --------
+
+const settleDialog = $("#settle-dialog");
+const settleForm = $("#settle-form");
+
+$("#btn-settle").addEventListener("click", () => {
+  settleForm.reset();
+  $("#settle-error").textContent = "";
+  settleDialog.showModal();
+});
+$$("#settle-dialog [data-close]").forEach((b) =>
+  b.addEventListener("click", () => settleDialog.close())
+);
+
+settleForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("#settle-error").textContent = "";
+  const password = settleForm.elements.password.value;
+  const submit = $("#settle-submit");
+  submit.disabled = true;
+  submit.textContent = "Settling…";
+  try {
+    const res = await api.settle({ password });
+    settleDialog.close();
+    toast(`Settled — ${truncMid(res.txid || "", 8, 8)}`, "success");
+    await loadWallet();
+  } catch (err) {
+    $("#settle-error").textContent = err.message;
+  } finally {
+    submit.disabled = false;
+    submit.textContent = "Settle now";
+  }
+});
 
 // -------- history --------
 

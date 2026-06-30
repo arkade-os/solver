@@ -11,7 +11,6 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
 	bancov1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/solverd/v1"
@@ -25,7 +24,6 @@ const maxRequestBodySize = 1 << 20 // 1 MB
 type Server struct {
 	grpcServer *grpc.Server
 	httpServer *http.Server
-	grpcConn   *grpc.ClientConn
 	handler    *handler
 	grpcPort   int
 	httpPort   int
@@ -64,16 +62,6 @@ func (s *Server) Start() error {
 	}()
 
 	// Start HTTP gateway
-	grpcAddr := fmt.Sprintf("localhost:%d", s.grpcPort)
-	conn, err := grpc.NewClient(
-		grpcAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to dial gRPC server: %w", err)
-	}
-	s.grpcConn = conn
-
 	mux := http.NewServeMux()
 	gwHandler := newHTTPGateway(s.handler)
 	mux.Handle("/v1/", gwHandler)
@@ -101,11 +89,6 @@ func (s *Server) Stop() {
 		defer cancel()
 		if err := s.httpServer.Shutdown(ctx); err != nil {
 			log.WithError(err).Error("failed to shutdown HTTP server")
-		}
-	}
-	if s.grpcConn != nil {
-		if err := s.grpcConn.Close(); err != nil {
-			log.WithError(err).Error("failed to close gRPC connection")
 		}
 	}
 	if s.grpcServer != nil {
@@ -214,6 +197,60 @@ func registerBancoRoutes(mux *http.ServeMux, svc *handler) {
 		}
 		jsonResponse(w, resp)
 	})
+
+	mux.HandleFunc("GET /v1/assets", func(w http.ResponseWriter, r *http.Request) {
+		resp, err := svc.ListAssets(r.Context(), &bancov1.ListAssetsRequest{})
+		if err != nil {
+			httpGRPCError(w, err)
+			return
+		}
+		jsonResponse(w, resp)
+	})
+
+	mux.HandleFunc("POST /v1/wallet/send", func(w http.ResponseWriter, r *http.Request) {
+		var req bancov1.SendOffchainRequest
+		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpError(w, fmt.Errorf("invalid request body: %w", err), http.StatusBadRequest)
+			return
+		}
+		resp, err := svc.SendOffchain(r.Context(), &req)
+		if err != nil {
+			httpGRPCError(w, err)
+			return
+		}
+		jsonResponse(w, resp)
+	})
+
+	mux.HandleFunc("POST /v1/wallet/exit", func(w http.ResponseWriter, r *http.Request) {
+		var req bancov1.CollaborativeExitRequest
+		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpError(w, fmt.Errorf("invalid request body: %w", err), http.StatusBadRequest)
+			return
+		}
+		resp, err := svc.CollaborativeExit(r.Context(), &req)
+		if err != nil {
+			httpGRPCError(w, err)
+			return
+		}
+		jsonResponse(w, resp)
+	})
+
+	mux.HandleFunc("POST /v1/wallet/settle", func(w http.ResponseWriter, r *http.Request) {
+		var req bancov1.SettleRequest
+		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpError(w, fmt.Errorf("invalid request body: %w", err), http.StatusBadRequest)
+			return
+		}
+		resp, err := svc.Settle(r.Context(), &req)
+		if err != nil {
+			httpGRPCError(w, err)
+			return
+		}
+		jsonResponse(w, resp)
+	})
 }
 
 func jsonResponse(w http.ResponseWriter, v interface{}) {
@@ -242,6 +279,8 @@ func httpGRPCError(w http.ResponseWriter, err error) {
 		httpCode = http.StatusBadRequest
 	case codes.NotFound:
 		httpCode = http.StatusNotFound
+	case codes.Unauthenticated:
+		httpCode = http.StatusUnauthorized
 	case codes.AlreadyExists:
 		httpCode = http.StatusConflict
 	case codes.Unimplemented:

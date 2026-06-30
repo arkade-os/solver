@@ -17,9 +17,7 @@ import (
 	bancov1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/solverd/v1"
 )
 
-// e2eGRPCAddr is the address of the dockerized solverd's gRPC port
-// (mapped 17070:7070 in test/docker-compose.yml).
-const e2eGRPCAddr = "localhost:17070"
+const e2eGRPCAddr = "localhost:7170"
 
 func TestMain(m *testing.M) {
 	os.Exit(runTests(m))

@@ -6,49 +6,15 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/arkade-os/arkd/pkg/client-lib/indexer"
-	arksdk "github.com/arkade-os/go-sdk"
-	"github.com/sirupsen/logrus"
-
 	"github.com/arkade-os/solver/internal/core/ports"
 	"github.com/arkade-os/solver/pkg/banco"
 )
 
-const btcDecimals = 8
 
-// NewService builds a Service with only its service-layer dependencies wired
-// (pair/trade repositories, wallet, indexer). The runtime fields used by Run
-// are populated by New. This constructor is handy for testing the service
-// methods (and the gRPC handler) without standing up the full daemon.
-func NewService(
-	pairRepo ports.PairRepository,
-	tradeRepo ports.TradeRepository,
-	arkClient arksdk.Wallet,
-	idx indexer.Indexer,
-	log logrus.FieldLogger,
-) *Service {
-	if log == nil {
-		log = logrus.StandardLogger()
-	}
-	return &Service{
-		pairRepo:  pairRepo,
-		tradeRepo: tradeRepo,
-		arkClient: arkClient,
-		indexer:   idx,
-		log:       log,
-	}
-}
-
-// ListTrades returns up to `limit` most recent fulfilled trades, newest first.
-// Passing limit <= 0 uses the repository default.
 func (svc *Service) ListTrades(ctx context.Context, limit int) ([]ports.Trade, error) {
-	if svc.tradeRepo == nil {
-		return nil, nil
-	}
 	return svc.tradeRepo.List(ctx, limit)
 }
 
-// AddPair validates, resolves decimals from the indexer, and adds a new pair.
 func (svc *Service) AddPair(ctx context.Context, pair banco.Pair) error {
 	resolved, err := svc.resolveDecimals(ctx, pair)
 	if err != nil {
@@ -60,7 +26,6 @@ func (svc *Service) AddPair(ctx context.Context, pair banco.Pair) error {
 	return svc.pairRepo.Add(ctx, resolved)
 }
 
-// UpdatePair validates, resolves decimals from the indexer, and updates an existing pair.
 func (svc *Service) UpdatePair(ctx context.Context, pair banco.Pair) error {
 	resolved, err := svc.resolveDecimals(ctx, pair)
 	if err != nil {
@@ -72,7 +37,6 @@ func (svc *Service) UpdatePair(ctx context.Context, pair banco.Pair) error {
 	return svc.pairRepo.Update(ctx, resolved)
 }
 
-// RemovePair removes a trading pair by name.
 func (svc *Service) RemovePair(ctx context.Context, pairName string) error {
 	if pairName == "" {
 		return fmt.Errorf("pair name is required")
@@ -80,13 +44,12 @@ func (svc *Service) RemovePair(ctx context.Context, pairName string) error {
 	return svc.pairRepo.Remove(ctx, pairName)
 }
 
-// ListPairs returns all configured trading pairs.
 func (svc *Service) ListPairs(ctx context.Context) ([]banco.Pair, error) {
 	return svc.pairRepo.List(ctx)
 }
 
 // GetBalance returns the wallet balance from the ark client.
-func (svc *Service) GetBalance(ctx context.Context) (*ports.Balance, error) {
+func (svc *Service) GetBalance(ctx context.Context) (*Balance, error) {
 	bal, err := svc.arkClient.Balance(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get balance: %w", err)
@@ -97,7 +60,7 @@ func (svc *Service) GetBalance(ctx context.Context) (*ports.Balance, error) {
 		lockedAmount += locked.Amount
 	}
 
-	return &ports.Balance{
+	return &Balance{
 		OnchainSpendable: bal.OnchainBalance.SpendableAmount,
 		OnchainLocked:    lockedAmount,
 		OffchainTotal:    bal.OffchainBalance.Total,
@@ -106,7 +69,7 @@ func (svc *Service) GetBalance(ctx context.Context) (*ports.Balance, error) {
 }
 
 // GetAddress returns a new offchain and boarding address from the ark client.
-func (svc *Service) GetAddress(ctx context.Context) (*ports.Address, error) {
+func (svc *Service) GetAddress(ctx context.Context) (*Address, error) {
 	offchain, err := svc.arkClient.NewOffchainAddress(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get offchain address: %w", err)
@@ -117,15 +80,12 @@ func (svc *Service) GetAddress(ctx context.Context) (*ports.Address, error) {
 		return nil, fmt.Errorf("failed to get boarding address: %w", err)
 	}
 
-	return &ports.Address{
+	return &Address{
 		OffchainAddress: offchain,
 		BoardingAddress: boarding,
 	}, nil
 }
 
-// resolveDecimals parses the pair and fills BaseDecimals/QuoteDecimals using
-// the indexer. BTC always resolves to 8; any other side is treated as a hex
-// asset ID and looked up via indexer.GetAsset.
 func (svc *Service) resolveDecimals(ctx context.Context, pair banco.Pair) (banco.Pair, error) {
 	base, quote, ok := splitPair(pair.Pair)
 	if !ok {
@@ -148,7 +108,7 @@ func (svc *Service) resolveDecimals(ctx context.Context, pair banco.Pair) (banco
 
 func (svc *Service) assetDecimals(ctx context.Context, assetID string) (int, error) {
 	if assetID == "BTC" {
-		return btcDecimals, nil
+		return 8, nil
 	}
 	if svc.indexer == nil {
 		return 0, fmt.Errorf("indexer not configured")

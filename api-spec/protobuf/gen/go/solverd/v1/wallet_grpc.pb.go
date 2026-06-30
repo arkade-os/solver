@@ -19,8 +19,12 @@ import (
 const _ = grpc.SupportPackageIsVersion8
 
 const (
-	WalletService_GetBalance_FullMethodName = "/solverd.v1.WalletService/GetBalance"
-	WalletService_GetAddress_FullMethodName = "/solverd.v1.WalletService/GetAddress"
+	WalletService_GetBalance_FullMethodName        = "/solverd.v1.WalletService/GetBalance"
+	WalletService_GetAddress_FullMethodName        = "/solverd.v1.WalletService/GetAddress"
+	WalletService_ListAssets_FullMethodName        = "/solverd.v1.WalletService/ListAssets"
+	WalletService_SendOffchain_FullMethodName      = "/solverd.v1.WalletService/SendOffchain"
+	WalletService_CollaborativeExit_FullMethodName = "/solverd.v1.WalletService/CollaborativeExit"
+	WalletService_Settle_FullMethodName            = "/solverd.v1.WalletService/Settle"
 )
 
 // WalletServiceClient is the client API for WalletService service.
@@ -29,6 +33,18 @@ const (
 type WalletServiceClient interface {
 	GetBalance(ctx context.Context, in *GetBalanceRequest, opts ...grpc.CallOption) (*GetBalanceResponse, error)
 	GetAddress(ctx context.Context, in *GetAddressRequest, opts ...grpc.CallOption) (*GetAddressResponse, error)
+	// ListAssets returns every asset held offchain, enriched with the issuer's
+	// metadata (ticker/name/icon/decimals) resolved from the indexer.
+	ListAssets(ctx context.Context, in *ListAssetsRequest, opts ...grpc.CallOption) (*ListAssetsResponse, error)
+	// SendOffchain sends BTC or an asset to an Ark (offchain) address. Requires
+	// the wallet password.
+	SendOffchain(ctx context.Context, in *SendOffchainRequest, opts ...grpc.CallOption) (*SendOffchainResponse, error)
+	// CollaborativeExit sends BTC offchain funds to an onchain address via a
+	// collaborative batch session. Requires the wallet password.
+	CollaborativeExit(ctx context.Context, in *CollaborativeExitRequest, opts ...grpc.CallOption) (*CollaborativeExitResponse, error)
+	// Settle boards pending boarding UTXOs and pending VTXOs into fresh settled
+	// VTXOs. Requires the wallet password.
+	Settle(ctx context.Context, in *SettleRequest, opts ...grpc.CallOption) (*SettleResponse, error)
 }
 
 type walletServiceClient struct {
@@ -59,12 +75,64 @@ func (c *walletServiceClient) GetAddress(ctx context.Context, in *GetAddressRequ
 	return out, nil
 }
 
+func (c *walletServiceClient) ListAssets(ctx context.Context, in *ListAssetsRequest, opts ...grpc.CallOption) (*ListAssetsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListAssetsResponse)
+	err := c.cc.Invoke(ctx, WalletService_ListAssets_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *walletServiceClient) SendOffchain(ctx context.Context, in *SendOffchainRequest, opts ...grpc.CallOption) (*SendOffchainResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SendOffchainResponse)
+	err := c.cc.Invoke(ctx, WalletService_SendOffchain_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *walletServiceClient) CollaborativeExit(ctx context.Context, in *CollaborativeExitRequest, opts ...grpc.CallOption) (*CollaborativeExitResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CollaborativeExitResponse)
+	err := c.cc.Invoke(ctx, WalletService_CollaborativeExit_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *walletServiceClient) Settle(ctx context.Context, in *SettleRequest, opts ...grpc.CallOption) (*SettleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SettleResponse)
+	err := c.cc.Invoke(ctx, WalletService_Settle_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WalletServiceServer is the server API for WalletService service.
 // All implementations should embed UnimplementedWalletServiceServer
 // for forward compatibility
 type WalletServiceServer interface {
 	GetBalance(context.Context, *GetBalanceRequest) (*GetBalanceResponse, error)
 	GetAddress(context.Context, *GetAddressRequest) (*GetAddressResponse, error)
+	// ListAssets returns every asset held offchain, enriched with the issuer's
+	// metadata (ticker/name/icon/decimals) resolved from the indexer.
+	ListAssets(context.Context, *ListAssetsRequest) (*ListAssetsResponse, error)
+	// SendOffchain sends BTC or an asset to an Ark (offchain) address. Requires
+	// the wallet password.
+	SendOffchain(context.Context, *SendOffchainRequest) (*SendOffchainResponse, error)
+	// CollaborativeExit sends BTC offchain funds to an onchain address via a
+	// collaborative batch session. Requires the wallet password.
+	CollaborativeExit(context.Context, *CollaborativeExitRequest) (*CollaborativeExitResponse, error)
+	// Settle boards pending boarding UTXOs and pending VTXOs into fresh settled
+	// VTXOs. Requires the wallet password.
+	Settle(context.Context, *SettleRequest) (*SettleResponse, error)
 }
 
 // UnimplementedWalletServiceServer should be embedded to have forward compatible implementations.
@@ -76,6 +144,18 @@ func (UnimplementedWalletServiceServer) GetBalance(context.Context, *GetBalanceR
 }
 func (UnimplementedWalletServiceServer) GetAddress(context.Context, *GetAddressRequest) (*GetAddressResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAddress not implemented")
+}
+func (UnimplementedWalletServiceServer) ListAssets(context.Context, *ListAssetsRequest) (*ListAssetsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListAssets not implemented")
+}
+func (UnimplementedWalletServiceServer) SendOffchain(context.Context, *SendOffchainRequest) (*SendOffchainResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendOffchain not implemented")
+}
+func (UnimplementedWalletServiceServer) CollaborativeExit(context.Context, *CollaborativeExitRequest) (*CollaborativeExitResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CollaborativeExit not implemented")
+}
+func (UnimplementedWalletServiceServer) Settle(context.Context, *SettleRequest) (*SettleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Settle not implemented")
 }
 
 // UnsafeWalletServiceServer may be embedded to opt out of forward compatibility for this service.
@@ -125,6 +205,78 @@ func _WalletService_GetAddress_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WalletService_ListAssets_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAssetsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WalletServiceServer).ListAssets(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WalletService_ListAssets_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WalletServiceServer).ListAssets(ctx, req.(*ListAssetsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WalletService_SendOffchain_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SendOffchainRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WalletServiceServer).SendOffchain(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WalletService_SendOffchain_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WalletServiceServer).SendOffchain(ctx, req.(*SendOffchainRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WalletService_CollaborativeExit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CollaborativeExitRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WalletServiceServer).CollaborativeExit(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WalletService_CollaborativeExit_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WalletServiceServer).CollaborativeExit(ctx, req.(*CollaborativeExitRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WalletService_Settle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SettleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WalletServiceServer).Settle(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WalletService_Settle_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WalletServiceServer).Settle(ctx, req.(*SettleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WalletService_ServiceDesc is the grpc.ServiceDesc for WalletService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -139,6 +291,22 @@ var WalletService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetAddress",
 			Handler:    _WalletService_GetAddress_Handler,
+		},
+		{
+			MethodName: "ListAssets",
+			Handler:    _WalletService_ListAssets_Handler,
+		},
+		{
+			MethodName: "SendOffchain",
+			Handler:    _WalletService_SendOffchain_Handler,
+		},
+		{
+			MethodName: "CollaborativeExit",
+			Handler:    _WalletService_CollaborativeExit_Handler,
+		},
+		{
+			MethodName: "Settle",
+			Handler:    _WalletService_Settle_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

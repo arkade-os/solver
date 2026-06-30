@@ -83,7 +83,7 @@ func CreateOffer(
 		return nil, fmt.Errorf("failed to get maker public key: %w", err)
 	}
 
-	cfg, err := arkClient.GetConfigData(ctx)
+	cfg, err := fetchServerConfig(ctx, arkClient.Client())
 	if err != nil {
 		return nil, err
 	}

@@ -280,54 +280,13 @@ p {
   box-shadow: var(--shadow-sm);
 }
 
-.card-hero {
-  padding: 28px;
-  background: linear-gradient(
-    150deg,
-    var(--surface) 0%,
-    rgba(86, 199, 245, 0.04) 100%
-  );
-}
-
-.card-label,
-.hero-label {
+.card-label {
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-}
-.hero-label {
-  margin-bottom: 12px;
-}
-.card-label {
   margin-bottom: 10px;
-}
-
-.hero-value {
-  font-size: 38px;
-  font-weight: 650;
-  letter-spacing: -0.025em;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.1;
-}
-.hero-sub {
-  color: var(--text-muted);
-  margin-top: 8px;
-  font-variant-numeric: tabular-nums;
-}
-
-.card-value {
-  font-size: 24px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
-}
-.card-sub {
-  color: var(--text-muted);
-  margin-top: 5px;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
 }
 
 .card-row {
@@ -362,12 +321,6 @@ p {
   flex: 1;
   min-width: 0;
   justify-content: flex-end;
-}
-
-.grid-2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
 }
 
 /* Callout note */
@@ -463,6 +416,14 @@ tr:hover .row-actions {
   text-overflow: ellipsis;
   white-space: nowrap;
   vertical-align: middle;
+}
+
+/* Addresses are shown in full: fill the row and wrap on any character. */
+.addr {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  word-break: break-all;
 }
 
 .badge {
@@ -1038,7 +999,6 @@ tr:hover .row-actions {
   .content {
     padding: 24px 18px 60px;
   }
-  .grid-2,
   .field-row {
     grid-template-columns: 1fr;
   }
@@ -1061,4 +1021,153 @@ tr:hover .row-actions {
     animation-duration: 0.001ms !important;
     transition-duration: 0.001ms !important;
   }
+}
+
+/* -------- wallet -------- */
+
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn.btn-icon-only {
+  padding: 9px;
+}
+.btn.btn-icon-only .icon {
+  margin: 0;
+}
+
+/* Style <select> like the other field inputs. */
+.field select {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 14px;
+  width: 100%;
+  transition: border-color var(--ease), box-shadow var(--ease);
+}
+.field select:focus {
+  outline: 0;
+  border-color: var(--accent);
+  box-shadow: var(--ring);
+}
+
+/* Asset row: avatar + ticker + truncated id. */
+.asset-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.asset-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  object-fit: cover;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.asset-avatar.gen {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: #fff;
+  background: hsl(var(--h, 210), 55%, 45%);
+}
+.asset-avatar.btc {
+  background: none;
+}
+.asset-avatar.btc svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.asset-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.asset-ticker {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+}
+.asset-id {
+  font-size: 11px;
+  color: var(--text-dim);
+  max-width: 220px;
+}
+
+/* Balances table: primary amount + raw smallest-unit sub-line. */
+.bal-primary {
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.bal-sub {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Expand toggle in front of the avatar; spacer keeps non-expandable rows aligned. */
+.expand-toggle,
+.expand-spacer {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+}
+.expand-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: color var(--ease), transform var(--ease);
+}
+.expand-toggle:hover {
+  color: var(--text);
+}
+.expand-toggle .icon {
+  width: 16px;
+  height: 16px;
+}
+.balance-row.expanded .expand-toggle {
+  transform: rotate(180deg);
+}
+
+/* Expanded detail sub-row: BTC's onchain/pending breakdown. */
+.balance-detail td {
+  padding-top: 0;
+  background: rgba(255, 255, 255, 0.012);
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px 24px;
+  padding: 4px 0 6px 32px;
+}
+.detail-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.detail-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.detail-val {
+  font-size: 13px;
+  color: var(--text);
 }

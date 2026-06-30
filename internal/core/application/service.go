@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
+	"time"
 
 	arkdclient "github.com/arkade-os/arkd/pkg/client-lib"
 	singlekey "github.com/arkade-os/arkd/pkg/client-lib/identity/singlekey"
@@ -15,6 +17,7 @@ import (
 	arksdk "github.com/arkade-os/go-sdk"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/arkade-os/solver/internal/config"
@@ -26,49 +29,22 @@ import (
 	"github.com/arkade-os/solver/pkg/executor/arkdsource"
 )
 
-type Server interface {
-	Start() error
-	Stop()
-}
-
-// Service is the single solverd unit: it both exposes the taker operations
-// (pair CRUD, balances, addresses, trades — see swap_service.go) and owns the
-// daemon runtime that drives the solver against the arkd tx stream (Run).
 type Service struct {
-	// service-layer dependencies (set by NewService)
 	pairRepo  ports.PairRepository
 	tradeRepo ports.TradeRepository
 	arkClient arksdk.Wallet
 	indexer   indexer.Indexer
-	log       logrus.FieldLogger
 
-	// runtime dependencies (set by New, used by Run)
+	log 				 *logrus.Logger
 	cfg          *config.Config
 	plugin       executor.Plugin
 	db           *sql.DB
 	emulatorConn *grpc.ClientConn
 }
 
-type options struct {
-	bancoPriceFeed banco.PriceFeed
-}
-
-// Option customizes the solverd runtime wiring.
-type Option func(*options)
-
-// WithBancoPriceFeed overrides banco's default production price feed.
-func WithBancoPriceFeed(feed banco.PriceFeed) Option {
-	return func(o *options) {
-		o.bancoPriceFeed = feed
-	}
-}
-
 // New wires a Service from config and an unlocked wallet: it opens the
-// database, builds the banco plugin, and connects to the emulator. The
-// returned Service is ready to serve taker operations and to Run. Run takes
-// ownership of the resources opened here (database + emulator connection) and
-// closes them on exit.
-func New(cfg *config.Config, log *logrus.Logger, wallet arksdk.Wallet, opts ...Option) (*Service, error) {
+// database, builds the banco plugin, and connects to the emulator.
+func New(cfg *config.Config, wallet arksdk.Wallet) (*Service, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config must not be nil")
 	}
@@ -76,23 +52,17 @@ func New(cfg *config.Config, log *logrus.Logger, wallet arksdk.Wallet, opts ...O
 		return nil, fmt.Errorf("wallet must not be nil")
 	}
 
-	if log == nil {
-		log = logrus.StandardLogger()
-	}
+	log := logrus.StandardLogger()
 	log.SetLevel(logrus.Level(cfg.LogLevel))
-
-	var runtimeOpts options
-	for _, opt := range opts {
-		opt(&runtimeOpts)
-	}
 
 	if err := os.MkdirAll(cfg.Datadir, 0750); err != nil {
 		return nil, fmt.Errorf("failed to create datadir: %w", err)
 	}
 
+	emulatorAddr, emulatorCreds := dialTarget(cfg.EmulatorURL)
 	emulatorConn, err := grpc.NewClient(
-		cfg.EmulatorURL,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		emulatorAddr,
+		grpc.WithTransportCredentials(emulatorCreds),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to emulator: %w", err)
@@ -109,54 +79,49 @@ func New(cfg *config.Config, log *logrus.Logger, wallet arksdk.Wallet, opts ...O
 	pairRepo := sqlitedb.NewPairRepository(db)
 	tradeRepo := sqlitedb.NewTradeRepository(db)
 
-	feed := runtimeOpts.bancoPriceFeed
-	if feed == nil {
-		feed = pricefeed.NewCoinGecko()
-	}
+	feed := pricefeed.NewCoinGecko()
 
 	plugin := banco.NewPlugin(banco.Config{
 		SolverClient:    wallet,
 		Emulator:        emulator,
 		PairsRepository: pairRepo,
 		PriceFeed:       feed,
-		Listener:        NewTradeListener(tradeRepo, log),
+		Listener:        &tradeListener{tradeRepo},
 		Log:             log,
 	})
 
-	svc := NewService(pairRepo, tradeRepo, wallet, wallet.Indexer(), log)
-	svc.cfg = cfg
-	svc.plugin = plugin
-	svc.db = db
-	svc.emulatorConn = emulatorConn
+	svc := &Service{
+		pairRepo:     pairRepo,
+		tradeRepo:    tradeRepo,
+		arkClient:    wallet,
+		indexer:      wallet.Indexer(),
+		log:          log,
+		cfg:          cfg,
+		plugin:       plugin,
+		db:           db,
+		emulatorConn: emulatorConn,
+	}
 
 	log.Info("banco plugin enabled")
 	return svc, nil
 }
 
-// Run starts the optional API server and drives the solver against the arkd
-// tx stream until ctx is canceled or the solver exits unexpectedly. It closes
-// the resources opened by New before returning.
-func (s *Service) Run(ctx context.Context, server Server) error {
+
+
+// Close releases the resources opened by New (database + emulator connection).
+func (s *Service) Close() {
 	if s.db != nil {
 		// nolint:errcheck
-		defer s.db.Close()
+		s.db.Close()
 	}
 	if s.emulatorConn != nil {
 		// nolint:errcheck
-		defer s.emulatorConn.Close()
+		s.emulatorConn.Close()
 	}
+}
 
-	if s.plugin == nil {
-		return fmt.Errorf("no plugin configured")
-	}
-
-	if server != nil {
-		if err := server.Start(); err != nil {
-			return fmt.Errorf("failed to start server: %w", err)
-		}
-		defer server.Stop()
-	}
-
+// Run drives the solver against the arkd tx stream until ctx is canceled 
+func (s *Service) Run(ctx context.Context) error {
 	runtimeCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -180,7 +145,7 @@ func (s *Service) Run(ctx context.Context, server Server) error {
 	return nil
 }
 
-// SetupWallet loads or initializes and unlocks the solverd wallet.
+// SetupWallet loads or initializes the solverd wallet.
 func SetupWallet(ctx context.Context, cfg *config.Config, extraOpts ...arksdk.WalletOption) (arksdk.Wallet, error) {
 	identityStore, err := singlekeyfilestore.NewStore(cfg.Datadir)
 	if err != nil {
@@ -194,9 +159,6 @@ func SetupWallet(ctx context.Context, cfg *config.Config, extraOpts ...arksdk.Wa
 	walletOpts := append([]arksdk.WalletOption{arksdk.WithIdentity(singleKeyIdentity)}, extraOpts...)
 	arkClient, err := arksdk.LoadWallet(cfg.Datadir, walletOpts...)
 	if err != nil {
-		// Fresh datadir surfaces as either go-sdk's or client-lib's
-		// ErrNotInitialized depending on which layer first noticed the
-		// missing config — both are valid "no wallet yet" signals.
 		if !errors.Is(err, arksdk.ErrNotInitialized) &&
 			!errors.Is(err, arkdclient.ErrNotInitialized) {
 			return nil, fmt.Errorf("load ark client: %w", err)
@@ -219,4 +181,44 @@ func SetupWallet(ctx context.Context, cfg *config.Config, extraOpts ...arksdk.Wa
 	}
 
 	return arkClient, nil
+}
+
+func dialTarget(serverURL string) (string, credentials.TransportCredentials) {
+	creds := credentials.TransportCredentials(insecure.NewCredentials())
+	port := 80
+
+	serverURL = strings.TrimPrefix(serverURL, "http://")
+	if rest, ok := strings.CutPrefix(serverURL, "https://"); ok {
+		serverURL = rest
+		creds = credentials.NewTLS(nil)
+		port = 443
+	}
+	if !strings.Contains(serverURL, ":") {
+		serverURL = fmt.Sprintf("%s:%d", serverURL, port)
+	}
+
+	return serverURL, creds
+}
+
+type tradeListener struct {
+	repo ports.TradeRepository
+}
+
+func (l *tradeListener) OnFulfill(_ context.Context, evt banco.FulfillmentEvent) {
+	trade := ports.Trade{
+		Pair:          evt.Pair,
+		DepositAsset:  evt.DepositAsset,
+		DepositAmount: evt.DepositAmount,
+		WantAsset:     evt.WantAsset,
+		WantAmount:    evt.WantAmount,
+		OfferTxid:     evt.OfferTxid,
+		FulfillTxid:   evt.FulfillTxid,
+		CreatedAt:     evt.Timestamp,
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30 * time.Second)
+	defer cancel()
+	if err := l.repo.Add(ctx, trade); err != nil {
+		logrus.WithError(err).WithField("fulfillTxid", evt.FulfillTxid).
+			Error("failed to persist trade")
+	}
 }

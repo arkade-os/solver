@@ -40,7 +40,7 @@ func FulfillOffer(
 	arkClient arksdk.Wallet,
 	emulatorClient emulatorclient.TransportClient,
 ) (*FulfillResult, error) {
-	cfg, err := arkClient.GetConfigData(ctx)
+	cfg, err := fetchServerConfig(ctx, arkClient.Client())
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +81,7 @@ func FulfillOffer(
 	}
 	swapVtxo := vtxosResp.Vtxos[0]
 
-	spendableVtxos, err := arkClient.ListSpendableVtxos(ctx)
+	spendableVtxos, _, err := arkClient.ListVtxos(ctx, arksdk.WithSpendableOnly())
 	if err != nil {
 		return nil, fmt.Errorf("failed to list taker vtxos: %w", err)
 	}

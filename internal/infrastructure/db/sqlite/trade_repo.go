@@ -9,17 +9,14 @@ import (
 	"github.com/arkade-os/solver/internal/infrastructure/db/sqlite/sqlc"
 )
 
-// TradeRepository implements ports.TradeRepository backed by SQLite.
 type TradeRepository struct {
 	queries *sqlc.Queries
 }
 
-// NewTradeRepository creates a new SQLite-backed TradeRepository.
 func NewTradeRepository(db *sql.DB) *TradeRepository {
 	return &TradeRepository{queries: sqlc.New(db)}
 }
 
-// Add inserts a new trade record.
 func (r *TradeRepository) Add(ctx context.Context, t ports.Trade) error {
 	return r.queries.InsertTrade(ctx, sqlc.InsertTradeParams{
 		Pair:          t.Pair,
@@ -33,7 +30,6 @@ func (r *TradeRepository) Add(ctx context.Context, t ports.Trade) error {
 	})
 }
 
-// List returns up to `limit` most recent trades, newest first.
 func (r *TradeRepository) List(ctx context.Context, limit int) ([]ports.Trade, error) {
 	if limit <= 0 {
 		limit = 100

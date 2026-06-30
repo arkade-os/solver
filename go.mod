@@ -1,13 +1,13 @@
 module github.com/arkade-os/solver
 
-go 1.26.3
+go 1.26.4
 
 require (
-	github.com/arkade-os/arkd/pkg/ark-lib v0.8.1-0.20260429091057-9246f043c4c8
-	github.com/arkade-os/arkd/pkg/client-lib v0.0.0-20260514151440-4ecc7753e264
+	github.com/arkade-os/arkd/pkg/ark-lib v0.8.1-0.20260615144548-11cf2ba852c5
+	github.com/arkade-os/arkd/pkg/client-lib v0.0.0-20260526145029-4473e23cd6bf
 	github.com/arkade-os/emulator/pkg/arkade v0.0.0-20260526192649-eac4fbc07c4c
 	github.com/arkade-os/emulator/pkg/client v0.0.0-20260526192649-eac4fbc07c4c
-	github.com/arkade-os/go-sdk v0.9.2-0.20260518112312-588477f9d618
+	github.com/arkade-os/go-sdk v0.10.1-0.20260617145607-4a211d0aad03
 	github.com/btcsuite/btcd v0.24.3-0.20250318170759-4f4ea81776d6
 	github.com/btcsuite/btcd/btcec/v2 v2.3.6
 	github.com/btcsuite/btcd/btcutil/psbt v1.1.9
@@ -29,8 +29,8 @@ require (
 	cel.dev/expr v0.25.1 // indirect
 	github.com/aead/siphash v1.0.1 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
-	github.com/arkade-os/arkd/api-spec v0.0.0-20260420150126-77b6c3aba563 // indirect
-	github.com/arkade-os/arkd/pkg/errors v0.0.0-20260420150126-77b6c3aba563 // indirect
+	github.com/arkade-os/arkd/api-spec v0.0.0-20260615144548-11cf2ba852c5 // indirect
+	github.com/arkade-os/arkd/pkg/errors v0.0.0-20260615144548-11cf2ba852c5 // indirect
 	github.com/arkade-os/emulator/api-spec v0.0.0-20260526192649-eac4fbc07c4c // indirect
 	github.com/bits-and-blooms/bitset v1.20.0 // indirect
 	github.com/btcsuite/btcd/btcutil v1.1.6 // indirect
