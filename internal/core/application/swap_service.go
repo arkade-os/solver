@@ -10,31 +10,36 @@ import (
 	"github.com/arkade-os/solver/pkg/banco"
 )
 
-
 func (svc *Service) ListTrades(ctx context.Context, limit int) ([]ports.Trade, error) {
 	return svc.tradeRepo.List(ctx, limit)
 }
 
-func (svc *Service) AddPair(ctx context.Context, pair banco.Pair) error {
+func (svc *Service) AddPair(ctx context.Context, pair banco.Pair) (banco.Pair, error) {
 	resolved, err := svc.resolveDecimals(ctx, pair)
 	if err != nil {
-		return err
+		return banco.Pair{}, err
 	}
 	if err := validatePair(resolved); err != nil {
-		return fmt.Errorf("invalid pair: %w", err)
+		return banco.Pair{}, fmt.Errorf("invalid pair: %w", err)
 	}
-	return svc.pairRepo.Add(ctx, resolved)
+	if err := svc.pairRepo.Add(ctx, resolved); err != nil {
+		return banco.Pair{}, err
+	}
+	return resolved, nil
 }
 
-func (svc *Service) UpdatePair(ctx context.Context, pair banco.Pair) error {
+func (svc *Service) UpdatePair(ctx context.Context, pair banco.Pair) (banco.Pair, error) {
 	resolved, err := svc.resolveDecimals(ctx, pair)
 	if err != nil {
-		return err
+		return banco.Pair{}, err
 	}
 	if err := validatePair(resolved); err != nil {
-		return fmt.Errorf("invalid pair: %w", err)
+		return banco.Pair{}, fmt.Errorf("invalid pair: %w", err)
 	}
-	return svc.pairRepo.Update(ctx, resolved)
+	if err := svc.pairRepo.Update(ctx, resolved); err != nil {
+		return banco.Pair{}, err
+	}
+	return resolved, nil
 }
 
 func (svc *Service) RemovePair(ctx context.Context, pairName string) error {
@@ -162,6 +167,9 @@ func validatePair(pair banco.Pair) error {
 	}
 	if pair.PriceFeed == "" {
 		return fmt.Errorf("price_feed is required")
+	}
+	if pair.SlippageBps > 5000 {
+		return fmt.Errorf("slippage_bps must be at most 5000 (50%%)")
 	}
 	return nil
 }

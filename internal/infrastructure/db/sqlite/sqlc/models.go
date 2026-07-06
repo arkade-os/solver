@@ -12,6 +12,7 @@ type BancoPair struct {
 	QuoteDecimals int64
 	PriceFeed     string
 	InvertPrice   int64
+	SlippageBps   int64
 }
 
 type Trade struct {

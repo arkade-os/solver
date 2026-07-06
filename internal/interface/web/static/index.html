@@ -59,14 +59,15 @@
                   <th>Min</th>
                   <th>Max</th>
                   <th>Price feed</th>
+                  <th>Slippage</th>
                   <th>Invert</th>
                   <th class="actions-col"></th>
                 </tr>
               </thead>
               <tbody id="pairs-body">
-                <tr class="skeleton-row"><td colspan="6"><div class="skeleton"></div></td></tr>
-                <tr class="skeleton-row"><td colspan="6"><div class="skeleton"></div></td></tr>
-                <tr class="skeleton-row"><td colspan="6"><div class="skeleton"></div></td></tr>
+                <tr class="skeleton-row"><td colspan="7"><div class="skeleton"></div></td></tr>
+                <tr class="skeleton-row"><td colspan="7"><div class="skeleton"></div></td></tr>
+                <tr class="skeleton-row"><td colspan="7"><div class="skeleton"></div></td></tr>
               </tbody>
             </table>
           </div>
@@ -259,7 +260,17 @@
             <label class="field">
               <span>Price feed URL</span>
               <input name="price_feed" type="url" placeholder="https://api.example.com/price" required />
-              <small class="muted">The solver polls this URL for the reference price and fulfills offers within 1%.</small>
+              <small class="muted" id="feed-hint">The solver polls this URL for the reference price and fulfills offers within 1%.</small>
+            </label>
+
+            <label class="field">
+              <span>Slippage</span>
+              <div class="input-suffix">
+                <input name="slippage_bps" type="number" min="1" max="5000" step="1"
+                  inputmode="numeric" placeholder="100" />
+                <span class="suffix">bps</span>
+              </div>
+              <small class="muted">Max deviation from the feed price, in basis points. Leave empty for the default of 100 bps (1%).</small>
             </label>
 
             <label class="switch-row">

@@ -33,9 +33,9 @@ var (
 )
 
 const (
-	defaultGRPCPort = 7170
-	defaultHTTPPort = 7171
-	defaultLogLevel = 4 // logrus.InfoLevel 
+	defaultGRPCPort    = 7170
+	defaultHTTPPort    = 7171
+	defaultLogLevel    = 4 // logrus.InfoLevel
 	defaultDatadirName = ".solverd"
 )
 

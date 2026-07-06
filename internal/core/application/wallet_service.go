@@ -115,7 +115,6 @@ func (svc *Service) Settle(ctx context.Context, password string) (string, error)
 	return txid, nil
 }
 
-
 func (svc *Service) verifyPassword(password string) error {
 	if svc.cfg == nil {
 		return fmt.Errorf("password verification unavailable")
@@ -126,7 +125,6 @@ func (svc *Service) verifyPassword(password string) error {
 	}
 	return nil
 }
-
 
 func isBTC(assetID string) bool {
 	return assetID == "" || assetID == "BTC"

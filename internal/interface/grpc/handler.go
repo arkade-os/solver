@@ -14,8 +14,8 @@ import (
 )
 
 type BancoService interface {
-	AddPair(ctx context.Context, pair banco.Pair) error
-	UpdatePair(ctx context.Context, pair banco.Pair) error
+	AddPair(ctx context.Context, pair banco.Pair) (banco.Pair, error)
+	UpdatePair(ctx context.Context, pair banco.Pair) (banco.Pair, error)
 	RemovePair(ctx context.Context, pairName string) error
 	ListPairs(ctx context.Context) ([]banco.Pair, error)
 	ListTrades(ctx context.Context, limit int) ([]ports.Trade, error)
@@ -45,10 +45,11 @@ func (h *handler) AddPair(
 	}
 
 	pair := protoToDomain(req.Pair)
-	if err := h.svc.AddPair(ctx, pair); err != nil {
+	stored, err := h.svc.AddPair(ctx, pair)
+	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "%s", err)
 	}
-	return &bancov1.AddPairResponse{}, nil
+	return &bancov1.AddPairResponse{Pair: domainToProto(stored)}, nil
 }
 
 func (h *handler) UpdatePair(
@@ -59,13 +60,14 @@ func (h *handler) UpdatePair(
 	}
 
 	pair := protoToDomain(req.Pair)
-	if err := h.svc.UpdatePair(ctx, pair); err != nil {
+	stored, err := h.svc.UpdatePair(ctx, pair)
+	if err != nil {
 		if errors.Is(err, ports.ErrPairNotFound) {
 			return nil, status.Errorf(codes.NotFound, "%s", err)
 		}
 		return nil, status.Errorf(codes.InvalidArgument, "%s", err)
 	}
-	return &bancov1.UpdatePairResponse{}, nil
+	return &bancov1.UpdatePairResponse{Pair: domainToProto(stored)}, nil
 }
 
 func (h *handler) RemovePair(
@@ -219,15 +221,19 @@ func protoToDomain(p *bancov1.PairInfo) banco.Pair {
 		MaxAmount:   p.MaxAmount,
 		PriceFeed:   p.PriceFeed,
 		InvertPrice: p.InvertPrice,
+		SlippageBps: p.SlippageBps,
 	}
 }
 
 func domainToProto(p banco.Pair) *bancov1.PairInfo {
 	return &bancov1.PairInfo{
-		Pair:        p.Pair,
-		MinAmount:   p.MinAmount,
-		MaxAmount:   p.MaxAmount,
-		PriceFeed:   p.PriceFeed,
-		InvertPrice: p.InvertPrice,
+		Pair:          p.Pair,
+		MinAmount:     p.MinAmount,
+		MaxAmount:     p.MaxAmount,
+		PriceFeed:     p.PriceFeed,
+		InvertPrice:   p.InvertPrice,
+		SlippageBps:   p.SlippageBps,
+		BaseDecimals:  int32(p.BaseDecimals),  //nolint:gosec
+		QuoteDecimals: int32(p.QuoteDecimals), //nolint:gosec
 	}
 }

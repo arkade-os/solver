@@ -247,6 +247,7 @@ function renderPairs(pairs) {
       <td><a href="${escapeAttr(safeHref(p.price_feed))}" target="_blank" rel="noreferrer noopener" class="mono trunc" title="${escapeAttr(
         p.price_feed
       )}">${escapeHTML(p.price_feed)}</a></td>
+      <td class="num">${escapeHTML(fmtSlippage(p.slippage_bps))}</td>
       <td>${
         p.invert_price
           ? '<span class="badge on">Yes</span>'
@@ -272,6 +273,13 @@ function pairBase(name) {
   if (!name) return "";
   const i = name.indexOf("/");
   return i < 0 ? name : name.slice(0, i);
+}
+
+// fmtSlippage renders basis points as a percentage; 0/unset means the server
+// default of 100 bps.
+function fmtSlippage(bps) {
+  const n = Number(bps) || 100;
+  return `${n / 100}%`;
 }
 
 // -------- pair dialog --------
@@ -318,6 +326,11 @@ function updateForm() {
 
   // invert hint references the actual sides.
   $("#invert-hint").textContent = `Offers are priced as ${baseDisp} per ${quoteDisp}. Enable if your feed returns ${quoteDisp} per ${baseDisp} instead.`;
+
+  // feed hint reflects the configured slippage.
+  $("#feed-hint").textContent = `The solver polls this URL for the reference price and fulfills offers within ${fmtSlippage(
+    form.elements.slippage_bps.value
+  )}.`;
 
   // live preview.
   const baseStr = base || "?";
@@ -385,6 +398,7 @@ function openEdit(pair) {
   form.elements.max_amount.value = pair.max_amount;
   form.elements.price_feed.value = pair.price_feed;
   form.elements.invert_price.checked = !!pair.invert_price;
+  form.elements.slippage_bps.value = pair.slippage_bps || "";
   setAssetsLocked(true); // identity can't change on edit
   clearFormErrors();
   $("#dialog-title").textContent = "Edit trading pair";
@@ -447,6 +461,7 @@ form.addEventListener("submit", async (e) => {
     max_amount: max,
     price_feed: String(form.elements.price_feed.value).trim(),
     invert_price: form.elements.invert_price.checked,
+    slippage_bps: Number(form.elements.slippage_bps.value) || 0,
   };
   const mode = form.dataset.mode;
   const submit = $("#pair-submit");

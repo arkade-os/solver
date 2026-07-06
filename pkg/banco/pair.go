@@ -17,6 +17,18 @@ type Pair struct {
 	QuoteDecimals int    `json:"quoteDecimals"` // decimal precision of the quote asset
 	PriceFeed     string `json:"priceFeed"`     // price API URL
 	InvertPrice   bool   `json:"invertPrice"`   // if true, use 1/feedPrice for comparison
+	SlippageBps   uint32 `json:"slippageBps"`   // max price deviation in basis points; 0 = DefaultSlippageBps
+}
+
+// DefaultSlippageBps is the price tolerance applied when a pair doesn't set one.
+const DefaultSlippageBps uint32 = 100
+
+// EffectiveSlippageBps returns the pair's slippage, falling back to the default.
+func (p Pair) EffectiveSlippageBps() uint32 {
+	if p.SlippageBps == 0 {
+		return DefaultSlippageBps
+	}
+	return p.SlippageBps
 }
 
 // Base returns the base asset of the pair (e.g. "BTC" from "BTC/USDT").

@@ -1,0 +1,1 @@
+ALTER TABLE banco_pair ADD COLUMN slippage_bps INTEGER NOT NULL DEFAULT 0;

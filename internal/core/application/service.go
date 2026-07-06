@@ -35,7 +35,7 @@ type Service struct {
 	arkClient arksdk.Wallet
 	indexer   indexer.Indexer
 
-	log 				 *logrus.Logger
+	log          *logrus.Logger
 	cfg          *config.Config
 	plugin       executor.Plugin
 	db           *sql.DB
@@ -106,8 +106,6 @@ func New(cfg *config.Config, wallet arksdk.Wallet) (*Service, error) {
 	return svc, nil
 }
 
-
-
 // Close releases the resources opened by New (database + emulator connection).
 func (s *Service) Close() {
 	if s.db != nil {
@@ -120,7 +118,7 @@ func (s *Service) Close() {
 	}
 }
 
-// Run drives the solver against the arkd tx stream until ctx is canceled 
+// Run drives the solver against the arkd tx stream until ctx is canceled
 func (s *Service) Run(ctx context.Context) error {
 	runtimeCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -215,7 +213,7 @@ func (l *tradeListener) OnFulfill(_ context.Context, evt banco.FulfillmentEvent)
 		FulfillTxid:   evt.FulfillTxid,
 		CreatedAt:     evt.Timestamp,
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30 * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	if err := l.repo.Add(ctx, trade); err != nil {
 		logrus.WithError(err).WithField("fulfillTxid", evt.FulfillTxid).

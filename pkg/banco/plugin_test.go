@@ -16,49 +16,74 @@ import (
 
 func TestValidatePrice(t *testing.T) {
 	tests := []struct {
-		name       string
-		offerPrice float64
-		feedPrice  float64
-		want       bool
+		name        string
+		offerPrice  float64
+		feedPrice   float64
+		slippageBps uint32
+		want        bool
 	}{
 		{
-			name:       "exact match within 1% margin",
-			offerPrice: 100.0,
-			feedPrice:  100.0,
-			want:       true,
+			name:        "exact match within 1% margin",
+			offerPrice:  100.0,
+			feedPrice:   100.0,
+			slippageBps: 100,
+			want:        true,
 		},
 		{
-			name:       "at lower bound (99% of feed)",
-			offerPrice: 99.0,
-			feedPrice:  100.0,
-			want:       true,
+			name:        "at lower bound (99% of feed)",
+			offerPrice:  99.0,
+			feedPrice:   100.0,
+			slippageBps: 100,
+			want:        true,
 		},
 		{
-			name:       "at upper bound (101% of feed)",
-			offerPrice: 101.0,
-			feedPrice:  100.0,
-			want:       true,
+			name:        "at upper bound (101% of feed)",
+			offerPrice:  101.0,
+			feedPrice:   100.0,
+			slippageBps: 100,
+			want:        true,
 		},
 		{
-			name:       "below lower bound",
-			offerPrice: 98.9,
-			feedPrice:  100.0,
-			want:       false,
+			name:        "below lower bound",
+			offerPrice:  98.9,
+			feedPrice:   100.0,
+			slippageBps: 100,
+			want:        false,
 		},
 		{
-			name:       "above upper bound",
-			offerPrice: 101.1,
-			feedPrice:  100.0,
-			want:       false,
+			name:        "above upper bound",
+			offerPrice:  101.1,
+			feedPrice:   100.0,
+			slippageBps: 100,
+			want:        false,
+		},
+		{
+			name:        "wider slippage accepts larger deviation",
+			offerPrice:  95.0,
+			feedPrice:   100.0,
+			slippageBps: 500,
+			want:        true,
+		},
+		{
+			name:        "tighter slippage rejects deviation 1% would allow",
+			offerPrice:  99.5,
+			feedPrice:   100.0,
+			slippageBps: 10,
+			want:        false,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := validatePrice(tc.offerPrice, tc.feedPrice)
+			got := validatePrice(tc.offerPrice, tc.feedPrice, tc.slippageBps)
 			assert.Equal(t, tc.want, got)
 		})
 	}
+}
+
+func TestEffectiveSlippageBps(t *testing.T) {
+	assert.Equal(t, uint32(100), Pair{}.EffectiveSlippageBps())
+	assert.Equal(t, uint32(250), Pair{SlippageBps: 250}.EffectiveSlippageBps())
 }
 
 // ---------------------------------------------------------------------------

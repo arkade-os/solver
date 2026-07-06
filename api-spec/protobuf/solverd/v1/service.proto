@@ -27,16 +27,22 @@ service BancoService {
 
 message PairInfo {
   string pair = 1;
+  // Min/max want amount, expressed in the quote asset's base units.
   uint64 min_amount = 2;
   uint64 max_amount = 3;
-  string price_feed = 6;
-  bool invert_price = 7;
+  string price_feed = 4;
+  bool invert_price = 5;
+  // Max price deviation from the feed, in basis points (100 = 1%).
+  // 0 means the server default of 100 bps.
+  uint32 slippage_bps = 6;
+  int32 base_decimals = 7;
+  int32 quote_decimals = 8;
 }
 
 message AddPairRequest { PairInfo pair = 1; }
-message AddPairResponse {}
+message AddPairResponse { PairInfo pair = 1; }
 message UpdatePairRequest { PairInfo pair = 1; }
-message UpdatePairResponse {}
+message UpdatePairResponse { PairInfo pair = 1; }
 message RemovePairRequest { string pair = 1; }
 message RemovePairResponse {}
 message ListPairsRequest {}

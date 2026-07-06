@@ -19,8 +19,8 @@ func (q *Queries) DeletePair(ctx context.Context, pair string) error {
 }
 
 const insertPair = `-- name: InsertPair :exec
-INSERT INTO banco_pair (pair, min_amount, max_amount, base_decimals, quote_decimals, price_feed, invert_price)
-VALUES (?, ?, ?, ?, ?, ?, ?)
+INSERT INTO banco_pair (pair, min_amount, max_amount, base_decimals, quote_decimals, price_feed, invert_price, slippage_bps)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type InsertPairParams struct {
@@ -31,6 +31,7 @@ type InsertPairParams struct {
 	QuoteDecimals int64
 	PriceFeed     string
 	InvertPrice   int64
+	SlippageBps   int64
 }
 
 func (q *Queries) InsertPair(ctx context.Context, arg InsertPairParams) error {
@@ -42,6 +43,7 @@ func (q *Queries) InsertPair(ctx context.Context, arg InsertPairParams) error {
 		arg.QuoteDecimals,
 		arg.PriceFeed,
 		arg.InvertPrice,
+		arg.SlippageBps,
 	)
 	return err
 }
@@ -77,7 +79,7 @@ func (q *Queries) InsertTrade(ctx context.Context, arg InsertTradeParams) error 
 }
 
 const listPairs = `-- name: ListPairs :many
-SELECT pair, min_amount, max_amount, base_decimals, quote_decimals, price_feed, invert_price FROM banco_pair
+SELECT pair, min_amount, max_amount, base_decimals, quote_decimals, price_feed, invert_price, slippage_bps FROM banco_pair
 `
 
 func (q *Queries) ListPairs(ctx context.Context) ([]BancoPair, error) {
@@ -97,6 +99,7 @@ func (q *Queries) ListPairs(ctx context.Context) ([]BancoPair, error) {
 			&i.QuoteDecimals,
 			&i.PriceFeed,
 			&i.InvertPrice,
+			&i.SlippageBps,
 		); err != nil {
 			return nil, err
 		}
@@ -150,7 +153,7 @@ func (q *Queries) ListTrades(ctx context.Context, limit int64) ([]Trade, error) 
 
 const updatePair = `-- name: UpdatePair :execrows
 UPDATE banco_pair
-SET min_amount = ?, max_amount = ?, base_decimals = ?, quote_decimals = ?, price_feed = ?, invert_price = ?
+SET min_amount = ?, max_amount = ?, base_decimals = ?, quote_decimals = ?, price_feed = ?, invert_price = ?, slippage_bps = ?
 WHERE pair = ?
 `
 
@@ -161,6 +164,7 @@ type UpdatePairParams struct {
 	QuoteDecimals int64
 	PriceFeed     string
 	InvertPrice   int64
+	SlippageBps   int64
 	Pair          string
 }
 
@@ -172,6 +176,7 @@ func (q *Queries) UpdatePair(ctx context.Context, arg UpdatePairParams) (int64, 
 		arg.QuoteDecimals,
 		arg.PriceFeed,
 		arg.InvertPrice,
+		arg.SlippageBps,
 		arg.Pair,
 	)
 	if err != nil {
