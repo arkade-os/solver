@@ -47,6 +47,9 @@ func (h *handler) AddPair(
 	pair := protoToDomain(req.Pair)
 	stored, err := h.svc.AddPair(ctx, pair)
 	if err != nil {
+		if errors.Is(err, ports.ErrPairExists) {
+			return nil, status.Errorf(codes.AlreadyExists, "%s", err)
+		}
 		return nil, status.Errorf(codes.InvalidArgument, "%s", err)
 	}
 	return &bancov1.AddPairResponse{Pair: domainToProto(stored)}, nil

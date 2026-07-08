@@ -7,7 +7,10 @@ import (
 	"github.com/arkade-os/solver/pkg/banco"
 )
 
-var ErrPairNotFound = errors.New("pair not found")
+var (
+	ErrPairNotFound = errors.New("pair not found")
+	ErrPairExists   = errors.New("pair already exists")
+)
 
 // PairRepository extends banco.PairRepository with CRUD operations
 type PairRepository interface {

@@ -3,10 +3,12 @@ package sqlitedb
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	"github.com/arkade-os/solver/internal/core/ports"
 	"github.com/arkade-os/solver/internal/infrastructure/db/sqlite/sqlc"
 	"github.com/arkade-os/solver/pkg/banco"
+	"modernc.org/sqlite"
 )
 
 type PairRepository struct {
@@ -22,7 +24,7 @@ func NewPairRepository(db *sql.DB) *PairRepository {
 func (r *PairRepository) List(ctx context.Context) ([]banco.Pair, error) {
 	rows, err := r.queries.ListPairs(ctx)
 	if err != nil {
-		return nil, err
+		return nil, translateErr(err)
 	}
 
 	pairs := make([]banco.Pair, 0, len(rows))
@@ -33,7 +35,7 @@ func (r *PairRepository) List(ctx context.Context) ([]banco.Pair, error) {
 }
 
 func (r *PairRepository) Add(ctx context.Context, pair banco.Pair) error {
-	return r.queries.InsertPair(ctx, sqlc.InsertPairParams{
+	return translateErr(r.queries.InsertPair(ctx, sqlc.InsertPairParams{
 		Pair:          pair.Pair,
 		MinAmount:     int64(pair.MinAmount),
 		MaxAmount:     int64(pair.MaxAmount),
@@ -42,7 +44,7 @@ func (r *PairRepository) Add(ctx context.Context, pair banco.Pair) error {
 		PriceFeed:     pair.PriceFeed,
 		InvertPrice:   boolToInt(pair.InvertPrice),
 		SlippageBps:   int64(pair.SlippageBps),
-	})
+	}))
 }
 
 func (r *PairRepository) Update(ctx context.Context, pair banco.Pair) error {
@@ -57,7 +59,7 @@ func (r *PairRepository) Update(ctx context.Context, pair banco.Pair) error {
 		SlippageBps:   int64(pair.SlippageBps),
 	})
 	if err != nil {
-		return err
+		return translateErr(err)
 	}
 	if rows == 0 {
 		return ports.ErrPairNotFound
@@ -66,7 +68,7 @@ func (r *PairRepository) Update(ctx context.Context, pair banco.Pair) error {
 }
 
 func (r *PairRepository) Remove(ctx context.Context, pairName string) error {
-	return r.queries.DeletePair(ctx, pairName)
+	return translateErr(r.queries.DeletePair(ctx, pairName))
 }
 
 func toDomainPair(row sqlc.BancoPair) banco.Pair {
@@ -87,4 +89,20 @@ func boolToInt(b bool) int64 {
 		return 1
 	}
 	return 0
+}
+
+// translateErr keeps raw sqlite driver messages from leaking to API clients:
+// a unique/primary-key violation becomes ErrPairExists, any other driver error
+// becomes a generic message.
+func translateErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	if se, ok := errors.AsType[*sqlite.Error](err); ok {
+		if se.Code()&0xff == 19 { // SQLITE_CONSTRAINT
+			return ports.ErrPairExists
+		}
+		return errors.New("database error")
+	}
+	return err
 }
