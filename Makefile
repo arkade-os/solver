@@ -7,12 +7,14 @@ GOLANGCI_LINT ?= $(shell \
 	echo "docker run --rm -v $$(pwd):/app -w /app golangci/golangci-lint:v2.9.0 golangci-lint"; \
 )
 
-## build: build solverd and solver binaries
+## build: build solverd, solver and banco binaries
 build:
 	@echo "Building solverd..."
 	@go build -o solverd ./cmd/solverd/
 	@echo "Building solver CLI..."
 	@go build -o solver ./cmd/solver/
+	@echo "Building banco CLI..."
+	@go build -o banco ./cmd/banco/
 
 ## run: build and run solverd locally against the fulmine test stack (arkd@7070, emulator@7273)
 run: build
@@ -66,7 +68,7 @@ docker:
 clean:
 	@echo "Cleaning..."
 	@go clean
-	@rm -f solverd solver
+	@rm -f solverd solver banco
 
 ## cov: generates coverage report
 cov:
