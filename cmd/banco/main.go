@@ -90,6 +90,8 @@ func run(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
+
+	// nolint:errcheck
 	defer os.RemoveAll(datadir)
 
 	wallet, err := arksdk.NewWallet(datadir, arksdk.WithoutAutoSettle())
