@@ -10,25 +10,43 @@ import (
 // "BTC" (for native bitcoin) or the hex asset ID (for arkade assets).
 // Examples: "a1b2c3.../BTC", "BTC/d4e5f6...", "a1b2c3.../d4e5f6..."
 type Pair struct {
-	Pair          string `json:"pair"`          // e.g. "a1b2c3.../BTC"
-	MinAmount     uint64 `json:"minAmount"`     // satoshis
-	MaxAmount     uint64 `json:"maxAmount"`     // satoshis
+	Pair string `json:"pair"` // e.g. "a1b2c3.../BTC"
+	// Min/MaxBaseAmount bound the trade size on the base side of the trade —
+	// the maker's deposit — in base-asset atomic units (sats only when the
+	// base is BTC). Non-BTC-base pairs are bounded in their own units.
+	MinBaseAmount uint64 `json:"minBaseAmount"`
+	MaxBaseAmount uint64 `json:"maxBaseAmount"`
 	BaseDecimals  int    `json:"baseDecimals"`  // decimal precision of the base asset
 	QuoteDecimals int    `json:"quoteDecimals"` // decimal precision of the quote asset
-	PriceFeed     string `json:"priceFeed"`     // price API URL
-	InvertPrice   bool   `json:"invertPrice"`   // if true, use 1/feedPrice for comparison
-	SlippageBps   uint32 `json:"slippageBps"`   // max price deviation in basis points; 0 = DefaultSlippageBps
+	// Base/QuoteName and Base/QuoteTicker are display metadata for the
+	// discovery card's asset descriptors. The BTC side is auto-filled with
+	// "Bitcoin"/"BTC"; asset sides fall back to the indexer's metadata.
+	BaseName    string `json:"baseName"`
+	BaseTicker  string `json:"baseTicker"`
+	QuoteName   string `json:"quoteName"`
+	QuoteTicker string `json:"quoteTicker"`
+	PriceFeed   string `json:"priceFeed"` // price API URL
+	// PriceDecimals is the number of decimal places encoded in the feed's
+	// value: the price is feedValue / 10^PriceDecimals. 0 means the feed
+	// returns the price directly. Published in the discovery card so makers
+	// normalize the same way the solver does.
+	PriceDecimals int    `json:"priceDecimals"`
+	InvertPrice   bool   `json:"invertPrice"`  // if true, use 1/feedPrice for comparison
+	ToleranceBps  uint32 `json:"toleranceBps"` // internal fill-time max price deviation in basis points; 0 = DefaultToleranceBps
+	FeeBps        uint32 `json:"feeBps"`       // published spread; must be lower than the effective tolerance
 }
 
-// DefaultSlippageBps is the price tolerance applied when a pair doesn't set one.
-const DefaultSlippageBps uint32 = 100
+// DefaultToleranceBps is the price tolerance applied when a pair doesn't set one.
+const DefaultToleranceBps uint32 = 100
 
-// EffectiveSlippageBps returns the pair's slippage, falling back to the default.
-func (p Pair) EffectiveSlippageBps() uint32 {
-	if p.SlippageBps == 0 {
-		return DefaultSlippageBps
+// EffectiveToleranceBps returns the pair's fill-time price tolerance, falling
+// back to the default. The tolerance is solver-internal: it is never published
+// in the discovery card, unlike FeeBps which is the promise made to makers.
+func (p Pair) EffectiveToleranceBps() uint32 {
+	if p.ToleranceBps == 0 {
+		return DefaultToleranceBps
 	}
-	return p.SlippageBps
+	return p.ToleranceBps
 }
 
 // Base returns the base asset of the pair (e.g. "BTC" from "BTC/USDT").

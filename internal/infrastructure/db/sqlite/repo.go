@@ -37,26 +37,38 @@ func (r *PairRepository) List(ctx context.Context) ([]banco.Pair, error) {
 func (r *PairRepository) Add(ctx context.Context, pair banco.Pair) error {
 	return translateErr(r.queries.InsertPair(ctx, sqlc.InsertPairParams{
 		Pair:          pair.Pair,
-		MinAmount:     int64(pair.MinAmount),
-		MaxAmount:     int64(pair.MaxAmount),
+		MinBaseAmount: int64(pair.MinBaseAmount),
+		MaxBaseAmount: int64(pair.MaxBaseAmount),
 		BaseDecimals:  int64(pair.BaseDecimals),
 		QuoteDecimals: int64(pair.QuoteDecimals),
+		BaseName:      pair.BaseName,
+		BaseTicker:    pair.BaseTicker,
+		QuoteName:     pair.QuoteName,
+		QuoteTicker:   pair.QuoteTicker,
 		PriceFeed:     pair.PriceFeed,
+		PriceDecimals: int64(pair.PriceDecimals),
 		InvertPrice:   boolToInt(pair.InvertPrice),
-		SlippageBps:   int64(pair.SlippageBps),
+		ToleranceBps:  int64(pair.ToleranceBps),
+		FeeBps:        int64(pair.FeeBps),
 	}))
 }
 
 func (r *PairRepository) Update(ctx context.Context, pair banco.Pair) error {
 	rows, err := r.queries.UpdatePair(ctx, sqlc.UpdatePairParams{
 		Pair:          pair.Pair,
-		MinAmount:     int64(pair.MinAmount),
-		MaxAmount:     int64(pair.MaxAmount),
+		MinBaseAmount: int64(pair.MinBaseAmount),
+		MaxBaseAmount: int64(pair.MaxBaseAmount),
 		BaseDecimals:  int64(pair.BaseDecimals),
 		QuoteDecimals: int64(pair.QuoteDecimals),
+		BaseName:      pair.BaseName,
+		BaseTicker:    pair.BaseTicker,
+		QuoteName:     pair.QuoteName,
+		QuoteTicker:   pair.QuoteTicker,
 		PriceFeed:     pair.PriceFeed,
+		PriceDecimals: int64(pair.PriceDecimals),
 		InvertPrice:   boolToInt(pair.InvertPrice),
-		SlippageBps:   int64(pair.SlippageBps),
+		ToleranceBps:  int64(pair.ToleranceBps),
+		FeeBps:        int64(pair.FeeBps),
 	})
 	if err != nil {
 		return translateErr(err)
@@ -74,13 +86,19 @@ func (r *PairRepository) Remove(ctx context.Context, pairName string) error {
 func toDomainPair(row sqlc.BancoPair) banco.Pair {
 	return banco.Pair{
 		Pair:          row.Pair,
-		MinAmount:     uint64(row.MinAmount),
-		MaxAmount:     uint64(row.MaxAmount),
+		MinBaseAmount: uint64(row.MinBaseAmount),
+		MaxBaseAmount: uint64(row.MaxBaseAmount),
 		BaseDecimals:  int(row.BaseDecimals),
 		QuoteDecimals: int(row.QuoteDecimals),
+		BaseName:      row.BaseName,
+		BaseTicker:    row.BaseTicker,
+		QuoteName:     row.QuoteName,
+		QuoteTicker:   row.QuoteTicker,
 		PriceFeed:     row.PriceFeed,
+		PriceDecimals: int(row.PriceDecimals),
 		InvertPrice:   row.InvertPrice != 0,
-		SlippageBps:   uint32(row.SlippageBps),
+		ToleranceBps:  uint32(row.ToleranceBps),
+		FeeBps:        uint32(row.FeeBps),
 	}
 }
 

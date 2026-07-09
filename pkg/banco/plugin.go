@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/arkade-os/arkd/pkg/ark-lib/extension"
@@ -66,8 +67,10 @@ func (p *plugin) Match(ctx context.Context, tx *psbt.Packet) (any, bool) {
 		return nil, false
 	}
 
-	// offer is not in range, skip
-	if m.Offer.WantAmount < m.Pair.MinAmount || m.Offer.WantAmount > m.Pair.MaxAmount {
+	// Trade size out of range, skip. Bounds apply to the base side of the
+	// trade in base-asset units: the pair's base is always the deposit side
+	// (findMatchingPair matches base == deposit asset).
+	if m.Offer.DepositAmount < m.Pair.MinBaseAmount || m.Offer.DepositAmount > m.Pair.MaxBaseAmount {
 		return nil, false
 	}
 
@@ -140,7 +143,7 @@ func (p *plugin) decode(ctx context.Context, tx *psbt.Packet) (*MatchedOffer, er
 }
 
 // checkPriceTolerance rejects offers whose price deviates more than the
-// pair's slippage from the feed. Logs (Warn) when the price feed is
+// pair's tolerance from the feed. Logs (Warn) when the price feed is
 // unavailable or stale.
 func (p *plugin) checkPriceTolerance(ctx context.Context, m *MatchedOffer) (bool, error) {
 	feedPrice, err := p.prices.get(ctx, m.Pair.PriceFeed)
@@ -151,6 +154,9 @@ func (p *plugin) checkPriceTolerance(ctx context.Context, m *MatchedOffer) (bool
 	if err != nil {
 		p.log.WithError(err).Warn("using stale price feed")
 	}
+	if m.Pair.PriceDecimals > 0 {
+		feedPrice /= math.Pow10(m.Pair.PriceDecimals)
+	}
 	if m.Pair.InvertPrice {
 		feedPrice = 1.0 / feedPrice
 	}
@@ -158,7 +164,7 @@ func (p *plugin) checkPriceTolerance(ctx context.Context, m *MatchedOffer) (bool
 	if !ok {
 		return false, nil
 	}
-	return validatePrice(offerPrice, feedPrice, m.Pair.EffectiveSlippageBps()), nil
+	return validatePrice(offerPrice, feedPrice, m.Pair.EffectiveToleranceBps()), nil
 }
 
 // checkBTCBalance ensures we hold enough offchain BTC to honor a BTC-deposit

@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -34,12 +35,20 @@ func TestPairOverrides(t *testing.T) {
 	assert.Equal(t, map[string]any{"pair": "BTC/aabbcc"}, got)
 
 	got = runPairOverrides(t,
-		"--pair", "BTC/aabbcc", "--min", "500", "--slippage-bps", "250",
+		"--pair", "BTC/aabbcc", "--min", "500", "--tolerance-bps", "250", "--fee-bps", "30",
 	)
 	assert.Equal(t, map[string]any{
-		"pair":         "BTC/aabbcc",
-		"min_amount":   uint64(500),
-		"slippage_bps": uint(250),
+		"pair":            "BTC/aabbcc",
+		"min_base_amount": uint64(500),
+		"tolerance_bps":   uint(250),
+		"fee_bps":         uint(30),
+	}, got)
+
+	// the old flag name still works as an alias.
+	got = runPairOverrides(t, "--pair", "BTC/aabbcc", "--slippage-bps", "42")
+	assert.Equal(t, map[string]any{
+		"pair":          "BTC/aabbcc",
+		"tolerance_bps": uint(42),
 	}, got)
 }
 
@@ -50,8 +59,8 @@ func TestPairUpdatePartial(t *testing.T) {
 		case "GET /v1/pairs":
 			// nolint:errcheck
 			w.Write([]byte(`{"pairs":[{
-				"pair":"BTC/aabbcc","min_amount":1000,"max_amount":100000,
-				"price_feed":"https://example.com/price","slippage_bps":250,
+				"pair":"BTC/aabbcc","min_base_amount":1000,"max_base_amount":100000,
+				"price_feed":"https://example.com/price","tolerance_bps":250,
 				"base_decimals":8,"quote_decimals":6}]}`))
 		case "PUT /v1/pair":
 			body, _ := io.ReadAll(r.Body)
@@ -76,9 +85,9 @@ func TestPairUpdatePartial(t *testing.T) {
 
 	pair, ok := putBody["pair"].(map[string]any)
 	require.True(t, ok, "PUT body missing pair object: %v", putBody)
-	assert.Equal(t, float64(2000), pair["min_amount"], "flag override applied")
-	assert.Equal(t, float64(100000), pair["max_amount"], "unset field preserved")
-	assert.Equal(t, float64(250), pair["slippage_bps"], "unset slippage preserved")
+	assert.Equal(t, float64(2000), pair["min_base_amount"], "flag override applied")
+	assert.Equal(t, float64(100000), pair["max_base_amount"], "unset field preserved")
+	assert.Equal(t, float64(250), pair["tolerance_bps"], "unset tolerance preserved")
 	assert.Equal(t, "https://example.com/price", pair["price_feed"])
 }
 
@@ -98,4 +107,49 @@ func TestPairUpdateUnknownPair(t *testing.T) {
 		"pair", "update", "--pair", "NOPE/NOPE", "--min", "1",
 	})
 	assert.ErrorContains(t, err, `pair "NOPE/NOPE" not found`)
+}
+
+// TestCardCommandPrintsExactBody: `solver card` must emit the exact bytes the
+// /v1/discovery/card endpoint returns — the acceptance criterion is that the
+// CLI and curl produce identical documents.
+func TestCardCommandPrintsExactBody(t *testing.T) {
+	cardBody := "{\n  \"version\": 0,\n  \"name\": \"x\",\n  \"markets\": []\n}\n"
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.RequestURI()
+		w.Header().Set("X-Registry-Path", "solvers/signet/x.json")
+		// nolint:errcheck
+		w.Write([]byte(cardBody))
+	}))
+	defer srv.Close()
+
+	app := &cli.App{
+		Flags:    []cli.Flag{&cli.StringFlag{Name: "server"}},
+		Commands: []*cli.Command{cardCommand},
+	}
+
+	// capture stdout
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdout = w
+	runErr := app.Run([]string{"solver", "--server", srv.URL, "card"})
+	w.Close() //nolint:errcheck
+	os.Stdout = old
+	out, err := io.ReadAll(r)
+	require.NoError(t, err)
+
+	require.NoError(t, runErr)
+	assert.Equal(t, "/v1/discovery/card", gotPath)
+	assert.Equal(t, cardBody, string(out), "stdout must be the exact endpoint bytes")
+
+	// --sign forwards the query parameter.
+	devnull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+	require.NoError(t, err)
+	os.Stdout = devnull
+	err = app.Run([]string{"solver", "--server", srv.URL, "card", "--sign"})
+	os.Stdout = old
+	devnull.Close() //nolint:errcheck
+	require.NoError(t, err)
+	assert.Equal(t, "/v1/discovery/card?sign=true", gotPath)
 }

@@ -25,6 +25,9 @@ type BancoService interface {
 	SendOffchain(ctx context.Context, password, address, assetID string, amount uint64) (string, error)
 	CollaborativeExit(ctx context.Context, password, address string, amount uint64) (string, error)
 	Settle(ctx context.Context, password string) (string, error)
+	// BuildDiscoveryCard returns the discovery card document plus the
+	// registry path hint solvers/<network>/<name>.json.
+	BuildDiscoveryCard(ctx context.Context, sign bool) (card []byte, registryPath string, err error)
 }
 
 type handler struct {
@@ -219,23 +222,35 @@ func (h *handler) ListTrades(
 
 func protoToDomain(p *bancov1.PairInfo) banco.Pair {
 	return banco.Pair{
-		Pair:        p.Pair,
-		MinAmount:   p.MinAmount,
-		MaxAmount:   p.MaxAmount,
-		PriceFeed:   p.PriceFeed,
-		InvertPrice: p.InvertPrice,
-		SlippageBps: p.SlippageBps,
+		Pair:          p.Pair,
+		MinBaseAmount: p.MinBaseAmount,
+		MaxBaseAmount: p.MaxBaseAmount,
+		BaseName:      p.BaseName,
+		BaseTicker:    p.BaseTicker,
+		QuoteName:     p.QuoteName,
+		QuoteTicker:   p.QuoteTicker,
+		PriceFeed:     p.PriceFeed,
+		PriceDecimals: int(p.PriceDecimals),
+		InvertPrice:   p.InvertPrice,
+		ToleranceBps:  p.ToleranceBps,
+		FeeBps:        p.FeeBps,
 	}
 }
 
 func domainToProto(p banco.Pair) *bancov1.PairInfo {
 	return &bancov1.PairInfo{
 		Pair:          p.Pair,
-		MinAmount:     p.MinAmount,
-		MaxAmount:     p.MaxAmount,
+		MinBaseAmount: p.MinBaseAmount,
+		MaxBaseAmount: p.MaxBaseAmount,
+		BaseName:      p.BaseName,
+		BaseTicker:    p.BaseTicker,
+		QuoteName:     p.QuoteName,
+		QuoteTicker:   p.QuoteTicker,
 		PriceFeed:     p.PriceFeed,
+		PriceDecimals: int32(p.PriceDecimals), //nolint:gosec
 		InvertPrice:   p.InvertPrice,
-		SlippageBps:   p.SlippageBps,
+		ToleranceBps:  p.ToleranceBps,
+		FeeBps:        p.FeeBps,
 		BaseDecimals:  int32(p.BaseDecimals),  //nolint:gosec
 		QuoteDecimals: int32(p.QuoteDecimals), //nolint:gosec
 	}

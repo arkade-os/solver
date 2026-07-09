@@ -18,18 +18,27 @@ type Config struct {
 	GRPCPort       int
 	HTTPPort       int
 	LogLevel       int
+	// SolverName is the discovery card name (solvers/<network>/<name>.json).
+	// Optional: only required to emit a card.
+	SolverName string
+	// DiscoverySecretKey is an optional 32-byte hex key used to sign the
+	// discovery card. When unset and signing is requested, the key is derived
+	// from the wallet seed at the dedicated discovery BIP32 path.
+	DiscoverySecretKey string
 }
 
 var (
-	Datadir        = "DATADIR"
-	ArkURL         = "ARK_URL"
-	WalletSeed     = "WALLET_SEED"
-	WalletPassword = "WALLET_PASSWORD"
-	EmulatorURL    = "EMULATOR_URL"
-	ExplorerURL    = "EXPLORER_URL"
-	GRPCPort       = "GRPC_PORT"
-	HTTPPort       = "HTTP_PORT"
-	LogLevel       = "LOG_LEVEL"
+	Datadir            = "DATADIR"
+	ArkURL             = "ARK_URL"
+	WalletSeed         = "WALLET_SEED"
+	WalletPassword     = "WALLET_PASSWORD"
+	EmulatorURL        = "EMULATOR_URL"
+	ExplorerURL        = "EXPLORER_URL"
+	GRPCPort           = "GRPC_PORT"
+	HTTPPort           = "HTTP_PORT"
+	LogLevel           = "LOG_LEVEL"
+	SolverName         = "NAME"
+	DiscoverySecretKey = "DISCOVERY_SECRET_KEY"
 )
 
 const (
@@ -82,15 +91,17 @@ func Load() (*Config, error) {
 	}
 
 	return &Config{
-		Datadir:        viper.GetString(Datadir),
-		ArkURL:         arkURL,
-		WalletSeed:     walletSeed,
-		WalletPassword: viper.GetString(WalletPassword),
-		EmulatorURL:    emulatorURL,
-		ExplorerURL:    viper.GetString(ExplorerURL),
-		GRPCPort:       grpcPort,
-		HTTPPort:       httpPort,
-		LogLevel:       viper.GetInt(LogLevel),
+		Datadir:            viper.GetString(Datadir),
+		ArkURL:             arkURL,
+		WalletSeed:         walletSeed,
+		WalletPassword:     viper.GetString(WalletPassword),
+		EmulatorURL:        emulatorURL,
+		ExplorerURL:        viper.GetString(ExplorerURL),
+		GRPCPort:           grpcPort,
+		HTTPPort:           httpPort,
+		LogLevel:           viper.GetInt(LogLevel),
+		SolverName:         viper.GetString(SolverName),
+		DiscoverySecretKey: viper.GetString(DiscoverySecretKey),
 	}, nil
 }
 

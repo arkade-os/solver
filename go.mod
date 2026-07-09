@@ -10,6 +10,7 @@ require (
 	github.com/arkade-os/go-sdk v0.10.2-0.20260709155027-fea19d43db9d
 	github.com/btcsuite/btcd v0.24.3-0.20250318170759-4f4ea81776d6
 	github.com/btcsuite/btcd/btcec/v2 v2.3.6
+	github.com/btcsuite/btcd/btcutil v1.1.6
 	github.com/btcsuite/btcd/btcutil/psbt v1.1.9
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
 	github.com/btcsuite/btcwallet v0.16.14
@@ -35,7 +36,6 @@ require (
 	github.com/arkade-os/arkd/pkg/errors v0.0.0-20260617121018-268d19d9641c // indirect
 	github.com/arkade-os/emulator/api-spec v0.0.0-20260526192649-eac4fbc07c4c // indirect
 	github.com/bits-and-blooms/bitset v1.20.0 // indirect
-	github.com/btcsuite/btcd/btcutil v1.1.6 // indirect
 	github.com/btcsuite/btclog v0.0.0-20241003133417-09c4e92e319c // indirect
 	github.com/btcsuite/btclog/v2 v2.0.1-0.20250602222548-9967d19bb084 // indirect
 	github.com/btcsuite/btcwallet/wallet/txauthor v1.3.5 // indirect

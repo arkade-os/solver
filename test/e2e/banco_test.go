@@ -33,10 +33,10 @@ func TestBancoAssetToBTC(t *testing.T) {
 	assetID := issueAsset(t, maker, 500)
 
 	pair := banco.Pair{
-		Pair:      assetID + "/BTC",
-		MinAmount: 1,
-		MaxAmount: 100000000,
-		PriceFeed: mockAssetBTCPriceFeed,
+		Pair:          assetID + "/BTC",
+		MinBaseAmount: 1,
+		MaxBaseAmount: 100000000,
+		PriceFeed:     mockAssetBTCPriceFeed,
 	}
 	addPair(t, pair)
 
@@ -89,10 +89,10 @@ func TestBancoBTCToAsset(t *testing.T) {
 	pollSolverAssetBalance(t, ctx, assetID, 1000, 30*time.Second)
 
 	pair := banco.Pair{
-		Pair:      "BTC/" + assetID,
-		MinAmount: 1,
-		MaxAmount: 100000000,
-		PriceFeed: mockBTCAssetPriceFeed,
+		Pair:          "BTC/" + assetID,
+		MinBaseAmount: 1,
+		MaxBaseAmount: 100000000,
+		PriceFeed:     mockBTCAssetPriceFeed,
 	}
 	addPair(t, pair)
 
@@ -147,10 +147,10 @@ func TestBancoAssetToAsset(t *testing.T) {
 	pollSolverAssetBalance(t, ctx, assetB, 1000, 30*time.Second)
 
 	pair := banco.Pair{
-		Pair:      assetA + "/" + assetB,
-		MinAmount: 1,
-		MaxAmount: 100000000,
-		PriceFeed: mockAssetAssetPriceFeed,
+		Pair:          assetA + "/" + assetB,
+		MinBaseAmount: 1,
+		MaxBaseAmount: 100000000,
+		PriceFeed:     mockAssetAssetPriceFeed,
 	}
 	addPair(t, pair)
 
@@ -186,11 +186,11 @@ func addPair(t *testing.T, pair banco.Pair) {
 	t.Helper()
 	_, err := dialBancoClient(t).AddPair(t.Context(), &bancov1.AddPairRequest{
 		Pair: &bancov1.PairInfo{
-			Pair:        pair.Pair,
-			MinAmount:   pair.MinAmount,
-			MaxAmount:   pair.MaxAmount,
-			PriceFeed:   pair.PriceFeed,
-			InvertPrice: pair.InvertPrice,
+			Pair:          pair.Pair,
+			MinBaseAmount: pair.MinBaseAmount,
+			MaxBaseAmount: pair.MaxBaseAmount,
+			PriceFeed:     pair.PriceFeed,
+			InvertPrice:   pair.InvertPrice,
 		},
 	})
 	require.NoError(t, err)

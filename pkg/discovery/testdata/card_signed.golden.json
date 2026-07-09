@@ -1,0 +1,50 @@
+{
+  "version": 0,
+  "name": "arklabs-solver",
+  "discovery_pubkey": "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+  "sig": "3078667ea6471964323561620e8e74490392297a06afb91026133a536de148febda7d7b56a821c5402a276a56421138197c0da07205de2d9278e3b3ee8550287",
+  "markets": [
+    {
+      "pair": "USDT/BTC",
+      "base_asset": {
+        "id": "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f200000",
+        "name": "Tether USD",
+        "ticker": "USDT",
+        "precision": 6
+      },
+      "quote_asset": {
+        "id": "btc",
+        "name": "Bitcoin",
+        "ticker": "BTC",
+        "precision": 8
+      },
+      "price_feed": "https://feed.example.com/price?pair=USDT-BTC&x=1",
+      "price_decimals": 8,
+      "invert": true,
+      "fee_bps": 45,
+      "min_base_amount": 5000000,
+      "max_base_amount": 100000000
+    },
+    {
+      "pair": "BTC/USDT",
+      "base_asset": {
+        "id": "btc",
+        "name": "Bitcoin",
+        "ticker": "BTC",
+        "precision": 8
+      },
+      "quote_asset": {
+        "id": "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f200000",
+        "name": "Tether USD",
+        "ticker": "USDT",
+        "precision": 6
+      },
+      "price_feed": "https://feed.example.com/price?pair=BTC-USDT",
+      "price_decimals": 0,
+      "invert": false,
+      "fee_bps": 30,
+      "min_base_amount": 1000,
+      "max_base_amount": 5000000
+    }
+  ]
+}

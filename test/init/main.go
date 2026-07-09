@@ -163,16 +163,16 @@ func run() error {
 
 	pairs := []*bancov1.PairInfo{
 		{
-			Pair:      "BTC/" + assetID,
-			MinAmount: 1,
-			MaxAmount: 100_000_000,
-			PriceFeed: btcAssetFeed,
+			Pair:          "BTC/" + assetID,
+			MinBaseAmount: 1,
+			MaxBaseAmount: 100_000_000,
+			PriceFeed:     btcAssetFeed,
 		},
 		{
-			Pair:      assetID + "/BTC",
-			MinAmount: 1,
-			MaxAmount: 100_000_000,
-			PriceFeed: assetBtcFeed,
+			Pair:          assetID + "/BTC",
+			MinBaseAmount: 1,
+			MaxBaseAmount: 100_000_000,
+			PriceFeed:     assetBtcFeed,
 		},
 	}
 	for _, p := range pairs {

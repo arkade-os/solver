@@ -55,6 +55,7 @@ func main() {
 		},
 		Commands: []*cli.Command{
 			pairCommand,
+			cardCommand,
 			balanceCommand,
 			addressCommand,
 			sendCommand,
@@ -169,26 +170,39 @@ func pairList(c *cli.Context) error {
 	return nil
 }
 
-// pairFlags: for add everything but slippage is required; for update only --pair
-// is, so unset flags keep their current value.
+// pairFlags: for add everything but tolerance/fee is required; for update only
+// --pair is, so unset flags keep their current value.
 func pairFlags(required bool) []cli.Flag {
 	return []cli.Flag{
 		&cli.StringFlag{Name: "pair", Required: true, Usage: "market name (e.g. BTC/ASSET)"},
-		&cli.Uint64Flag{Name: "min", Required: required, Usage: "minimum want amount (quote asset base units)"},
-		&cli.Uint64Flag{Name: "max", Required: required, Usage: "maximum want amount (quote asset base units)"},
+		&cli.Uint64Flag{Name: "min", Required: required, Usage: "minimum trade size on the base side, i.e. the maker's deposit (base asset atomic units; sats when base is BTC)"},
+		&cli.Uint64Flag{Name: "max", Required: required, Usage: "maximum trade size on the base side, i.e. the maker's deposit (base asset atomic units; sats when base is BTC)"},
 		&cli.StringFlag{Name: "price-feed", Required: required, Usage: "price feed URL"},
 		&cli.BoolFlag{Name: "invert-price", Usage: "invert the feed price"},
-		&cli.UintFlag{Name: "slippage-bps", Usage: "max price deviation in basis points (default 100 = 1%)"},
+		&cli.UintFlag{
+			Name:    "tolerance-bps",
+			Aliases: []string{"slippage-bps"},
+			Usage:   "internal max price deviation from the feed in basis points (default 100 = 1%); never published",
+		},
+		&cli.UintFlag{
+			Name:  "fee-bps",
+			Usage: "published spread in basis points; must be lower than --tolerance-bps",
+		},
+		&cli.StringFlag{Name: "base-name", Usage: "display name of the base asset (BTC side auto-fills 'Bitcoin'; assets fall back to indexer metadata)"},
+		&cli.StringFlag{Name: "base-ticker", Usage: "ticker of the base asset (BTC side auto-fills 'BTC'; assets fall back to indexer metadata)"},
+		&cli.StringFlag{Name: "quote-name", Usage: "display name of the quote asset"},
+		&cli.StringFlag{Name: "quote-ticker", Usage: "ticker of the quote asset"},
+		&cli.UintFlag{Name: "price-decimals", Usage: "decimal places encoded in the feed's value (price = value / 10^n); 0 = feed returns the price directly"},
 	}
 }
 
 func pairOverrides(c *cli.Context) map[string]any {
 	out := map[string]any{"pair": c.String("pair")}
 	if c.IsSet("min") {
-		out["min_amount"] = c.Uint64("min")
+		out["min_base_amount"] = c.Uint64("min")
 	}
 	if c.IsSet("max") {
-		out["max_amount"] = c.Uint64("max")
+		out["max_base_amount"] = c.Uint64("max")
 	}
 	if c.IsSet("price-feed") {
 		out["price_feed"] = c.String("price-feed")
@@ -196,8 +210,26 @@ func pairOverrides(c *cli.Context) map[string]any {
 	if c.IsSet("invert-price") {
 		out["invert_price"] = c.Bool("invert-price")
 	}
-	if c.IsSet("slippage-bps") {
-		out["slippage_bps"] = c.Uint("slippage-bps")
+	if c.IsSet("tolerance-bps") {
+		out["tolerance_bps"] = c.Uint("tolerance-bps")
+	}
+	if c.IsSet("fee-bps") {
+		out["fee_bps"] = c.Uint("fee-bps")
+	}
+	if c.IsSet("base-name") {
+		out["base_name"] = c.String("base-name")
+	}
+	if c.IsSet("base-ticker") {
+		out["base_ticker"] = c.String("base-ticker")
+	}
+	if c.IsSet("quote-name") {
+		out["quote_name"] = c.String("quote-name")
+	}
+	if c.IsSet("quote-ticker") {
+		out["quote_ticker"] = c.String("quote-ticker")
+	}
+	if c.IsSet("price-decimals") {
+		out["price_decimals"] = c.Uint("price-decimals")
 	}
 	return out
 }
@@ -226,6 +258,48 @@ func listPairs(c *cli.Context) ([]pairInfo, error) {
 		return nil, err
 	}
 	return resp.Pairs, nil
+}
+
+// cardCommand prints the solver's discovery card — the JSON document an
+// operator PRs to a registry repo as solvers/<network>/<name>.json. The card
+// bytes go to stdout untouched (pipe them straight into the registry file);
+// the target path hint goes to stderr.
+var cardCommand = &cli.Command{
+	Name:  "card",
+	Usage: "print the discovery card to submit to a registry repo",
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "sign",
+			Usage: "sign the card with the discovery key (SOLVER_DISCOVERY_SECRET_KEY or derived from the wallet seed)",
+		},
+	},
+	Action: func(c *cli.Context) error {
+		path := "/v1/discovery/card"
+		if c.Bool("sign") {
+			path += "?sign=true"
+		}
+		req, err := http.NewRequest(http.MethodGet, serverURL(c)+path, nil)
+		if err != nil {
+			return err
+		}
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			return fmt.Errorf("cannot reach solverd at %s (%w)", serverURL(c), err)
+		}
+		defer resp.Body.Close() //nolint:errcheck
+		data, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		if resp.StatusCode >= 400 {
+			return serverError(resp.StatusCode, data)
+		}
+		if hint := resp.Header.Get("X-Registry-Path"); hint != "" {
+			fmt.Fprintln(os.Stderr, dim("registry path: ")+hint)
+		}
+		_, err = os.Stdout.Write(data)
+		return err
+	},
 }
 
 var balanceCommand = &cli.Command{
@@ -413,12 +487,19 @@ var statusCommand = &cli.Command{
 
 type pairInfo struct {
 	Pair          string `json:"pair"`
-	MinAmount     uint64 `json:"min_amount"`
-	MaxAmount     uint64 `json:"max_amount"`
+	MinBaseAmount uint64 `json:"min_base_amount"`
+	MaxBaseAmount uint64 `json:"max_base_amount"`
 	PriceFeed     string `json:"price_feed"`
+	PriceDecimals int32  `json:"price_decimals"`
 	InvertPrice   bool   `json:"invert_price"`
-	SlippageBps   uint32 `json:"slippage_bps"`
+	ToleranceBps  uint32 `json:"tolerance_bps"`
+	FeeBps        uint32 `json:"fee_bps"`
+	BaseDecimals  int32  `json:"base_decimals"`
 	QuoteDecimals int32  `json:"quote_decimals"`
+	BaseName      string `json:"base_name"`
+	BaseTicker    string `json:"base_ticker"`
+	QuoteName     string `json:"quote_name"`
+	QuoteTicker   string `json:"quote_ticker"`
 }
 
 type assetInfo struct {
@@ -471,15 +552,16 @@ func renderMarkets(pairs []pairInfo, meta map[string]assetInfo) {
 	}
 	fmt.Println()
 	tw := newTable()
-	fmt.Fprintln(tw, "  MARKET\tMIN WANT\tMAX WANT\tTOLERANCE\tINVERT\tFEED") //nolint:errcheck
+	fmt.Fprintln(tw, "  MARKET\tMIN SIZE\tMAX SIZE\tFEE\tTOLERANCE\tINVERT\tFEED") //nolint:errcheck
 	for _, p := range pairs {
 		base, quote, _ := splitPair(p.Pair)
 		market := unitLabel(base, meta) + " " + gArrow() + " " + unitLabel(quote, meta)
-		fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\t%s\n", //nolint:errcheck
+		fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\t%s\t%s\n", //nolint:errcheck
 			market,
-			fmtBound(p.MinAmount, quote, p.QuoteDecimals, meta),
-			fmtBound(p.MaxAmount, quote, p.QuoteDecimals, meta),
-			fmtTolerance(p.SlippageBps), yesNo(p.InvertPrice), feedHost(p.PriceFeed))
+			fmtBound(p.MinBaseAmount, base, p.BaseDecimals, meta),
+			fmtBound(p.MaxBaseAmount, base, p.BaseDecimals, meta),
+			fmtFee(p.FeeBps),
+			fmtTolerance(p.ToleranceBps), yesNo(p.InvertPrice), feedHost(p.PriceFeed))
 	}
 	tw.Flush() //nolint:errcheck
 }
@@ -492,11 +574,18 @@ func renderMarketDetail(p pairInfo, meta map[string]assetInfo) {
 	row := func(k, v string) { fmt.Fprintf(tw, "  %s\t%s\n", dim(k), v) } //nolint:errcheck
 	row("Deposit", unitLabel(base, meta))
 	row("Want", unitLabel(quote, meta))
-	row("Min want", fmtBound(p.MinAmount, quote, p.QuoteDecimals, meta))
-	row("Max want", fmtBound(p.MaxAmount, quote, p.QuoteDecimals, meta))
-	row("Tolerance", fmtTolerance(p.SlippageBps))
+	row("Min size", fmtBound(p.MinBaseAmount, base, p.BaseDecimals, meta))
+	row("Max size", fmtBound(p.MaxBaseAmount, base, p.BaseDecimals, meta))
+	row("Fee", fmtFee(p.FeeBps))
+	row("Tolerance", fmtTolerance(p.ToleranceBps))
 	row("Invert price", yesNo(p.InvertPrice))
 	row("Price feed", p.PriceFeed)
+	if p.PriceDecimals > 0 {
+		row("Price decimals", strconv.FormatInt(int64(p.PriceDecimals), 10))
+	}
+	if p.BaseTicker != "" || p.QuoteTicker != "" {
+		row("Card label", p.BaseTicker+" / "+p.QuoteTicker)
+	}
 	tw.Flush() //nolint:errcheck
 }
 
@@ -691,7 +780,7 @@ func truncID(id string) string {
 	return id[:6] + gEllipsis() + id[len(id)-4:]
 }
 
-// fmtBound shows a market's want-side bound: BTC as sats, an asset scaled + ticker.
+// fmtBound shows a market's base-side trade bound: BTC as sats, an asset scaled + ticker.
 func fmtBound(raw uint64, id string, dec int32, meta map[string]assetInfo) string {
 	if id == "BTC" || id == "" {
 		return group(strconv.FormatUint(raw, 10)) + " sats"
@@ -753,6 +842,10 @@ func fmtTolerance(bps uint32) string {
 		bps = 100
 	}
 	return glyph("±", "+/-") + strconv.FormatFloat(float64(bps)/100, 'f', -1, 64) + "%"
+}
+
+func fmtFee(bps uint32) string {
+	return strconv.FormatUint(uint64(bps), 10) + " bps"
 }
 
 func feedHost(raw string) string {

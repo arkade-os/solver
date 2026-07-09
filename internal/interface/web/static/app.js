@@ -209,9 +209,10 @@ function metaFor(id) {
   return assetMeta.get(id) || { asset_id: id };
 }
 
-// wantAmount formats a min/max on the want side, scaling by decimals and using
-// the ticker when the asset is known; else a bare count + generic unit.
-function wantAmount(raw, meta) {
+// baseAmount formats a min/max trade bound on the base (deposit) side, scaling
+// by decimals and using the ticker when the asset is known; else a bare
+// count + generic unit.
+function baseAmount(raw, meta) {
   if (meta.asset_id === "BTC") {
     return `${Number(raw).toLocaleString("en-US")} sats`;
   }
@@ -285,9 +286,9 @@ function renderPairs(pairs) {
     const baseLabel = baseMeta.ticker || baseMeta.name || assetLabel(base, 4, 4);
     const quoteLabel =
       quoteMeta.ticker || quoteMeta.name || assetLabel(quote, 4, 4);
-    const band = bandGeom(p.slippage_bps);
-    const minStr = wantAmount(p.min_amount, quoteMeta);
-    const maxStr = wantAmount(p.max_amount, quoteMeta);
+    const band = bandGeom(p.tolerance_bps);
+    const minStr = baseAmount(p.min_base_amount, baseMeta);
+    const maxStr = baseAmount(p.max_base_amount, baseMeta);
     const card = document.createElement("article");
     card.className = "market";
     card.dataset.pair = p.pair;
@@ -320,23 +321,27 @@ function renderPairs(pairs) {
 
       <div class="market-stats">
         <div class="mstat">
-          <span class="mstat-k">Min want</span>
+          <span class="mstat-k">Min size</span>
           <span class="mstat-v" title="${escapeAttr(minStr)}">${escapeHTML(
             minStr
           )}</span>
         </div>
         <div class="mstat">
-          <span class="mstat-k">Max want</span>
+          <span class="mstat-k">Max size</span>
           <span class="mstat-v" title="${escapeAttr(maxStr)}">${escapeHTML(
             maxStr
           )}</span>
+        </div>
+        <div class="mstat">
+          <span class="mstat-k">Fee</span>
+          <span class="mstat-v">${Number(p.fee_bps) || 0} bps</span>
         </div>
       </div>
 
       <div class="market-band">
         <div class="band-head">
           <span>Fill tolerance</span>
-          <span class="band-pct">±${escapeHTML(fmtSlippage(p.slippage_bps))}</span>
+          <span class="band-pct">±${escapeHTML(fmtTolerance(p.tolerance_bps))}</span>
         </div>
         <div class="band-track">
           <div class="band-fill" style="left:${band.left}%;width:${band.width}%"></div>
@@ -363,9 +368,9 @@ function pairBase(name) {
   return i < 0 ? name : name.slice(0, i);
 }
 
-// fmtSlippage renders basis points as a percentage; 0/unset means the server
+// fmtTolerance renders basis points as a percentage; 0/unset means the server
 // default of 100 bps.
-function fmtSlippage(bps) {
+function fmtTolerance(bps) {
   const n = Number(bps) || 100;
   return `${n / 100}%`;
 }
@@ -404,20 +409,20 @@ function updateForm() {
   const quoteDisp =
     quote === "BTC" ? "BTC" : quote ? assetLabel(quote) : "an asset";
 
-  // unit suffix + amount hint follow the want (quote) asset.
-  const unit = quote === "BTC" ? "sats" : "units";
+  // unit suffix + amount hint follow the base (deposit) asset.
+  const unit = base === "BTC" ? "sats" : "units";
   $$("[data-unit-suffix]").forEach((el) => (el.textContent = unit));
   $("#amount-hint").textContent =
-    quote === "BTC"
-      ? "Bounds are in satoshis on the want side (BTC dust ≥ 330 sats)."
-      : "Bounds are in the want asset's smallest (raw) unit.";
+    base === "BTC"
+      ? "Bounds apply to the maker's deposit, in satoshis (BTC dust ≥ 330 sats)."
+      : "Bounds apply to the maker's deposit, in the base asset's smallest (raw) unit.";
 
   // invert hint references the actual sides.
   $("#invert-hint").textContent = `Offers are priced as ${baseDisp} per ${quoteDisp}. Enable if your feed returns ${quoteDisp} per ${baseDisp} instead.`;
 
   // feed hint reflects the configured slippage.
-  $("#feed-hint").textContent = `The solver polls this URL for the reference price and fulfills offers within ${fmtSlippage(
-    form.elements.slippage_bps.value
+  $("#feed-hint").textContent = `The solver polls this URL for the reference price and fulfills offers within ${fmtTolerance(
+    form.elements.tolerance_bps.value
   )}.`;
 
   // live preview.
@@ -426,25 +431,25 @@ function updateForm() {
   $("#preview-pair-str").textContent = `${assetLabel(baseStr)} / ${assetLabel(
     quoteStr
   )}`;
-  const min = form.elements.min_amount.value;
-  const max = form.elements.max_amount.value;
+  const min = form.elements.min_base_amount.value;
+  const max = form.elements.max_base_amount.value;
   const minStr = min ? Number(min).toLocaleString("en-US") : "min";
   const maxStr = max ? Number(max).toLocaleString("en-US") : "max";
   $("#preview-text").innerHTML = `The solver fulfills offers depositing <strong>${escapeHTML(
     baseDisp
   )}</strong> for <strong>${escapeHTML(
     quoteDisp
-  )}</strong> when the maker wants between <strong>${escapeHTML(
+  )}</strong> when the maker deposits between <strong>${escapeHTML(
     minStr
   )}</strong> and <strong>${escapeHTML(maxStr)}</strong> <strong>${escapeHTML(
     unit
   )}</strong>.`;
 
   // fill-tolerance band mirrors the market card.
-  $("#preview-band-pct").textContent = `±${fmtSlippage(
-    form.elements.slippage_bps.value
+  $("#preview-band-pct").textContent = `±${fmtTolerance(
+    form.elements.tolerance_bps.value
   )}`;
-  const bg = bandGeom(form.elements.slippage_bps.value);
+  const bg = bandGeom(form.elements.tolerance_bps.value);
   const bf = $("#preview-band-fill");
   bf.style.left = `${bg.left}%`;
   bf.style.width = `${bg.width}%`;
@@ -463,7 +468,7 @@ function setAssetsLocked(locked) {
 function clearFormErrors() {
   $("#assets-error").textContent = "";
   $("#amount-error").textContent = "";
-  ["base_asset", "quote_asset", "min_amount", "max_amount"].forEach((n) =>
+  ["base_asset", "quote_asset", "min_base_amount", "max_base_amount"].forEach((n) =>
     form.elements[n].classList.remove("invalid")
   );
 }
@@ -471,6 +476,7 @@ function clearFormErrors() {
 function openAdd() {
   form.reset();
   form.dataset.mode = "add";
+  editingPair = null;
   setAssetsLocked(false);
   // defaults: deposit BTC, want asset.
   form.elements.base_kind.value = "BTC";
@@ -482,20 +488,24 @@ function openAdd() {
   dialog.showModal();
 }
 
+let editingPair = null;
+
 function openEdit(pair) {
   form.reset();
   form.dataset.mode = "edit";
+  editingPair = pair;
   const base = pairBase(pair.pair);
   const quote = pairWantAsset(pair.pair);
   form.elements.base_kind.value = base === "BTC" ? "BTC" : "asset";
   form.elements.quote_kind.value = quote === "BTC" ? "BTC" : "asset";
   form.elements.base_asset.value = base === "BTC" ? "" : base;
   form.elements.quote_asset.value = quote === "BTC" ? "" : quote;
-  form.elements.min_amount.value = pair.min_amount;
-  form.elements.max_amount.value = pair.max_amount;
+  form.elements.min_base_amount.value = pair.min_base_amount;
+  form.elements.max_base_amount.value = pair.max_base_amount;
   form.elements.price_feed.value = pair.price_feed;
   form.elements.invert_price.checked = !!pair.invert_price;
-  form.elements.slippage_bps.value = pair.slippage_bps || "";
+  form.elements.tolerance_bps.value = pair.tolerance_bps || "";
+  form.elements.fee_bps.value = pair.fee_bps || "";
   setAssetsLocked(true); // identity can't change on edit
   clearFormErrors();
   $("#dialog-title").textContent = "Edit market";
@@ -527,7 +537,7 @@ function validateForm(base, quote, min, max) {
       ok = false;
     } else if (min > max) {
       $("#amount-error").textContent = "Min must be less than or equal to max.";
-      form.elements.min_amount.classList.add("invalid");
+      form.elements.min_base_amount.classList.add("invalid");
       ok = false;
     }
   }
@@ -548,19 +558,32 @@ form.addEventListener("submit", async (e) => {
   clearFormErrors();
   const base = sideValue("base");
   const quote = sideValue("quote");
-  const min = Number(form.elements.min_amount.value);
-  const max = Number(form.elements.max_amount.value);
+  const min = Number(form.elements.min_base_amount.value);
+  const max = Number(form.elements.max_base_amount.value);
   if (!validateForm(base, quote, min, max)) return;
 
   const pair = {
     pair: `${base}/${quote}`,
-    min_amount: min,
-    max_amount: max,
+    min_base_amount: min,
+    max_base_amount: max,
     price_feed: String(form.elements.price_feed.value).trim(),
     invert_price: form.elements.invert_price.checked,
-    slippage_bps: Number(form.elements.slippage_bps.value) || 0,
+    tolerance_bps: Number(form.elements.tolerance_bps.value) || 0,
+    fee_bps: Number(form.elements.fee_bps.value) || 0,
   };
   const mode = form.dataset.mode;
+  if (mode === "edit" && editingPair) {
+    // preserve card metadata the form has no inputs for.
+    for (const k of [
+      "base_name",
+      "base_ticker",
+      "quote_name",
+      "quote_ticker",
+      "price_decimals",
+    ]) {
+      if (editingPair[k] !== undefined) pair[k] = editingPair[k];
+    }
+  }
   const submit = $("#pair-submit");
   submit.disabled = true;
   try {
