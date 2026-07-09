@@ -6,8 +6,8 @@ package sqlc
 
 type BancoPair struct {
 	Pair          string
-	MinAmount     int64
-	MaxAmount     int64
+	MinBaseAmount int64
+	MaxBaseAmount int64
 	BaseDecimals  int64
 	QuoteDecimals int64
 	PriceFeed     string

@@ -261,7 +261,9 @@ MAY apply any subset. `solverd` applies, in order:
 
 -   **Pair match**: a configured trading pair MUST exist for the offer's
     `(DepositAsset → WantAsset)` direction. Otherwise the offer is ignored.
--   **Amount in range**: `WantAmount ∈ [MinAmount, MaxAmount]` for the pair.
+-   **Amount in range**: `DepositAmount ∈ [MinBaseAmount, MaxBaseAmount]` for the
+    pair — bounds apply to the base side of the trade (the maker's deposit), in
+    base-asset atomic units.
 -   **Price tolerance**: the offer price (deposit/want, decimal-adjusted) MUST be
     within **±1%** of the configured price feed mid. A stale feed logs a warning
     but does not auto-reject; an unavailable feed rejects.

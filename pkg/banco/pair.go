@@ -10,9 +10,12 @@ import (
 // "BTC" (for native bitcoin) or the hex asset ID (for arkade assets).
 // Examples: "a1b2c3.../BTC", "BTC/d4e5f6...", "a1b2c3.../d4e5f6..."
 type Pair struct {
-	Pair          string `json:"pair"`          // e.g. "a1b2c3.../BTC"
-	MinAmount     uint64 `json:"minAmount"`     // satoshis
-	MaxAmount     uint64 `json:"maxAmount"`     // satoshis
+	Pair string `json:"pair"` // e.g. "a1b2c3.../BTC"
+	// Min/MaxBaseAmount bound the trade size on the base side of the trade —
+	// the maker's deposit — in base-asset atomic units (sats only when the
+	// base is BTC). Non-BTC-base pairs are bounded in their own units.
+	MinBaseAmount uint64 `json:"minBaseAmount"`
+	MaxBaseAmount uint64 `json:"maxBaseAmount"`
 	BaseDecimals  int    `json:"baseDecimals"`  // decimal precision of the base asset
 	QuoteDecimals int    `json:"quoteDecimals"` // decimal precision of the quote asset
 	PriceFeed     string `json:"priceFeed"`     // price API URL

@@ -22,12 +22,12 @@ func TestPairToleranceFeeRoundTrip(t *testing.T) {
 	ctx := context.Background()
 
 	in := banco.Pair{
-		Pair:         "BTC/aabbcc",
-		MinAmount:    1000,
-		MaxAmount:    100000,
-		PriceFeed:    "https://example.com/price",
-		ToleranceBps: 250,
-		FeeBps:       30,
+		Pair:          "BTC/aabbcc",
+		MinBaseAmount: 1000,
+		MaxBaseAmount: 100000,
+		PriceFeed:     "https://example.com/price",
+		ToleranceBps:  250,
+		FeeBps:        30,
 	}
 	if err := repo.Add(ctx, in); err != nil {
 		t.Fatalf("add: %v", err)

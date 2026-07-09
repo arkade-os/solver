@@ -174,8 +174,8 @@ func pairList(c *cli.Context) error {
 func pairFlags(required bool) []cli.Flag {
 	return []cli.Flag{
 		&cli.StringFlag{Name: "pair", Required: true, Usage: "market name (e.g. BTC/ASSET)"},
-		&cli.Uint64Flag{Name: "min", Required: required, Usage: "minimum want amount (quote asset base units)"},
-		&cli.Uint64Flag{Name: "max", Required: required, Usage: "maximum want amount (quote asset base units)"},
+		&cli.Uint64Flag{Name: "min", Required: required, Usage: "minimum trade size on the base side, i.e. the maker's deposit (base asset atomic units; sats when base is BTC)"},
+		&cli.Uint64Flag{Name: "max", Required: required, Usage: "maximum trade size on the base side, i.e. the maker's deposit (base asset atomic units; sats when base is BTC)"},
 		&cli.StringFlag{Name: "price-feed", Required: required, Usage: "price feed URL"},
 		&cli.BoolFlag{Name: "invert-price", Usage: "invert the feed price"},
 		&cli.UintFlag{
@@ -193,10 +193,10 @@ func pairFlags(required bool) []cli.Flag {
 func pairOverrides(c *cli.Context) map[string]any {
 	out := map[string]any{"pair": c.String("pair")}
 	if c.IsSet("min") {
-		out["min_amount"] = c.Uint64("min")
+		out["min_base_amount"] = c.Uint64("min")
 	}
 	if c.IsSet("max") {
-		out["max_amount"] = c.Uint64("max")
+		out["max_base_amount"] = c.Uint64("max")
 	}
 	if c.IsSet("price-feed") {
 		out["price_feed"] = c.String("price-feed")
@@ -424,12 +424,13 @@ var statusCommand = &cli.Command{
 
 type pairInfo struct {
 	Pair          string `json:"pair"`
-	MinAmount     uint64 `json:"min_amount"`
-	MaxAmount     uint64 `json:"max_amount"`
+	MinBaseAmount uint64 `json:"min_base_amount"`
+	MaxBaseAmount uint64 `json:"max_base_amount"`
 	PriceFeed     string `json:"price_feed"`
 	InvertPrice   bool   `json:"invert_price"`
 	ToleranceBps  uint32 `json:"tolerance_bps"`
 	FeeBps        uint32 `json:"fee_bps"`
+	BaseDecimals  int32  `json:"base_decimals"`
 	QuoteDecimals int32  `json:"quote_decimals"`
 }
 
@@ -483,14 +484,14 @@ func renderMarkets(pairs []pairInfo, meta map[string]assetInfo) {
 	}
 	fmt.Println()
 	tw := newTable()
-	fmt.Fprintln(tw, "  MARKET\tMIN WANT\tMAX WANT\tFEE\tTOLERANCE\tINVERT\tFEED") //nolint:errcheck
+	fmt.Fprintln(tw, "  MARKET\tMIN SIZE\tMAX SIZE\tFEE\tTOLERANCE\tINVERT\tFEED") //nolint:errcheck
 	for _, p := range pairs {
 		base, quote, _ := splitPair(p.Pair)
 		market := unitLabel(base, meta) + " " + gArrow() + " " + unitLabel(quote, meta)
 		fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\t%s\t%s\n", //nolint:errcheck
 			market,
-			fmtBound(p.MinAmount, quote, p.QuoteDecimals, meta),
-			fmtBound(p.MaxAmount, quote, p.QuoteDecimals, meta),
+			fmtBound(p.MinBaseAmount, base, p.BaseDecimals, meta),
+			fmtBound(p.MaxBaseAmount, base, p.BaseDecimals, meta),
 			fmtFee(p.FeeBps),
 			fmtTolerance(p.ToleranceBps), yesNo(p.InvertPrice), feedHost(p.PriceFeed))
 	}
@@ -505,8 +506,8 @@ func renderMarketDetail(p pairInfo, meta map[string]assetInfo) {
 	row := func(k, v string) { fmt.Fprintf(tw, "  %s\t%s\n", dim(k), v) } //nolint:errcheck
 	row("Deposit", unitLabel(base, meta))
 	row("Want", unitLabel(quote, meta))
-	row("Min want", fmtBound(p.MinAmount, quote, p.QuoteDecimals, meta))
-	row("Max want", fmtBound(p.MaxAmount, quote, p.QuoteDecimals, meta))
+	row("Min size", fmtBound(p.MinBaseAmount, base, p.BaseDecimals, meta))
+	row("Max size", fmtBound(p.MaxBaseAmount, base, p.BaseDecimals, meta))
 	row("Fee", fmtFee(p.FeeBps))
 	row("Tolerance", fmtTolerance(p.ToleranceBps))
 	row("Invert price", yesNo(p.InvertPrice))
@@ -705,7 +706,7 @@ func truncID(id string) string {
 	return id[:6] + gEllipsis() + id[len(id)-4:]
 }
 
-// fmtBound shows a market's want-side bound: BTC as sats, an asset scaled + ticker.
+// fmtBound shows a market's base-side trade bound: BTC as sats, an asset scaled + ticker.
 func fmtBound(raw uint64, id string, dec int32, meta map[string]assetInfo) string {
 	if id == "BTC" || id == "" {
 		return group(strconv.FormatUint(raw, 10)) + " sats"

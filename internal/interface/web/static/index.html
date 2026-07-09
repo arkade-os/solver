@@ -223,24 +223,24 @@
             </div>
 
             <div class="form-section">
-              <span class="form-section-title">Amount bounds (want side)</span>
+              <span class="form-section-title">Trade size bounds (deposit side)</span>
               <div class="field-row">
                 <label class="field">
                   <span>Minimum</span>
                   <div class="input-suffix">
-                    <input name="min_amount" type="number" min="1" step="1" inputmode="numeric" required />
+                    <input name="min_base_amount" type="number" min="1" step="1" inputmode="numeric" required />
                     <span class="suffix" data-unit-suffix>units</span>
                   </div>
                 </label>
                 <label class="field">
                   <span>Maximum</span>
                   <div class="input-suffix">
-                    <input name="max_amount" type="number" min="1" step="1" inputmode="numeric" required />
+                    <input name="max_base_amount" type="number" min="1" step="1" inputmode="numeric" required />
                     <span class="suffix" data-unit-suffix>units</span>
                   </div>
                 </label>
               </div>
-              <small class="muted" id="amount-hint">Bounds apply to the amount makers want, in the want asset's smallest unit.</small>
+              <small class="muted" id="amount-hint">Bounds apply to the maker's deposit (the base asset), in its smallest unit.</small>
               <p class="field-error" id="amount-error"></p>
             </div>
           </div>

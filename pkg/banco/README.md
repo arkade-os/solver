@@ -27,8 +27,8 @@ Order matches `plugin.go` (cheapest first):
 
 | Gate | Source | Reject when |
 |---|---|---|
-| `checkAmountInRange` | offer + pair | `Offer.WantAmount` outside `Pair.[MinAmount, MaxAmount]` |
-| `checkPriceTolerance` | price feed (`PriceFeed`) | offer price deviates >1% from feed mid; stale feed logs Warn but does not auto-reject |
+| `checkAmountInRange` | offer + pair | `Offer.DepositAmount` (the base side of the trade) outside `Pair.[MinBaseAmount, MaxBaseAmount]` |
+| `checkPriceTolerance` | price feed (`PriceFeed`) | offer price deviates more than the pair's tolerance_bps from feed mid (default 100 bps); stale feed logs Warn but does not auto-reject |
 | `checkBTCBalance` | `arkClient.Balance` | want side is BTC and offchain balance < `WantAmount`; skipped if want is a non-BTC asset |
 
 All gates return `(false, nil)` for silent drops — they reject by policy,

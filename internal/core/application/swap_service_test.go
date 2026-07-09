@@ -10,10 +10,10 @@ import (
 
 func validPair() banco.Pair {
 	return banco.Pair{
-		Pair:      "BTC/aabbcc",
-		MinAmount: 1000,
-		MaxAmount: 100000,
-		PriceFeed: "https://example.com/price",
+		Pair:          "BTC/aabbcc",
+		MinBaseAmount: 1000,
+		MaxBaseAmount: 100000,
+		PriceFeed:     "https://example.com/price",
 	}
 }
 

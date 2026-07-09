@@ -156,14 +156,14 @@ func validatePair(pair banco.Pair) error {
 	if _, _, ok := splitPair(pair.Pair); !ok {
 		return fmt.Errorf("pair must be in format 'base/quote'")
 	}
-	if pair.MinAmount == 0 {
-		return fmt.Errorf("min_amount must be greater than 0")
+	if pair.MinBaseAmount == 0 {
+		return fmt.Errorf("min_base_amount must be greater than 0")
 	}
-	if pair.MaxAmount == 0 {
-		return fmt.Errorf("max_amount must be greater than 0")
+	if pair.MaxBaseAmount == 0 {
+		return fmt.Errorf("max_base_amount must be greater than 0")
 	}
-	if pair.MinAmount > pair.MaxAmount {
-		return fmt.Errorf("min_amount must be less than or equal to max_amount")
+	if pair.MinBaseAmount > pair.MaxBaseAmount {
+		return fmt.Errorf("min_base_amount must be less than or equal to max_base_amount")
 	}
 	if pair.PriceFeed == "" {
 		return fmt.Errorf("price_feed is required")

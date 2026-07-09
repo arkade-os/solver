@@ -27,9 +27,10 @@ service BancoService {
 
 message PairInfo {
   string pair = 1;
-  // Min/max want amount, expressed in the quote asset's base units.
-  uint64 min_amount = 2;
-  uint64 max_amount = 3;
+  // Min/max trade size on the base side of the trade (the maker's deposit),
+  // expressed in base-asset atomic units (sats only when the base is BTC).
+  uint64 min_base_amount = 2;
+  uint64 max_base_amount = 3;
   string price_feed = 4;
   bool invert_price = 5;
   // Internal fill-time max price deviation from the feed, in basis points

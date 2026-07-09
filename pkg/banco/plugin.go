@@ -66,8 +66,10 @@ func (p *plugin) Match(ctx context.Context, tx *psbt.Packet) (any, bool) {
 		return nil, false
 	}
 
-	// offer is not in range, skip
-	if m.Offer.WantAmount < m.Pair.MinAmount || m.Offer.WantAmount > m.Pair.MaxAmount {
+	// Trade size out of range, skip. Bounds apply to the base side of the
+	// trade in base-asset units: the pair's base is always the deposit side
+	// (findMatchingPair matches base == deposit asset).
+	if m.Offer.DepositAmount < m.Pair.MinBaseAmount || m.Offer.DepositAmount > m.Pair.MaxBaseAmount {
 		return nil, false
 	}
 

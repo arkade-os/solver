@@ -37,8 +37,8 @@ func (r *PairRepository) List(ctx context.Context) ([]banco.Pair, error) {
 func (r *PairRepository) Add(ctx context.Context, pair banco.Pair) error {
 	return translateErr(r.queries.InsertPair(ctx, sqlc.InsertPairParams{
 		Pair:          pair.Pair,
-		MinAmount:     int64(pair.MinAmount),
-		MaxAmount:     int64(pair.MaxAmount),
+		MinBaseAmount: int64(pair.MinBaseAmount),
+		MaxBaseAmount: int64(pair.MaxBaseAmount),
 		BaseDecimals:  int64(pair.BaseDecimals),
 		QuoteDecimals: int64(pair.QuoteDecimals),
 		PriceFeed:     pair.PriceFeed,
@@ -51,8 +51,8 @@ func (r *PairRepository) Add(ctx context.Context, pair banco.Pair) error {
 func (r *PairRepository) Update(ctx context.Context, pair banco.Pair) error {
 	rows, err := r.queries.UpdatePair(ctx, sqlc.UpdatePairParams{
 		Pair:          pair.Pair,
-		MinAmount:     int64(pair.MinAmount),
-		MaxAmount:     int64(pair.MaxAmount),
+		MinBaseAmount: int64(pair.MinBaseAmount),
+		MaxBaseAmount: int64(pair.MaxBaseAmount),
 		BaseDecimals:  int64(pair.BaseDecimals),
 		QuoteDecimals: int64(pair.QuoteDecimals),
 		PriceFeed:     pair.PriceFeed,
@@ -76,8 +76,8 @@ func (r *PairRepository) Remove(ctx context.Context, pairName string) error {
 func toDomainPair(row sqlc.BancoPair) banco.Pair {
 	return banco.Pair{
 		Pair:          row.Pair,
-		MinAmount:     uint64(row.MinAmount),
-		MaxAmount:     uint64(row.MaxAmount),
+		MinBaseAmount: uint64(row.MinBaseAmount),
+		MaxBaseAmount: uint64(row.MaxBaseAmount),
 		BaseDecimals:  int(row.BaseDecimals),
 		QuoteDecimals: int(row.QuoteDecimals),
 		PriceFeed:     row.PriceFeed,

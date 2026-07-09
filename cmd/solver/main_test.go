@@ -37,10 +37,10 @@ func TestPairOverrides(t *testing.T) {
 		"--pair", "BTC/aabbcc", "--min", "500", "--tolerance-bps", "250", "--fee-bps", "30",
 	)
 	assert.Equal(t, map[string]any{
-		"pair":          "BTC/aabbcc",
-		"min_amount":    uint64(500),
-		"tolerance_bps": uint(250),
-		"fee_bps":       uint(30),
+		"pair":            "BTC/aabbcc",
+		"min_base_amount": uint64(500),
+		"tolerance_bps":   uint(250),
+		"fee_bps":         uint(30),
 	}, got)
 
 	// the old flag name still works as an alias.
@@ -58,7 +58,7 @@ func TestPairUpdatePartial(t *testing.T) {
 		case "GET /v1/pairs":
 			// nolint:errcheck
 			w.Write([]byte(`{"pairs":[{
-				"pair":"BTC/aabbcc","min_amount":1000,"max_amount":100000,
+				"pair":"BTC/aabbcc","min_base_amount":1000,"max_base_amount":100000,
 				"price_feed":"https://example.com/price","tolerance_bps":250,
 				"base_decimals":8,"quote_decimals":6}]}`))
 		case "PUT /v1/pair":
@@ -84,8 +84,8 @@ func TestPairUpdatePartial(t *testing.T) {
 
 	pair, ok := putBody["pair"].(map[string]any)
 	require.True(t, ok, "PUT body missing pair object: %v", putBody)
-	assert.Equal(t, float64(2000), pair["min_amount"], "flag override applied")
-	assert.Equal(t, float64(100000), pair["max_amount"], "unset field preserved")
+	assert.Equal(t, float64(2000), pair["min_base_amount"], "flag override applied")
+	assert.Equal(t, float64(100000), pair["max_base_amount"], "unset field preserved")
 	assert.Equal(t, float64(250), pair["tolerance_bps"], "unset tolerance preserved")
 	assert.Equal(t, "https://example.com/price", pair["price_feed"])
 }
