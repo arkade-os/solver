@@ -42,42 +42,30 @@
       <section class="view" id="view-pairs">
         <header class="view-head">
           <div>
-            <h1>Trading pairs</h1>
+            <h1>Markets</h1>
             <p class="muted">Offers the solver will fulfill, with their price-feed bounds.</p>
           </div>
-          <button class="btn btn-primary" id="btn-add-pair">
-            <i data-icon="plus"></i> Add pair
-          </button>
-        </header>
-
-        <div class="card">
-          <div class="table-wrap">
-            <table class="table" id="pairs-table">
-              <thead>
-                <tr>
-                  <th>Deposit → Want</th>
-                  <th>Min</th>
-                  <th>Max</th>
-                  <th>Price feed</th>
-                  <th>Slippage</th>
-                  <th>Invert</th>
-                  <th class="actions-col"></th>
-                </tr>
-              </thead>
-              <tbody id="pairs-body">
-                <tr class="skeleton-row"><td colspan="7"><div class="skeleton"></div></td></tr>
-                <tr class="skeleton-row"><td colspan="7"><div class="skeleton"></div></td></tr>
-                <tr class="skeleton-row"><td colspan="7"><div class="skeleton"></div></td></tr>
-              </tbody>
-            </table>
-          </div>
-          <div class="empty" id="pairs-empty" hidden>
-            <i data-icon="layers" class="empty-art"></i>
-            <p>No trading pairs configured.</p>
-            <button class="btn btn-primary" id="btn-add-first-pair">
-              <i data-icon="plus"></i> Add your first pair
+          <div class="head-actions">
+            <span class="count-pill" id="pairs-count" hidden></span>
+            <button class="btn btn-primary" id="btn-add-pair">
+              <i data-icon="plus"></i> Add market
             </button>
           </div>
+        </header>
+
+        <div class="market-grid" id="pairs-grid">
+          <div class="market skeleton-card"><div class="skeleton"></div></div>
+          <div class="market skeleton-card"><div class="skeleton"></div></div>
+          <div class="market skeleton-card"><div class="skeleton"></div></div>
+        </div>
+
+        <div class="empty" id="pairs-empty" hidden>
+          <i data-icon="layers" class="empty-art"></i>
+          <p>No markets configured.</p>
+          <p class="muted">Add a market to tell the solver which deposits it should fill.</p>
+          <button class="btn btn-primary" id="btn-add-first-pair">
+            <i data-icon="plus"></i> Add your first market
+          </button>
         </div>
       </section>
 
@@ -153,21 +141,20 @@
 
         <div class="card">
           <div class="table-wrap">
-            <table class="table" id="trades-table">
+            <table class="table table-trades" id="trades-table">
               <thead>
                 <tr>
                   <th>Time</th>
-                  <th>Pair</th>
-                  <th>Deposit</th>
-                  <th>Want</th>
-                  <th>Offer tx</th>
-                  <th>Fulfill tx</th>
+                  <th>Trade</th>
+                  <th class="num">Deposited</th>
+                  <th class="num">Filled</th>
+                  <th>Transactions</th>
                 </tr>
               </thead>
               <tbody id="trades-body">
-                <tr class="skeleton-row"><td colspan="6"><div class="skeleton"></div></td></tr>
-                <tr class="skeleton-row"><td colspan="6"><div class="skeleton"></div></td></tr>
-                <tr class="skeleton-row"><td colspan="6"><div class="skeleton"></div></td></tr>
+                <tr class="skeleton-row"><td colspan="5"><div class="skeleton"></div></td></tr>
+                <tr class="skeleton-row"><td colspan="5"><div class="skeleton"></div></td></tr>
+                <tr class="skeleton-row"><td colspan="5"><div class="skeleton"></div></td></tr>
               </tbody>
             </table>
           </div>
@@ -182,119 +169,135 @@
     </main>
 
     <!-- Pair form dialog -->
-    <dialog id="pair-dialog" class="dialog">
+    <dialog id="pair-dialog" class="dialog dialog-wide">
       <form method="dialog" id="pair-form" class="dialog-form">
         <header class="dialog-head">
-          <h2 id="dialog-title">Add trading pair</h2>
+          <h2 id="dialog-title">Add market</h2>
           <button type="button" class="icon-btn" data-close aria-label="Close">
             <i data-icon="x"></i>
           </button>
         </header>
 
-        <div class="dialog-body">
-          <div class="form-section" id="assets-section">
-            <span class="form-section-title">Assets</span>
-            <div class="asset-grid">
-              <div class="asset-field">
-                <span class="field-label">Deposit <small>(base)</small></span>
-                <div class="seg" role="radiogroup" aria-label="Deposit asset type">
-                  <label>
-                    <input type="radio" name="base_kind" value="BTC" checked />
-                    <span>BTC</span>
-                  </label>
-                  <label>
-                    <input type="radio" name="base_kind" value="asset" />
-                    <span>Asset</span>
-                  </label>
+        <div class="dialog-body dialog-cols">
+          <!-- Left: what trades -->
+          <div class="dialog-col">
+            <div class="form-section" id="assets-section">
+              <span class="form-section-title">Market</span>
+              <div class="asset-grid">
+                <div class="asset-field">
+                  <span class="field-label">Deposit <small>(base)</small></span>
+                  <div class="seg" role="radiogroup" aria-label="Deposit asset type">
+                    <label>
+                      <input type="radio" name="base_kind" value="BTC" checked />
+                      <span>BTC</span>
+                    </label>
+                    <label>
+                      <input type="radio" name="base_kind" value="asset" />
+                      <span>Asset</span>
+                    </label>
+                  </div>
+                  <input class="asset-hex mono" name="base_asset" type="text"
+                    placeholder="asset id (hex)" autocomplete="off" spellcheck="false" hidden />
                 </div>
-                <input class="asset-hex mono" name="base_asset" type="text"
-                  placeholder="asset id (hex)" autocomplete="off" spellcheck="false" hidden />
-              </div>
 
-              <div class="asset-arrow"><i data-icon="arrow-right"></i></div>
+                <div class="asset-arrow"><i data-icon="arrow-right"></i></div>
 
-              <div class="asset-field">
-                <span class="field-label">Want <small>(quote)</small></span>
-                <div class="seg" role="radiogroup" aria-label="Want asset type">
-                  <label>
-                    <input type="radio" name="quote_kind" value="BTC" />
-                    <span>BTC</span>
-                  </label>
-                  <label>
-                    <input type="radio" name="quote_kind" value="asset" checked />
-                    <span>Asset</span>
-                  </label>
+                <div class="asset-field">
+                  <span class="field-label">Want <small>(quote)</small></span>
+                  <div class="seg" role="radiogroup" aria-label="Want asset type">
+                    <label>
+                      <input type="radio" name="quote_kind" value="BTC" />
+                      <span>BTC</span>
+                    </label>
+                    <label>
+                      <input type="radio" name="quote_kind" value="asset" checked />
+                      <span>Asset</span>
+                    </label>
+                  </div>
+                  <input class="asset-hex mono" name="quote_asset" type="text"
+                    placeholder="asset id (hex)" autocomplete="off" spellcheck="false" />
                 </div>
-                <input class="asset-hex mono" name="quote_asset" type="text"
-                  placeholder="asset id (hex)" autocomplete="off" spellcheck="false" />
               </div>
+              <small class="muted">Makers deposit the base asset and receive the quote asset, which the solver provides.</small>
+              <p class="field-error" id="assets-error"></p>
             </div>
-            <small class="muted">Makers deposit the base asset and receive the quote asset, which the solver provides.</small>
-            <p class="field-error" id="assets-error"></p>
+
+            <div class="form-section">
+              <span class="form-section-title">Amount bounds (want side)</span>
+              <div class="field-row">
+                <label class="field">
+                  <span>Minimum</span>
+                  <div class="input-suffix">
+                    <input name="min_amount" type="number" min="1" step="1" inputmode="numeric" required />
+                    <span class="suffix" data-unit-suffix>units</span>
+                  </div>
+                </label>
+                <label class="field">
+                  <span>Maximum</span>
+                  <div class="input-suffix">
+                    <input name="max_amount" type="number" min="1" step="1" inputmode="numeric" required />
+                    <span class="suffix" data-unit-suffix>units</span>
+                  </div>
+                </label>
+              </div>
+              <small class="muted" id="amount-hint">Bounds apply to the amount makers want, in the want asset's smallest unit.</small>
+              <p class="field-error" id="amount-error"></p>
+            </div>
           </div>
 
-          <div class="form-section">
-            <span class="form-section-title">Amount bounds (want side)</span>
-            <div class="field-row">
+          <!-- Right: how it's priced -->
+          <div class="dialog-col">
+            <div class="form-section">
+              <span class="form-section-title">Pricing</span>
               <label class="field">
-                <span>Minimum</span>
-                <div class="input-suffix">
-                  <input name="min_amount" type="number" min="1" step="1" inputmode="numeric" required />
-                  <span class="suffix" data-unit-suffix>units</span>
-                </div>
+                <span>Price feed URL</span>
+                <input name="price_feed" type="url" placeholder="https://api.example.com/price" required />
+                <small class="muted" id="feed-hint">The solver polls this URL for the reference price and fulfills offers within 1%.</small>
               </label>
+
               <label class="field">
-                <span>Maximum</span>
+                <span>Slippage</span>
                 <div class="input-suffix">
-                  <input name="max_amount" type="number" min="1" step="1" inputmode="numeric" required />
-                  <span class="suffix" data-unit-suffix>units</span>
+                  <input name="slippage_bps" type="number" min="1" max="5000" step="1"
+                    inputmode="numeric" placeholder="100" />
+                  <span class="suffix">bps</span>
                 </div>
+                <small class="muted">Max deviation from the feed price, in basis points. Leave empty for the default of 100 bps (1%).</small>
+              </label>
+
+              <label class="switch-row">
+                <span class="switch-text">
+                  <span>Invert price</span>
+                  <small class="muted" id="invert-hint">Use 1 / feed price when comparing.</small>
+                </span>
+                <span class="switch">
+                  <input name="invert_price" type="checkbox" />
+                  <span class="track"></span>
+                </span>
               </label>
             </div>
-            <small class="muted" id="amount-hint">Bounds apply to the amount makers want, in the want asset's smallest unit.</small>
-            <p class="field-error" id="amount-error"></p>
-          </div>
 
-          <div class="form-section">
-            <span class="form-section-title">Pricing</span>
-            <label class="field">
-              <span>Price feed URL</span>
-              <input name="price_feed" type="url" placeholder="https://api.example.com/price" required />
-              <small class="muted" id="feed-hint">The solver polls this URL for the reference price and fulfills offers within 1%.</small>
-            </label>
-
-            <label class="field">
-              <span>Slippage</span>
-              <div class="input-suffix">
-                <input name="slippage_bps" type="number" min="1" max="5000" step="1"
-                  inputmode="numeric" placeholder="100" />
-                <span class="suffix">bps</span>
+            <div class="preview">
+              <span class="preview-head"><i data-icon="eye"></i> Preview</span>
+              <div class="preview-pair"><code id="preview-pair-str">—</code></div>
+              <div class="preview-band" aria-hidden="true">
+                <div class="band-head">
+                  <span>Fill tolerance</span>
+                  <span class="band-pct" id="preview-band-pct">±1.0%</span>
+                </div>
+                <div class="band-track">
+                  <div class="band-fill" id="preview-band-fill"></div>
+                  <div class="band-mark"></div>
+                </div>
               </div>
-              <small class="muted">Max deviation from the feed price, in basis points. Leave empty for the default of 100 bps (1%).</small>
-            </label>
-
-            <label class="switch-row">
-              <span class="switch-text">
-                <span>Invert price</span>
-                <small class="muted" id="invert-hint">Use 1 / feed price when comparing.</small>
-              </span>
-              <span class="switch">
-                <input name="invert_price" type="checkbox" />
-                <span class="track"></span>
-              </span>
-            </label>
-          </div>
-
-          <div class="preview">
-            <span class="preview-head"><i data-icon="eye"></i> Preview</span>
-            <div class="preview-pair"><code id="preview-pair-str">—</code></div>
-            <p class="preview-text" id="preview-text">Fill in the fields to preview this pair.</p>
+              <p class="preview-text" id="preview-text">Fill in the fields to preview this market.</p>
+            </div>
           </div>
         </div>
 
         <footer class="dialog-foot">
           <button type="button" class="btn" data-close>Cancel</button>
-          <button type="submit" class="btn btn-primary" id="pair-submit">Add pair</button>
+          <button type="submit" class="btn btn-primary" id="pair-submit">Add market</button>
         </footer>
       </form>
     </dialog>

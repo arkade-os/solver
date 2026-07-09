@@ -219,7 +219,7 @@ p {
 
 .content {
   padding: 36px 48px 80px;
-  max-width: 1080px;
+  max-width: 1320px;
   width: 100%;
 }
 
@@ -442,6 +442,338 @@ tr:hover .row-actions {
   background: var(--success-soft);
 }
 
+/* -------- Markets grid -------- */
+
+.count-pill {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.market-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.market {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 18px 16px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: border-color var(--ease), transform var(--ease),
+    box-shadow var(--ease);
+}
+.market:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.skeleton-card {
+  min-height: 168px;
+  gap: 0;
+  justify-content: center;
+}
+.skeleton-card .skeleton {
+  height: 100%;
+  min-height: 140px;
+  border-radius: var(--radius-md);
+}
+
+/* Header: deposit -> want flow + row actions */
+.market-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.market-flow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.market-side {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.market-side .asset-avatar {
+  width: 30px;
+  height: 30px;
+}
+.market-sym {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+}
+.market-sym b {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.market-sym small {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.market-flow-arrow {
+  color: var(--text-dim);
+  flex: none;
+}
+.market-actions {
+  display: flex;
+  gap: 2px;
+  flex: none;
+  opacity: 0.5;
+  transition: opacity var(--ease);
+}
+.market:hover .market-actions,
+.market:focus-within .market-actions {
+  opacity: 1;
+}
+
+/* Min / max stats */
+.market-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.mstat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.mstat-k {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.mstat-v {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Fill-tolerance band: symmetric ±slippage around the feed price */
+.market-band,
+.preview-band {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.band-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.band-pct {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+.band-track {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.band-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--accent-soft) 20%,
+    var(--accent-soft) 80%,
+    transparent
+  );
+  border-left: 1px solid rgba(86, 199, 245, 0.35);
+  border-right: 1px solid rgba(86, 199, 245, 0.35);
+  transition: left var(--ease), width var(--ease);
+}
+.band-mark {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--accent);
+  border-radius: 1px;
+}
+
+/* Footer: feed link + invert badge */
+.market-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+.feed-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Cascadia Mono",
+    monospace;
+}
+.feed-link:hover {
+  color: var(--accent);
+  text-decoration: none;
+}
+.feed-link .icon {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  color: var(--text-dim);
+}
+.feed-link:hover .icon {
+  color: var(--accent);
+}
+.feed-link span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* -------- Trade history (blotter) -------- */
+
+.table-trades td {
+  padding-top: 15px;
+  padding-bottom: 15px;
+}
+.trade-time {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Compact deposit -> want flow, echoing the market cards. */
+.trade-flow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.tf-side {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.trade-flow .asset-avatar {
+  width: 22px;
+  height: 22px;
+}
+.tf-side b {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+.tf-arrow {
+  width: 15px;
+  height: 15px;
+  color: var(--text-dim);
+  flex: none;
+}
+.trade-amt {
+  font-weight: 550;
+  white-space: nowrap;
+}
+
+/* Offer / fulfill txids as click-to-copy chips. */
+.tx-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.tx-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px 3px 7px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background var(--ease), border-color var(--ease),
+    color var(--ease);
+}
+.tx-chip > span {
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+.tx-chip code {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.tx-chip:hover {
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+.tx-chip:hover code {
+  color: var(--text);
+}
+.tx-chip:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+.tx-none {
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
 /* -------- Buttons -------- */
 
 .btn {
@@ -606,6 +938,25 @@ tr:hover .row-actions {
 .dialog::backdrop {
   background: rgba(3, 5, 9, 0.62);
   backdrop-filter: blur(3px);
+}
+
+.dialog-wide {
+  width: 760px;
+}
+
+/* Two-column body for the wide market form; each column stacks its sections.
+   Compound selector beats the later `.dialog-body { display:flex }` rule. */
+.dialog-body.dialog-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+  align-items: start;
+}
+.dialog-col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
 }
 
 .dialog-form {
@@ -998,6 +1349,10 @@ tr:hover .row-actions {
   }
   .content {
     padding: 24px 18px 60px;
+  }
+  .dialog-body.dialog-cols {
+    grid-template-columns: 1fr;
+    gap: 20px;
   }
   .field-row {
     grid-template-columns: 1fr;

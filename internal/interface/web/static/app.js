@@ -147,15 +147,6 @@ function pairWantAsset(name) {
   return i < 0 ? "" : name.slice(i + 1);
 }
 
-// fmtPairAmount formats a min/max value using the pair's want-side asset:
-// BTC → satoshi count, asset → raw count + truncated id.
-function fmtPairAmount(raw, pairName) {
-  if (raw == null) return "—";
-  const want = pairWantAsset(pairName);
-  if (want === "BTC") return `${Number(raw).toLocaleString("en-US")} sats`;
-  return `${Number(raw).toLocaleString("en-US")} · ${assetLabel(want)}`;
-}
-
 async function copy(text) {
   try {
     await navigator.clipboard.writeText(text);
@@ -207,65 +198,162 @@ $("#nav").addEventListener("click", (e) => {
 
 let pairsCache = [];
 
+// assetMeta maps a known asset id to its metadata (ticker/icon/decimals) so
+// pairs can show real tickers and icons instead of a raw hex id.
+let assetMeta = new Map();
+
+// metaFor returns metadata for a pair side; BTC and unknown assets fall back to
+// a minimal record.
+function metaFor(id) {
+  if (id === "BTC") return { asset_id: "BTC", ticker: "BTC", decimals: 8 };
+  return assetMeta.get(id) || { asset_id: id };
+}
+
+// wantAmount formats a min/max on the want side, scaling by decimals and using
+// the ticker when the asset is known; else a bare count + generic unit.
+function wantAmount(raw, meta) {
+  if (meta.asset_id === "BTC") {
+    return `${Number(raw).toLocaleString("en-US")} sats`;
+  }
+  if (meta.ticker || meta.decimals) {
+    return fmtAssetAmount(raw, meta.decimals, meta.ticker);
+  }
+  return `${Number(raw).toLocaleString("en-US")} units`;
+}
+
 async function loadPairs() {
-  const body = $("#pairs-body");
+  const grid = $("#pairs-grid");
   const empty = $("#pairs-empty");
   try {
-    const data = await api.listPairs();
+    const [data, assetsResp] = await Promise.all([
+      api.listPairs(),
+      api.listAssets().catch(() => ({ assets: [] })),
+    ]);
+    assetMeta = new Map((assetsResp.assets || []).map((a) => [a.asset_id, a]));
     pairsCache = data.pairs || [];
     renderPairs(pairsCache);
   } catch (err) {
     toast(err.message, "error");
-    body.innerHTML = "";
+    grid.innerHTML = "";
+    grid.hidden = true;
     empty.hidden = false;
+    $("#pairs-count").hidden = true;
   }
 }
 
+// feedHost shows just the host of a price-feed URL, falling back to the raw
+// string when it doesn't parse.
+function feedHost(url) {
+  try {
+    return new URL(url).host || url;
+  } catch (_) {
+    return url;
+  }
+}
+
+// bandGeom maps a slippage in basis points to a symmetric band centered on the
+// feed marker. 500 bps (5%) or wider spans the whole track; a floor keeps tiny
+// tolerances visible. Returns percentages of the track width.
+function bandGeom(bps) {
+  const pct = (Number(bps) || 100) / 100;
+  const half = Math.max(Math.min(pct / 5, 1) * 50, 3);
+  return { left: 50 - half, width: half * 2 };
+}
+
 function renderPairs(pairs) {
-  const body = $("#pairs-body");
+  const grid = $("#pairs-grid");
   const empty = $("#pairs-empty");
+  const count = $("#pairs-count");
   if (!pairs.length) {
-    body.innerHTML = "";
+    grid.innerHTML = "";
+    grid.hidden = true;
     empty.hidden = false;
+    count.hidden = true;
     return;
   }
   empty.hidden = true;
-  body.innerHTML = "";
+  grid.hidden = false;
+  count.hidden = false;
+  count.textContent = `${pairs.length} ${pairs.length === 1 ? "market" : "markets"}`;
+  grid.innerHTML = "";
   for (const p of pairs) {
     const base = pairBase(p.pair);
     const quote = pairWantAsset(p.pair);
-    const tr = document.createElement("tr");
-    tr.dataset.pair = p.pair;
-    tr.innerHTML = `
-      <td>
-        <span class="mono" title="${escapeAttr(p.pair)}">${escapeHTML(
-          assetLabel(base)
-        )} ${icon("arrow-right")} ${escapeHTML(assetLabel(quote))}</span>
-      </td>
-      <td class="num">${escapeHTML(fmtPairAmount(p.min_amount, p.pair))}</td>
-      <td class="num">${escapeHTML(fmtPairAmount(p.max_amount, p.pair))}</td>
-      <td><a href="${escapeAttr(safeHref(p.price_feed))}" target="_blank" rel="noreferrer noopener" class="mono trunc" title="${escapeAttr(
-        p.price_feed
-      )}">${escapeHTML(p.price_feed)}</a></td>
-      <td class="num">${escapeHTML(fmtSlippage(p.slippage_bps))}</td>
-      <td>${
-        p.invert_price
-          ? '<span class="badge on">Yes</span>'
-          : '<span class="badge">No</span>'
-      }</td>
-      <td class="actions-col">
-        <div class="row-actions">
-          <button class="icon-btn" data-edit aria-label="Edit pair">${icon(
+    const baseMeta = metaFor(base);
+    const quoteMeta = metaFor(quote);
+    // Prefer a real ticker/name; fall back to a short truncated id.
+    const baseLabel = baseMeta.ticker || baseMeta.name || assetLabel(base, 4, 4);
+    const quoteLabel =
+      quoteMeta.ticker || quoteMeta.name || assetLabel(quote, 4, 4);
+    const band = bandGeom(p.slippage_bps);
+    const minStr = wantAmount(p.min_amount, quoteMeta);
+    const maxStr = wantAmount(p.max_amount, quoteMeta);
+    const card = document.createElement("article");
+    card.className = "market";
+    card.dataset.pair = p.pair;
+    card.innerHTML = `
+      <div class="market-head">
+        <div class="market-flow">
+          <div class="market-side">
+            ${assetAvatar(baseMeta)}
+            <span class="market-sym"><b title="${escapeAttr(base)}">${escapeHTML(
+              baseLabel
+            )}</b><small>Deposit</small></span>
+          </div>
+          ${icon("arrow-right", "market-flow-arrow")}
+          <div class="market-side">
+            ${assetAvatar(quoteMeta)}
+            <span class="market-sym"><b title="${escapeAttr(quote)}">${escapeHTML(
+              quoteLabel
+            )}</b><small>Want</small></span>
+          </div>
+        </div>
+        <div class="market-actions">
+          <button class="icon-btn" data-edit aria-label="Edit market">${icon(
             "edit"
           )}</button>
-          <button class="icon-btn btn-danger" data-del aria-label="Delete pair">${icon(
+          <button class="icon-btn btn-danger" data-del aria-label="Delete market">${icon(
             "trash"
           )}</button>
         </div>
-      </td>`;
-    tr.querySelector("[data-edit]").addEventListener("click", () => openEdit(p));
-    tr.querySelector("[data-del]").addEventListener("click", () => deletePair(p));
-    body.appendChild(tr);
+      </div>
+
+      <div class="market-stats">
+        <div class="mstat">
+          <span class="mstat-k">Min want</span>
+          <span class="mstat-v" title="${escapeAttr(minStr)}">${escapeHTML(
+            minStr
+          )}</span>
+        </div>
+        <div class="mstat">
+          <span class="mstat-k">Max want</span>
+          <span class="mstat-v" title="${escapeAttr(maxStr)}">${escapeHTML(
+            maxStr
+          )}</span>
+        </div>
+      </div>
+
+      <div class="market-band">
+        <div class="band-head">
+          <span>Fill tolerance</span>
+          <span class="band-pct">±${escapeHTML(fmtSlippage(p.slippage_bps))}</span>
+        </div>
+        <div class="band-track">
+          <div class="band-fill" style="left:${band.left}%;width:${band.width}%"></div>
+          <div class="band-mark"></div>
+        </div>
+      </div>
+
+      <div class="market-foot">
+        <a class="feed-link" href="${escapeAttr(safeHref(p.price_feed))}"
+          target="_blank" rel="noreferrer noopener" title="${escapeAttr(
+            p.price_feed
+          )}">${icon("external")}<span>${escapeHTML(feedHost(p.price_feed))}</span></a>
+        ${p.invert_price ? '<span class="badge on">Inverted</span>' : ""}
+      </div>`;
+    card.querySelector("[data-edit]").addEventListener("click", () => openEdit(p));
+    card.querySelector("[data-del]").addEventListener("click", () => deletePair(p));
+    grid.appendChild(card);
   }
 }
 
@@ -351,6 +439,15 @@ function updateForm() {
   )}</strong> and <strong>${escapeHTML(maxStr)}</strong> <strong>${escapeHTML(
     unit
   )}</strong>.`;
+
+  // fill-tolerance band mirrors the market card.
+  $("#preview-band-pct").textContent = `±${fmtSlippage(
+    form.elements.slippage_bps.value
+  )}`;
+  const bg = bandGeom(form.elements.slippage_bps.value);
+  const bf = $("#preview-band-fill");
+  bf.style.left = `${bg.left}%`;
+  bf.style.width = `${bg.width}%`;
 }
 
 function setAssetsLocked(locked) {
@@ -379,8 +476,8 @@ function openAdd() {
   form.elements.base_kind.value = "BTC";
   form.elements.quote_kind.value = "asset";
   clearFormErrors();
-  $("#dialog-title").textContent = "Add trading pair";
-  $("#pair-submit").textContent = "Add pair";
+  $("#dialog-title").textContent = "Add market";
+  $("#pair-submit").textContent = "Add market";
   updateForm();
   dialog.showModal();
 }
@@ -401,7 +498,7 @@ function openEdit(pair) {
   form.elements.slippage_bps.value = pair.slippage_bps || "";
   setAssetsLocked(true); // identity can't change on edit
   clearFormErrors();
-  $("#dialog-title").textContent = "Edit trading pair";
+  $("#dialog-title").textContent = "Edit market";
   $("#pair-submit").textContent = "Save changes";
   updateForm();
   dialog.showModal();
@@ -851,11 +948,38 @@ settleForm.addEventListener("submit", async (e) => {
 
 // -------- history --------
 
+// assetChip renders a compact avatar + ticker/label for one side of a trade,
+// mirroring the market cards' flow.
+function assetChip(id) {
+  const m = metaFor(id);
+  const label = m.ticker || m.name || assetLabel(id, 4, 4);
+  return `<span class="tf-side">${assetAvatar(m)}<b title="${escapeAttr(
+    id
+  )}">${escapeHTML(label)}</b></span>`;
+}
+
+// txChip renders a labelled, click-to-copy transaction id (or a muted dash when
+// the id is missing).
+function txChip(label, txid) {
+  if (!txid) return `<span class="tx-none">${escapeHTML(label)} —</span>`;
+  return `<button type="button" class="tx-chip" data-copy-text="${escapeAttr(
+    txid
+  )}" title="Copy ${escapeHTML(label.toLowerCase())} txid — ${escapeAttr(
+    txid
+  )}"><span>${escapeHTML(label)}</span><code>${escapeHTML(
+    truncMid(txid, 6, 6)
+  )}</code></button>`;
+}
+
 async function loadTrades() {
   const body = $("#trades-body");
   const empty = $("#trades-empty");
   try {
-    const data = await api.listTrades(100);
+    const [data, assetsResp] = await Promise.all([
+      api.listTrades(100),
+      api.listAssets().catch(() => ({ assets: [] })),
+    ]);
+    assetMeta = new Map((assetsResp.assets || []).map((a) => [a.asset_id, a]));
     const trades = data.trades || [];
     if (!trades.length) {
       body.innerHTML = "";
@@ -865,28 +989,29 @@ async function loadTrades() {
     empty.hidden = true;
     body.innerHTML = "";
     for (const t of trades) {
+      const dep = t.deposit_asset || pairBase(t.pair);
+      const want = t.want_asset || pairWantAsset(t.pair);
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td title="${escapeAttr(
+        <td class="trade-time" title="${escapeAttr(
           new Date(t.created_at * 1000).toISOString()
         )}">${escapeHTML(fmtTime(t.created_at))}</td>
-        <td><span class="mono" title="${escapeAttr(t.pair)}">${escapeHTML(
-          assetLabel(pairBase(t.pair))
-        )} ${icon("arrow-right")} ${escapeHTML(
-          assetLabel(pairWantAsset(t.pair))
-        )}</span></td>
-        <td class="num">${escapeHTML(
-          fmtAmount(t.deposit_amount, t.deposit_asset)
+        <td>
+          <div class="trade-flow">
+            ${assetChip(dep)}${icon("arrow-right", "tf-arrow")}${assetChip(want)}
+          </div>
+        </td>
+        <td class="num trade-amt">${escapeHTML(
+          fmtAmount(t.deposit_amount, dep)
         )}</td>
-        <td class="num">${escapeHTML(
-          fmtAmount(t.want_amount, t.want_asset)
+        <td class="num trade-amt">${escapeHTML(
+          fmtAmount(t.want_amount, want)
         )}</td>
-        <td><code class="mono trunc" title="${escapeAttr(
-          t.offer_txid
-        )}">${escapeHTML(truncMid(t.offer_txid, 6, 6))}</code></td>
-        <td><code class="mono trunc" title="${escapeAttr(
-          t.fulfill_txid
-        )}">${escapeHTML(truncMid(t.fulfill_txid, 6, 6))}</code></td>`;
+        <td>
+          <div class="tx-chips">
+            ${txChip("Offer", t.offer_txid)}${txChip("Fill", t.fulfill_txid)}
+          </div>
+        </td>`;
       body.appendChild(tr);
     }
   } catch (err) {
@@ -911,14 +1036,25 @@ function fmtAmount(raw, asset) {
   if (asset === "BTC" || !asset) {
     return `${(Number(raw) / 1e8).toFixed(8)} BTC`;
   }
-  // Asset decimals aren't exposed by the API; show raw count + truncated id.
+  // Scale by decimals and show the ticker when the asset is known; otherwise
+  // fall back to a raw count + truncated id.
+  const meta = metaFor(asset);
+  if (meta.ticker || meta.decimals) {
+    return fmtAssetAmount(raw, meta.decimals, meta.ticker || assetLabel(asset));
+  }
   return `${Number(raw).toLocaleString("en-US")} · ${assetLabel(asset)}`;
 }
 
 $("#btn-refresh-trades").addEventListener("click", loadTrades);
 
-// delegate copy buttons (copies full textContent; CSS handles truncation)
+// delegate copy buttons: [data-copy] copies a target element's text,
+// [data-copy-text] copies its own attribute value (for dynamic rows).
 document.addEventListener("click", (e) => {
+  const t = e.target.closest("[data-copy-text]");
+  if (t) {
+    copy(t.getAttribute("data-copy-text"));
+    return;
+  }
   const b = e.target.closest("[data-copy]");
   if (!b) return;
   const el = $(b.getAttribute("data-copy"));
