@@ -5,15 +5,15 @@ go 1.26.4
 require (
 	github.com/arkade-os/arkd/pkg/ark-lib v0.8.1-0.20260708124145-5c56d54c98e8
 	github.com/arkade-os/arkd/pkg/client-lib v0.0.0-20260708124145-5c56d54c98e8
-	github.com/arkade-os/emulator/pkg/arkade v0.0.0-20260526192649-eac4fbc07c4c
+	github.com/arkade-os/emulator/pkg/arkade v0.0.0-20260616144513-96f9b06a5380
 	github.com/arkade-os/emulator/pkg/client v0.0.0-20260526192649-eac4fbc07c4c
-	github.com/arkade-os/go-sdk v0.10.1
+	github.com/arkade-os/go-sdk v0.10.2-0.20260709155027-fea19d43db9d
 	github.com/btcsuite/btcd v0.24.3-0.20250318170759-4f4ea81776d6
 	github.com/btcsuite/btcd/btcec/v2 v2.3.6
 	github.com/btcsuite/btcd/btcutil/psbt v1.1.9
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
 	github.com/btcsuite/btcwallet v0.16.14
-	github.com/golang-migrate/migrate/v4 v4.17.1
+	github.com/golang-migrate/migrate/v4 v4.18.1
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.7
 	github.com/mdp/qrterminal/v3 v3.2.1
 	github.com/sirupsen/logrus v1.9.3
@@ -61,7 +61,6 @@ require (
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
-	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/julienschmidt/httprouter v1.3.0 // indirect
 	github.com/kkdai/bstream v1.0.0 // indirect
 	github.com/lightninglabs/gozmq v0.0.0-20191113021534-d20a764486bf // indirect
@@ -75,8 +74,6 @@ require (
 	github.com/lightningnetwork/lnd/tlv v1.3.1 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/meshapi/grpc-api-gateway v0.1.0 // indirect
-	github.com/modern-go/reflect2 v1.0.2 // indirect
-	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
@@ -105,7 +102,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260226221140-a57be14db171 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	modernc.org/gc/v3 v3.0.0-20240801135723-a856999a2e4a // indirect
-	modernc.org/libc v1.59.3 // indirect
+	modernc.org/libc v1.61.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.8.0 // indirect
 	modernc.org/strutil v1.2.0 // indirect
