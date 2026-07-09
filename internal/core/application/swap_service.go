@@ -168,8 +168,17 @@ func validatePair(pair banco.Pair) error {
 	if pair.PriceFeed == "" {
 		return fmt.Errorf("price_feed is required")
 	}
-	if pair.SlippageBps > 5000 {
-		return fmt.Errorf("slippage_bps must be at most 5000 (50%%)")
+	if pair.ToleranceBps > 5000 {
+		return fmt.Errorf("tolerance_bps must be at most 5000 (50%%)")
+	}
+	// A market whose internal fill band is narrower than its published fee
+	// cannot fill: offers priced fee_bps inside fair value would already sit
+	// outside the tolerance.
+	if pair.FeeBps >= pair.EffectiveToleranceBps() {
+		return fmt.Errorf(
+			"tolerance_bps (%d) must be greater than fee_bps (%d)",
+			pair.EffectiveToleranceBps(), pair.FeeBps,
+		)
 	}
 	return nil
 }

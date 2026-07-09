@@ -285,7 +285,7 @@ function renderPairs(pairs) {
     const baseLabel = baseMeta.ticker || baseMeta.name || assetLabel(base, 4, 4);
     const quoteLabel =
       quoteMeta.ticker || quoteMeta.name || assetLabel(quote, 4, 4);
-    const band = bandGeom(p.slippage_bps);
+    const band = bandGeom(p.tolerance_bps);
     const minStr = wantAmount(p.min_amount, quoteMeta);
     const maxStr = wantAmount(p.max_amount, quoteMeta);
     const card = document.createElement("article");
@@ -331,12 +331,16 @@ function renderPairs(pairs) {
             maxStr
           )}</span>
         </div>
+        <div class="mstat">
+          <span class="mstat-k">Fee</span>
+          <span class="mstat-v">${Number(p.fee_bps) || 0} bps</span>
+        </div>
       </div>
 
       <div class="market-band">
         <div class="band-head">
           <span>Fill tolerance</span>
-          <span class="band-pct">±${escapeHTML(fmtSlippage(p.slippage_bps))}</span>
+          <span class="band-pct">±${escapeHTML(fmtTolerance(p.tolerance_bps))}</span>
         </div>
         <div class="band-track">
           <div class="band-fill" style="left:${band.left}%;width:${band.width}%"></div>
@@ -363,9 +367,9 @@ function pairBase(name) {
   return i < 0 ? name : name.slice(0, i);
 }
 
-// fmtSlippage renders basis points as a percentage; 0/unset means the server
+// fmtTolerance renders basis points as a percentage; 0/unset means the server
 // default of 100 bps.
-function fmtSlippage(bps) {
+function fmtTolerance(bps) {
   const n = Number(bps) || 100;
   return `${n / 100}%`;
 }
@@ -416,8 +420,8 @@ function updateForm() {
   $("#invert-hint").textContent = `Offers are priced as ${baseDisp} per ${quoteDisp}. Enable if your feed returns ${quoteDisp} per ${baseDisp} instead.`;
 
   // feed hint reflects the configured slippage.
-  $("#feed-hint").textContent = `The solver polls this URL for the reference price and fulfills offers within ${fmtSlippage(
-    form.elements.slippage_bps.value
+  $("#feed-hint").textContent = `The solver polls this URL for the reference price and fulfills offers within ${fmtTolerance(
+    form.elements.tolerance_bps.value
   )}.`;
 
   // live preview.
@@ -441,10 +445,10 @@ function updateForm() {
   )}</strong>.`;
 
   // fill-tolerance band mirrors the market card.
-  $("#preview-band-pct").textContent = `±${fmtSlippage(
-    form.elements.slippage_bps.value
+  $("#preview-band-pct").textContent = `±${fmtTolerance(
+    form.elements.tolerance_bps.value
   )}`;
-  const bg = bandGeom(form.elements.slippage_bps.value);
+  const bg = bandGeom(form.elements.tolerance_bps.value);
   const bf = $("#preview-band-fill");
   bf.style.left = `${bg.left}%`;
   bf.style.width = `${bg.width}%`;
@@ -495,7 +499,8 @@ function openEdit(pair) {
   form.elements.max_amount.value = pair.max_amount;
   form.elements.price_feed.value = pair.price_feed;
   form.elements.invert_price.checked = !!pair.invert_price;
-  form.elements.slippage_bps.value = pair.slippage_bps || "";
+  form.elements.tolerance_bps.value = pair.tolerance_bps || "";
+  form.elements.fee_bps.value = pair.fee_bps || "";
   setAssetsLocked(true); // identity can't change on edit
   clearFormErrors();
   $("#dialog-title").textContent = "Edit market";
@@ -558,7 +563,8 @@ form.addEventListener("submit", async (e) => {
     max_amount: max,
     price_feed: String(form.elements.price_feed.value).trim(),
     invert_price: form.elements.invert_price.checked,
-    slippage_bps: Number(form.elements.slippage_bps.value) || 0,
+    tolerance_bps: Number(form.elements.tolerance_bps.value) || 0,
+    fee_bps: Number(form.elements.fee_bps.value) || 0,
   };
   const mode = form.dataset.mode;
   const submit = $("#pair-submit");

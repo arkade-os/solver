@@ -17,18 +17,21 @@ type Pair struct {
 	QuoteDecimals int    `json:"quoteDecimals"` // decimal precision of the quote asset
 	PriceFeed     string `json:"priceFeed"`     // price API URL
 	InvertPrice   bool   `json:"invertPrice"`   // if true, use 1/feedPrice for comparison
-	SlippageBps   uint32 `json:"slippageBps"`   // max price deviation in basis points; 0 = DefaultSlippageBps
+	ToleranceBps  uint32 `json:"toleranceBps"`  // internal fill-time max price deviation in basis points; 0 = DefaultToleranceBps
+	FeeBps        uint32 `json:"feeBps"`        // published spread; must be lower than the effective tolerance
 }
 
-// DefaultSlippageBps is the price tolerance applied when a pair doesn't set one.
-const DefaultSlippageBps uint32 = 100
+// DefaultToleranceBps is the price tolerance applied when a pair doesn't set one.
+const DefaultToleranceBps uint32 = 100
 
-// EffectiveSlippageBps returns the pair's slippage, falling back to the default.
-func (p Pair) EffectiveSlippageBps() uint32 {
-	if p.SlippageBps == 0 {
-		return DefaultSlippageBps
+// EffectiveToleranceBps returns the pair's fill-time price tolerance, falling
+// back to the default. The tolerance is solver-internal: it is never published
+// in the discovery card, unlike FeeBps which is the promise made to makers.
+func (p Pair) EffectiveToleranceBps() uint32 {
+	if p.ToleranceBps == 0 {
+		return DefaultToleranceBps
 	}
-	return p.SlippageBps
+	return p.ToleranceBps
 }
 
 // Base returns the base asset of the pair (e.g. "BTC" from "BTC/USDT").

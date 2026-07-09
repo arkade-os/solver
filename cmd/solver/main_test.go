@@ -34,12 +34,20 @@ func TestPairOverrides(t *testing.T) {
 	assert.Equal(t, map[string]any{"pair": "BTC/aabbcc"}, got)
 
 	got = runPairOverrides(t,
-		"--pair", "BTC/aabbcc", "--min", "500", "--slippage-bps", "250",
+		"--pair", "BTC/aabbcc", "--min", "500", "--tolerance-bps", "250", "--fee-bps", "30",
 	)
 	assert.Equal(t, map[string]any{
-		"pair":         "BTC/aabbcc",
-		"min_amount":   uint64(500),
-		"slippage_bps": uint(250),
+		"pair":          "BTC/aabbcc",
+		"min_amount":    uint64(500),
+		"tolerance_bps": uint(250),
+		"fee_bps":       uint(30),
+	}, got)
+
+	// the old flag name still works as an alias.
+	got = runPairOverrides(t, "--pair", "BTC/aabbcc", "--slippage-bps", "42")
+	assert.Equal(t, map[string]any{
+		"pair":          "BTC/aabbcc",
+		"tolerance_bps": uint(42),
 	}, got)
 }
 
@@ -51,7 +59,7 @@ func TestPairUpdatePartial(t *testing.T) {
 			// nolint:errcheck
 			w.Write([]byte(`{"pairs":[{
 				"pair":"BTC/aabbcc","min_amount":1000,"max_amount":100000,
-				"price_feed":"https://example.com/price","slippage_bps":250,
+				"price_feed":"https://example.com/price","tolerance_bps":250,
 				"base_decimals":8,"quote_decimals":6}]}`))
 		case "PUT /v1/pair":
 			body, _ := io.ReadAll(r.Body)
@@ -78,7 +86,7 @@ func TestPairUpdatePartial(t *testing.T) {
 	require.True(t, ok, "PUT body missing pair object: %v", putBody)
 	assert.Equal(t, float64(2000), pair["min_amount"], "flag override applied")
 	assert.Equal(t, float64(100000), pair["max_amount"], "unset field preserved")
-	assert.Equal(t, float64(250), pair["slippage_bps"], "unset slippage preserved")
+	assert.Equal(t, float64(250), pair["tolerance_bps"], "unset tolerance preserved")
 	assert.Equal(t, "https://example.com/price", pair["price_feed"])
 }
 

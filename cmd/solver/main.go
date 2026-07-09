@@ -169,8 +169,8 @@ func pairList(c *cli.Context) error {
 	return nil
 }
 
-// pairFlags: for add everything but slippage is required; for update only --pair
-// is, so unset flags keep their current value.
+// pairFlags: for add everything but tolerance/fee is required; for update only
+// --pair is, so unset flags keep their current value.
 func pairFlags(required bool) []cli.Flag {
 	return []cli.Flag{
 		&cli.StringFlag{Name: "pair", Required: true, Usage: "market name (e.g. BTC/ASSET)"},
@@ -178,7 +178,15 @@ func pairFlags(required bool) []cli.Flag {
 		&cli.Uint64Flag{Name: "max", Required: required, Usage: "maximum want amount (quote asset base units)"},
 		&cli.StringFlag{Name: "price-feed", Required: required, Usage: "price feed URL"},
 		&cli.BoolFlag{Name: "invert-price", Usage: "invert the feed price"},
-		&cli.UintFlag{Name: "slippage-bps", Usage: "max price deviation in basis points (default 100 = 1%)"},
+		&cli.UintFlag{
+			Name:    "tolerance-bps",
+			Aliases: []string{"slippage-bps"},
+			Usage:   "internal max price deviation from the feed in basis points (default 100 = 1%); never published",
+		},
+		&cli.UintFlag{
+			Name:  "fee-bps",
+			Usage: "published spread in basis points; must be lower than --tolerance-bps",
+		},
 	}
 }
 
@@ -196,8 +204,11 @@ func pairOverrides(c *cli.Context) map[string]any {
 	if c.IsSet("invert-price") {
 		out["invert_price"] = c.Bool("invert-price")
 	}
-	if c.IsSet("slippage-bps") {
-		out["slippage_bps"] = c.Uint("slippage-bps")
+	if c.IsSet("tolerance-bps") {
+		out["tolerance_bps"] = c.Uint("tolerance-bps")
+	}
+	if c.IsSet("fee-bps") {
+		out["fee_bps"] = c.Uint("fee-bps")
 	}
 	return out
 }
@@ -417,7 +428,8 @@ type pairInfo struct {
 	MaxAmount     uint64 `json:"max_amount"`
 	PriceFeed     string `json:"price_feed"`
 	InvertPrice   bool   `json:"invert_price"`
-	SlippageBps   uint32 `json:"slippage_bps"`
+	ToleranceBps  uint32 `json:"tolerance_bps"`
+	FeeBps        uint32 `json:"fee_bps"`
 	QuoteDecimals int32  `json:"quote_decimals"`
 }
 
@@ -471,15 +483,16 @@ func renderMarkets(pairs []pairInfo, meta map[string]assetInfo) {
 	}
 	fmt.Println()
 	tw := newTable()
-	fmt.Fprintln(tw, "  MARKET\tMIN WANT\tMAX WANT\tTOLERANCE\tINVERT\tFEED") //nolint:errcheck
+	fmt.Fprintln(tw, "  MARKET\tMIN WANT\tMAX WANT\tFEE\tTOLERANCE\tINVERT\tFEED") //nolint:errcheck
 	for _, p := range pairs {
 		base, quote, _ := splitPair(p.Pair)
 		market := unitLabel(base, meta) + " " + gArrow() + " " + unitLabel(quote, meta)
-		fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\t%s\n", //nolint:errcheck
+		fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\t%s\t%s\n", //nolint:errcheck
 			market,
 			fmtBound(p.MinAmount, quote, p.QuoteDecimals, meta),
 			fmtBound(p.MaxAmount, quote, p.QuoteDecimals, meta),
-			fmtTolerance(p.SlippageBps), yesNo(p.InvertPrice), feedHost(p.PriceFeed))
+			fmtFee(p.FeeBps),
+			fmtTolerance(p.ToleranceBps), yesNo(p.InvertPrice), feedHost(p.PriceFeed))
 	}
 	tw.Flush() //nolint:errcheck
 }
@@ -494,7 +507,8 @@ func renderMarketDetail(p pairInfo, meta map[string]assetInfo) {
 	row("Want", unitLabel(quote, meta))
 	row("Min want", fmtBound(p.MinAmount, quote, p.QuoteDecimals, meta))
 	row("Max want", fmtBound(p.MaxAmount, quote, p.QuoteDecimals, meta))
-	row("Tolerance", fmtTolerance(p.SlippageBps))
+	row("Fee", fmtFee(p.FeeBps))
+	row("Tolerance", fmtTolerance(p.ToleranceBps))
 	row("Invert price", yesNo(p.InvertPrice))
 	row("Price feed", p.PriceFeed)
 	tw.Flush() //nolint:errcheck
@@ -753,6 +767,10 @@ func fmtTolerance(bps uint32) string {
 		bps = 100
 	}
 	return glyph("±", "+/-") + strconv.FormatFloat(float64(bps)/100, 'f', -1, 64) + "%"
+}
+
+func fmtFee(bps uint32) string {
+	return strconv.FormatUint(uint64(bps), 10) + " bps"
 }
 
 func feedHost(raw string) string {

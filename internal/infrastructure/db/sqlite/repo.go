@@ -43,7 +43,8 @@ func (r *PairRepository) Add(ctx context.Context, pair banco.Pair) error {
 		QuoteDecimals: int64(pair.QuoteDecimals),
 		PriceFeed:     pair.PriceFeed,
 		InvertPrice:   boolToInt(pair.InvertPrice),
-		SlippageBps:   int64(pair.SlippageBps),
+		ToleranceBps:  int64(pair.ToleranceBps),
+		FeeBps:        int64(pair.FeeBps),
 	}))
 }
 
@@ -56,7 +57,8 @@ func (r *PairRepository) Update(ctx context.Context, pair banco.Pair) error {
 		QuoteDecimals: int64(pair.QuoteDecimals),
 		PriceFeed:     pair.PriceFeed,
 		InvertPrice:   boolToInt(pair.InvertPrice),
-		SlippageBps:   int64(pair.SlippageBps),
+		ToleranceBps:  int64(pair.ToleranceBps),
+		FeeBps:        int64(pair.FeeBps),
 	})
 	if err != nil {
 		return translateErr(err)
@@ -80,7 +82,8 @@ func toDomainPair(row sqlc.BancoPair) banco.Pair {
 		QuoteDecimals: int(row.QuoteDecimals),
 		PriceFeed:     row.PriceFeed,
 		InvertPrice:   row.InvertPrice != 0,
-		SlippageBps:   uint32(row.SlippageBps),
+		ToleranceBps:  uint32(row.ToleranceBps),
+		FeeBps:        uint32(row.FeeBps),
 	}
 }
 

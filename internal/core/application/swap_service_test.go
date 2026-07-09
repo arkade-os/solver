@@ -17,13 +17,32 @@ func validPair() banco.Pair {
 	}
 }
 
-func TestValidatePairSlippage(t *testing.T) {
+func TestValidatePairTolerance(t *testing.T) {
 	p := validPair()
 	assert.NoError(t, validatePair(p))
 
-	p.SlippageBps = 5000
+	p.ToleranceBps = 5000
 	assert.NoError(t, validatePair(p))
 
-	p.SlippageBps = 5001
-	assert.ErrorContains(t, validatePair(p), "slippage_bps must be at most 5000")
+	p.ToleranceBps = 5001
+	assert.ErrorContains(t, validatePair(p), "tolerance_bps must be at most 5000")
+}
+
+func TestValidatePairFeeVsTolerance(t *testing.T) {
+	p := validPair()
+	p.FeeBps = 30
+	assert.NoError(t, validatePair(p), "fee below the default tolerance is valid")
+
+	// fee equal to the effective tolerance cannot fill.
+	p.ToleranceBps = 0 // effective 100
+	p.FeeBps = 100
+	assert.ErrorContains(t, validatePair(p), "tolerance_bps (100) must be greater than fee_bps (100)")
+
+	p.ToleranceBps = 50
+	p.FeeBps = 80
+	assert.ErrorContains(t, validatePair(p), "must be greater than fee_bps")
+
+	p.ToleranceBps = 100
+	p.FeeBps = 99
+	assert.NoError(t, validatePair(p))
 }

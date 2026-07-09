@@ -140,7 +140,7 @@ func (p *plugin) decode(ctx context.Context, tx *psbt.Packet) (*MatchedOffer, er
 }
 
 // checkPriceTolerance rejects offers whose price deviates more than the
-// pair's slippage from the feed. Logs (Warn) when the price feed is
+// pair's tolerance from the feed. Logs (Warn) when the price feed is
 // unavailable or stale.
 func (p *plugin) checkPriceTolerance(ctx context.Context, m *MatchedOffer) (bool, error) {
 	feedPrice, err := p.prices.get(ctx, m.Pair.PriceFeed)
@@ -158,7 +158,7 @@ func (p *plugin) checkPriceTolerance(ctx context.Context, m *MatchedOffer) (bool
 	if !ok {
 		return false, nil
 	}
-	return validatePrice(offerPrice, feedPrice, m.Pair.EffectiveSlippageBps()), nil
+	return validatePrice(offerPrice, feedPrice, m.Pair.EffectiveToleranceBps()), nil
 }
 
 // checkBTCBalance ensures we hold enough offchain BTC to honor a BTC-deposit

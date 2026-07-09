@@ -61,8 +61,8 @@ func (c *priceCache) get(ctx context.Context, feedURL string) (float64, error) {
 	return price, nil
 }
 
-// validatePrice ensures the offer price is within slippageBps of the feed price.
-func validatePrice(offerPrice, feedPrice float64, slippageBps uint32) bool {
-	margin := feedPrice * float64(slippageBps) / 10000
+// validatePrice ensures the offer price is within toleranceBps of the feed price.
+func validatePrice(offerPrice, feedPrice float64, toleranceBps uint32) bool {
+	margin := feedPrice * float64(toleranceBps) / 10000
 	return offerPrice >= feedPrice-margin && offerPrice <= feedPrice+margin
 }

@@ -219,12 +219,13 @@ func (h *handler) ListTrades(
 
 func protoToDomain(p *bancov1.PairInfo) banco.Pair {
 	return banco.Pair{
-		Pair:        p.Pair,
-		MinAmount:   p.MinAmount,
-		MaxAmount:   p.MaxAmount,
-		PriceFeed:   p.PriceFeed,
-		InvertPrice: p.InvertPrice,
-		SlippageBps: p.SlippageBps,
+		Pair:         p.Pair,
+		MinAmount:    p.MinAmount,
+		MaxAmount:    p.MaxAmount,
+		PriceFeed:    p.PriceFeed,
+		InvertPrice:  p.InvertPrice,
+		ToleranceBps: p.ToleranceBps,
+		FeeBps:       p.FeeBps,
 	}
 }
 
@@ -235,7 +236,8 @@ func domainToProto(p banco.Pair) *bancov1.PairInfo {
 		MaxAmount:     p.MaxAmount,
 		PriceFeed:     p.PriceFeed,
 		InvertPrice:   p.InvertPrice,
-		SlippageBps:   p.SlippageBps,
+		ToleranceBps:  p.ToleranceBps,
+		FeeBps:        p.FeeBps,
 		BaseDecimals:  int32(p.BaseDecimals),  //nolint:gosec
 		QuoteDecimals: int32(p.QuoteDecimals), //nolint:gosec
 	}

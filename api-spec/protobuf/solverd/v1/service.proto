@@ -32,11 +32,15 @@ message PairInfo {
   uint64 max_amount = 3;
   string price_feed = 4;
   bool invert_price = 5;
-  // Max price deviation from the feed, in basis points (100 = 1%).
-  // 0 means the server default of 100 bps.
-  uint32 slippage_bps = 6;
+  // Internal fill-time max price deviation from the feed, in basis points
+  // (100 = 1%). 0 means the server default of 100 bps. Never published in the
+  // discovery card.
+  uint32 tolerance_bps = 6;
   int32 base_decimals = 7;
   int32 quote_decimals = 8;
+  // Published spread promised to makers, in basis points. Must be lower than
+  // the effective tolerance_bps.
+  uint32 fee_bps = 9;
 }
 
 message AddPairRequest { PairInfo pair = 1; }

@@ -1,10 +1,10 @@
 -- name: InsertPair :exec
-INSERT INTO banco_pair (pair, min_amount, max_amount, base_decimals, quote_decimals, price_feed, invert_price, slippage_bps)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO banco_pair (pair, min_amount, max_amount, base_decimals, quote_decimals, price_feed, invert_price, tolerance_bps, fee_bps)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: UpdatePair :execrows
 UPDATE banco_pair
-SET min_amount = ?, max_amount = ?, base_decimals = ?, quote_decimals = ?, price_feed = ?, invert_price = ?, slippage_bps = ?
+SET min_amount = ?, max_amount = ?, base_decimals = ?, quote_decimals = ?, price_feed = ?, invert_price = ?, tolerance_bps = ?, fee_bps = ?
 WHERE pair = ?;
 
 -- name: DeletePair :exec
