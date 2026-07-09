@@ -476,6 +476,7 @@ function clearFormErrors() {
 function openAdd() {
   form.reset();
   form.dataset.mode = "add";
+  editingPair = null;
   setAssetsLocked(false);
   // defaults: deposit BTC, want asset.
   form.elements.base_kind.value = "BTC";
@@ -487,9 +488,12 @@ function openAdd() {
   dialog.showModal();
 }
 
+let editingPair = null;
+
 function openEdit(pair) {
   form.reset();
   form.dataset.mode = "edit";
+  editingPair = pair;
   const base = pairBase(pair.pair);
   const quote = pairWantAsset(pair.pair);
   form.elements.base_kind.value = base === "BTC" ? "BTC" : "asset";
@@ -568,6 +572,18 @@ form.addEventListener("submit", async (e) => {
     fee_bps: Number(form.elements.fee_bps.value) || 0,
   };
   const mode = form.dataset.mode;
+  if (mode === "edit" && editingPair) {
+    // preserve card metadata the form has no inputs for.
+    for (const k of [
+      "base_name",
+      "base_ticker",
+      "quote_name",
+      "quote_ticker",
+      "price_decimals",
+    ]) {
+      if (editingPair[k] !== undefined) pair[k] = editingPair[k];
+    }
+  }
   const submit = $("#pair-submit");
   submit.disabled = true;
   try {

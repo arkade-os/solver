@@ -490,11 +490,16 @@ type pairInfo struct {
 	MinBaseAmount uint64 `json:"min_base_amount"`
 	MaxBaseAmount uint64 `json:"max_base_amount"`
 	PriceFeed     string `json:"price_feed"`
+	PriceDecimals int32  `json:"price_decimals"`
 	InvertPrice   bool   `json:"invert_price"`
 	ToleranceBps  uint32 `json:"tolerance_bps"`
 	FeeBps        uint32 `json:"fee_bps"`
 	BaseDecimals  int32  `json:"base_decimals"`
 	QuoteDecimals int32  `json:"quote_decimals"`
+	BaseName      string `json:"base_name"`
+	BaseTicker    string `json:"base_ticker"`
+	QuoteName     string `json:"quote_name"`
+	QuoteTicker   string `json:"quote_ticker"`
 }
 
 type assetInfo struct {
@@ -575,6 +580,12 @@ func renderMarketDetail(p pairInfo, meta map[string]assetInfo) {
 	row("Tolerance", fmtTolerance(p.ToleranceBps))
 	row("Invert price", yesNo(p.InvertPrice))
 	row("Price feed", p.PriceFeed)
+	if p.PriceDecimals > 0 {
+		row("Price decimals", strconv.FormatInt(int64(p.PriceDecimals), 10))
+	}
+	if p.BaseTicker != "" || p.QuoteTicker != "" {
+		row("Card label", p.BaseTicker+" / "+p.QuoteTicker)
+	}
 	tw.Flush() //nolint:errcheck
 }
 

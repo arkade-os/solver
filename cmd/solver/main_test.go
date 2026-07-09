@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -106,4 +107,49 @@ func TestPairUpdateUnknownPair(t *testing.T) {
 		"pair", "update", "--pair", "NOPE/NOPE", "--min", "1",
 	})
 	assert.ErrorContains(t, err, `pair "NOPE/NOPE" not found`)
+}
+
+// TestCardCommandPrintsExactBody: `solver card` must emit the exact bytes the
+// /v1/discovery/card endpoint returns — the acceptance criterion is that the
+// CLI and curl produce identical documents.
+func TestCardCommandPrintsExactBody(t *testing.T) {
+	cardBody := "{\n  \"version\": 0,\n  \"name\": \"x\",\n  \"markets\": []\n}\n"
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.RequestURI()
+		w.Header().Set("X-Registry-Path", "solvers/signet/x.json")
+		// nolint:errcheck
+		w.Write([]byte(cardBody))
+	}))
+	defer srv.Close()
+
+	app := &cli.App{
+		Flags:    []cli.Flag{&cli.StringFlag{Name: "server"}},
+		Commands: []*cli.Command{cardCommand},
+	}
+
+	// capture stdout
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdout = w
+	runErr := app.Run([]string{"solver", "--server", srv.URL, "card"})
+	w.Close() //nolint:errcheck
+	os.Stdout = old
+	out, err := io.ReadAll(r)
+	require.NoError(t, err)
+
+	require.NoError(t, runErr)
+	assert.Equal(t, "/v1/discovery/card", gotPath)
+	assert.Equal(t, cardBody, string(out), "stdout must be the exact endpoint bytes")
+
+	// --sign forwards the query parameter.
+	devnull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+	require.NoError(t, err)
+	os.Stdout = devnull
+	err = app.Run([]string{"solver", "--server", srv.URL, "card", "--sign"})
+	os.Stdout = old
+	devnull.Close() //nolint:errcheck
+	require.NoError(t, err)
+	assert.Equal(t, "/v1/discovery/card?sign=true", gotPath)
 }
