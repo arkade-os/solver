@@ -471,11 +471,11 @@ func renderMarkets(pairs []pairInfo, meta map[string]assetInfo) {
 	}
 	fmt.Println()
 	tw := newTable()
-	fmt.Fprintln(tw, "  MARKET\tMIN WANT\tMAX WANT\tTOLERANCE\tINVERT\tFEED")
+	fmt.Fprintln(tw, "  MARKET\tMIN WANT\tMAX WANT\tTOLERANCE\tINVERT\tFEED") //nolint:errcheck
 	for _, p := range pairs {
 		base, quote, _ := splitPair(p.Pair)
 		market := unitLabel(base, meta) + " " + gArrow() + " " + unitLabel(quote, meta)
-		fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\t%s\n",
+		fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\t%s\n", //nolint:errcheck
 			market,
 			fmtBound(p.MinAmount, quote, p.QuoteDecimals, meta),
 			fmtBound(p.MaxAmount, quote, p.QuoteDecimals, meta),
@@ -489,7 +489,7 @@ func renderMarketDetail(p pairInfo, meta map[string]assetInfo) {
 	fmt.Println(bold("Market " + p.Pair))
 	fmt.Println()
 	tw := newTable()
-	row := func(k, v string) { fmt.Fprintf(tw, "  %s\t%s\n", dim(k), v) }
+	row := func(k, v string) { fmt.Fprintf(tw, "  %s\t%s\n", dim(k), v) } //nolint:errcheck
 	row("Deposit", unitLabel(base, meta))
 	row("Want", unitLabel(quote, meta))
 	row("Min want", fmtBound(p.MinAmount, quote, p.QuoteDecimals, meta))
@@ -504,7 +504,7 @@ func renderBalance(b balanceResp, meta map[string]assetInfo) {
 	fmt.Println(bold("Balance"))
 	fmt.Println()
 	tw := newTable()
-	fmt.Fprintln(tw, "  ASSET\tAVAILABLE\t")
+	fmt.Fprintln(tw, "  ASSET\tAVAILABLE\t") //nolint:errcheck
 
 	var detail []string
 	if b.OnchainConfirmed > 0 {
@@ -513,7 +513,7 @@ func renderBalance(b balanceResp, meta map[string]assetInfo) {
 	if b.OffchainPending > 0 {
 		detail = append(detail, "pending "+fmtScaled(b.OffchainPending, 8))
 	}
-	fmt.Fprintf(tw, "  %s\t%s\t%s\n", "BTC", fmtScaled(b.OffchainSettled, 8)+" BTC",
+	fmt.Fprintf(tw, "  %s\t%s\t%s\n", "BTC", fmtScaled(b.OffchainSettled, 8)+" BTC", //nolint:errcheck
 		dim(strings.Join(detail, " "+glyph("·", "|")+" ")))
 
 	for _, id := range sortedKeys(b.AssetBalances) {
@@ -521,7 +521,7 @@ func renderBalance(b balanceResp, meta map[string]assetInfo) {
 		if amt == 0 {
 			continue
 		}
-		fmt.Fprintf(tw, "  %s\t%s\t\n", unitLabel(id, meta), fmtValue(amt, id, meta))
+		fmt.Fprintf(tw, "  %s\t%s\t\n", unitLabel(id, meta), fmtValue(amt, id, meta)) //nolint:errcheck
 	}
 	tw.Flush() //nolint:errcheck
 }
@@ -534,10 +534,10 @@ func renderTrades(trades []tradeInfo, meta map[string]assetInfo) {
 	}
 	fmt.Println()
 	tw := newTable()
-	fmt.Fprintln(tw, "  WHEN\tTRADE\tDEPOSITED\tFILLED\tOFFER\tFILL")
+	fmt.Fprintln(tw, "  WHEN\tTRADE\tDEPOSITED\tFILLED\tOFFER\tFILL") //nolint:errcheck
 	for _, t := range trades {
 		trade := unitLabel(t.DepositAsset, meta) + " " + gArrow() + " " + unitLabel(t.WantAsset, meta)
-		fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\t%s\n",
+		fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\t%s\n", //nolint:errcheck
 			relTime(t.CreatedAt), trade,
 			fmtValue(t.DepositAmount, t.DepositAsset, meta),
 			fmtValue(t.WantAmount, t.WantAsset, meta),
@@ -550,9 +550,9 @@ func renderAddress(offchain, boarding string) {
 	fmt.Println(bold("Addresses"))
 	fmt.Println()
 	tw := newTable()
-	fmt.Fprintf(tw, "  %s\t%s\n", dim("Offchain (Ark)"), offchain)
-	fmt.Fprintf(tw, "  %s\t%s\n", dim("Boarding (onchain)"), boarding)
-	tw.Flush() //nolint:errcheck
+	fmt.Fprintf(tw, "  %s\t%s\n", dim("Offchain (Ark)"), offchain)     //nolint:errcheck
+	fmt.Fprintf(tw, "  %s\t%s\n", dim("Boarding (onchain)"), boarding) //nolint:errcheck
+	tw.Flush()                                                         //nolint:errcheck
 	if useColor && unicodeOK && offchain != "" {
 		fmt.Println()
 		fmt.Println(dim("  Scan to send to the offchain address:"))
