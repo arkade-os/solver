@@ -25,6 +25,9 @@ type BancoService interface {
 	SendOffchain(ctx context.Context, password, address, assetID string, amount uint64) (string, error)
 	CollaborativeExit(ctx context.Context, password, address string, amount uint64) (string, error)
 	Settle(ctx context.Context, password string) (string, error)
+	// BuildDiscoveryCard returns the discovery card document plus the
+	// registry path hint solvers/<network>/<name>.json.
+	BuildDiscoveryCard(ctx context.Context, sign bool) (card []byte, registryPath string, err error)
 }
 
 type handler struct {

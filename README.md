@@ -102,6 +102,27 @@ for a taker bot.
 - `SubscribeArkd` — helper that returns a `<-chan *psbt.Packet` from arkd's
   transaction stream, suitable for feeding into `Executor.Run`.
 
+### `pkg/discovery`
+
+Solver side of the Arkade Market Discovery Protocol v0 — the registry card
+(`solvers/<network>/<name>.json`) an operator PRs to a discovery registry
+repo.
+
+- `BuildCard(name, pairs, opts)` — renders the card from the configured
+  pairs: one market per pair with asset descriptors (canonical id, name,
+  ticker, precision), the feed URL and its normalization
+  (`price_decimals`/`invert`), the published `fee_bps` and the
+  base-denominated size limits. Deterministic output (markets sorted by id
+  pair) so registry diffs stay reviewable. The pair's internal
+  `tolerance_bps` is never published. With `Options.SecretKey` set the card
+  carries the x-only `discovery_pubkey` and a BIP340 `sig` over sha256 of
+  the canonical serialization; the default is a bare unsigned card.
+- `ValidateCard(bytes)` — the same checks a registry's CI runs, so a broken
+  card is caught before opening a PR.
+- `ParseSecretKey` / `DeriveSecretKey` — the signing key, either explicit
+  (hex) or derived from the wallet seed at the dedicated BIP32 path
+  `m/38173'/0'`.
+
 All `pkg/` packages are intended to be importable by other projects and do not
 depend on any `internal/` code.
 
@@ -125,6 +146,8 @@ web UI. Configured entirely through environment variables:
 | `SOLVER_HTTP_PORT` | | `7171` | HTTP REST + web UI listener |
 | `SOLVER_LOG_LEVEL` | | `4` (Info) | logrus level |
 | `SOLVER_BANCO_ENABLED` | | `true` | enable the swap plugin |
+| `SOLVER_NAME` | | — | discovery card name (`solvers/<network>/<name>.json`); required only by `solver card` |
+| `SOLVER_DISCOVERY_SECRET_KEY` | | — | hex key signing the discovery card; when unset, `--sign` derives one from the wallet seed |
 
 The banco plugin must be enabled. The daemon registers all enabled plugins
 in one solver runtime.
@@ -136,12 +159,31 @@ CLI client for the HTTP API. Points at `http://localhost:7071` by default
 
 ```
 solver pair add     --pair BTC/<asset> --min … --max … --price-feed …
+                    [--fee-bps …] [--tolerance-bps …] [--price-decimals …]
+                    [--base-name … --base-ticker … --quote-name … --quote-ticker …]
 solver pair update  …
 solver pair remove  --pair …
 solver pair list
+solver card [--sign]
 solver status
 solver balance
 solver address
+```
+
+Notes on pair semantics:
+
+- `--min`/`--max` bound the trade size on the **base side** of the trade (the
+  maker's deposit) in base-asset atomic units — sats only when the base is
+  BTC.
+- `--tolerance-bps` is the solver-internal fill-time price band (default
+  100 = 1%); it is never published. `--fee-bps` is the published spread and
+  must be lower than the tolerance.
+- `solver card` prints the discovery card JSON to stdout (the registry path
+  hint goes to stderr); `curl <solverd>/v1/discovery/card` returns the same
+  bytes. Both are operator tooling — the solver is not publicly reachable.
+```sh
+solver card > my-solver.json          # bare card (the default)
+solver card --sign > my-solver.json   # adds discovery_pubkey + sig
 ```
 
 ## Building

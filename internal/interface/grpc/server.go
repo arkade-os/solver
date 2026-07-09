@@ -198,6 +198,30 @@ func registerBancoRoutes(mux *http.ServeMux, svc *handler) {
 		jsonResponse(w, resp)
 	})
 
+	// The discovery card is served as raw document bytes (not a JSON
+	// envelope) so `curl` and `solver card` emit the exact file an operator
+	// PRs to a registry. The registry path hint travels in a header.
+	mux.HandleFunc("GET /v1/discovery/card", func(w http.ResponseWriter, r *http.Request) {
+		sign := false
+		switch r.URL.Query().Get("sign") {
+		case "", "false", "0":
+		case "true", "1":
+			sign = true
+		default:
+			httpError(w, fmt.Errorf("invalid sign parameter: use true or false"), http.StatusBadRequest)
+			return
+		}
+		card, registryPath, err := svc.svc.BuildDiscoveryCard(r.Context(), sign)
+		if err != nil {
+			httpError(w, err, http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Registry-Path", registryPath)
+		// nolint:errcheck
+		w.Write(card)
+	})
+
 	mux.HandleFunc("GET /v1/assets", func(w http.ResponseWriter, r *http.Request) {
 		resp, err := svc.ListAssets(r.Context(), &bancov1.ListAssetsRequest{})
 		if err != nil {

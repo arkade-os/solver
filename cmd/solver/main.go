@@ -55,6 +55,7 @@ func main() {
 		},
 		Commands: []*cli.Command{
 			pairCommand,
+			cardCommand,
 			balanceCommand,
 			addressCommand,
 			sendCommand,
@@ -257,6 +258,48 @@ func listPairs(c *cli.Context) ([]pairInfo, error) {
 		return nil, err
 	}
 	return resp.Pairs, nil
+}
+
+// cardCommand prints the solver's discovery card — the JSON document an
+// operator PRs to a registry repo as solvers/<network>/<name>.json. The card
+// bytes go to stdout untouched (pipe them straight into the registry file);
+// the target path hint goes to stderr.
+var cardCommand = &cli.Command{
+	Name:  "card",
+	Usage: "print the discovery card to submit to a registry repo",
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "sign",
+			Usage: "sign the card with the discovery key (SOLVER_DISCOVERY_SECRET_KEY or derived from the wallet seed)",
+		},
+	},
+	Action: func(c *cli.Context) error {
+		path := "/v1/discovery/card"
+		if c.Bool("sign") {
+			path += "?sign=true"
+		}
+		req, err := http.NewRequest(http.MethodGet, serverURL(c)+path, nil)
+		if err != nil {
+			return err
+		}
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			return fmt.Errorf("cannot reach solverd at %s (%w)", serverURL(c), err)
+		}
+		defer resp.Body.Close() //nolint:errcheck
+		data, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		if resp.StatusCode >= 400 {
+			return serverError(resp.StatusCode, data)
+		}
+		if hint := resp.Header.Get("X-Registry-Path"); hint != "" {
+			fmt.Fprintln(os.Stderr, dim("registry path: ")+hint)
+		}
+		_, err = os.Stdout.Write(data)
+		return err
+	},
 }
 
 var balanceCommand = &cli.Command{
