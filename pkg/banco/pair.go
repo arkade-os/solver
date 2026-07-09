@@ -18,10 +18,22 @@ type Pair struct {
 	MaxBaseAmount uint64 `json:"maxBaseAmount"`
 	BaseDecimals  int    `json:"baseDecimals"`  // decimal precision of the base asset
 	QuoteDecimals int    `json:"quoteDecimals"` // decimal precision of the quote asset
-	PriceFeed     string `json:"priceFeed"`     // price API URL
-	InvertPrice   bool   `json:"invertPrice"`   // if true, use 1/feedPrice for comparison
-	ToleranceBps  uint32 `json:"toleranceBps"`  // internal fill-time max price deviation in basis points; 0 = DefaultToleranceBps
-	FeeBps        uint32 `json:"feeBps"`        // published spread; must be lower than the effective tolerance
+	// Base/QuoteName and Base/QuoteTicker are display metadata for the
+	// discovery card's asset descriptors. The BTC side is auto-filled with
+	// "Bitcoin"/"BTC"; asset sides fall back to the indexer's metadata.
+	BaseName    string `json:"baseName"`
+	BaseTicker  string `json:"baseTicker"`
+	QuoteName   string `json:"quoteName"`
+	QuoteTicker string `json:"quoteTicker"`
+	PriceFeed   string `json:"priceFeed"` // price API URL
+	// PriceDecimals is the number of decimal places encoded in the feed's
+	// value: the price is feedValue / 10^PriceDecimals. 0 means the feed
+	// returns the price directly. Published in the discovery card so makers
+	// normalize the same way the solver does.
+	PriceDecimals int    `json:"priceDecimals"`
+	InvertPrice   bool   `json:"invertPrice"`  // if true, use 1/feedPrice for comparison
+	ToleranceBps  uint32 `json:"toleranceBps"` // internal fill-time max price deviation in basis points; 0 = DefaultToleranceBps
+	FeeBps        uint32 `json:"feeBps"`       // published spread; must be lower than the effective tolerance
 }
 
 // DefaultToleranceBps is the price tolerance applied when a pair doesn't set one.

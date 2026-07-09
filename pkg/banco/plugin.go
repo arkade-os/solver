@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/arkade-os/arkd/pkg/ark-lib/extension"
@@ -152,6 +153,9 @@ func (p *plugin) checkPriceTolerance(ctx context.Context, m *MatchedOffer) (bool
 	}
 	if err != nil {
 		p.log.WithError(err).Warn("using stale price feed")
+	}
+	if m.Pair.PriceDecimals > 0 {
+		feedPrice /= math.Pow10(m.Pair.PriceDecimals)
 	}
 	if m.Pair.InvertPrice {
 		feedPrice = 1.0 / feedPrice

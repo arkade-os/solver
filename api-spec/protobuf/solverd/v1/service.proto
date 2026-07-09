@@ -42,6 +42,15 @@ message PairInfo {
   // Published spread promised to makers, in basis points. Must be lower than
   // the effective tolerance_bps.
   uint32 fee_bps = 9;
+  // Per-side display metadata for the discovery card. The BTC side is
+  // auto-filled with Bitcoin/BTC; asset sides fall back to indexer metadata.
+  string base_name = 10;
+  string base_ticker = 11;
+  string quote_name = 12;
+  string quote_ticker = 13;
+  // Decimal places encoded in the feed's value: price = value / 10^n.
+  // 0 means the feed returns the price directly.
+  int32 price_decimals = 14;
 }
 
 message AddPairRequest { PairInfo pair = 1; }

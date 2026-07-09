@@ -46,3 +46,36 @@ func TestValidatePairFeeVsTolerance(t *testing.T) {
 	p.FeeBps = 99
 	assert.NoError(t, validatePair(p))
 }
+
+func TestFillSideMetaBTC(t *testing.T) {
+	svc := &Service{} // BTC path never touches the indexer
+
+	var name, ticker string
+	var decimals int
+	err := svc.fillSideMeta(t.Context(), "BTC", &name, &ticker, &decimals)
+	assert.NoError(t, err)
+	assert.Equal(t, "Bitcoin", name)
+	assert.Equal(t, "BTC", ticker)
+	assert.Equal(t, 8, decimals)
+
+	// operator-supplied metadata is preserved, decimals stay authoritative.
+	name, ticker, decimals = "Custom Bitcoin", "XBT", 0
+	err = svc.fillSideMeta(t.Context(), "BTC", &name, &ticker, &decimals)
+	assert.NoError(t, err)
+	assert.Equal(t, "Custom Bitcoin", name)
+	assert.Equal(t, "XBT", ticker)
+	assert.Equal(t, 8, decimals)
+}
+
+func TestValidatePairTickers(t *testing.T) {
+	p := validPair()
+	p.BaseTicker = "BTC"
+	p.QuoteTicker = "USDT"
+	assert.NoError(t, validatePair(p))
+
+	p.QuoteTicker = "US/DT"
+	assert.ErrorContains(t, validatePair(p), "must not contain")
+
+	p.QuoteTicker = "US DT"
+	assert.ErrorContains(t, validatePair(p), "must not contain")
+}

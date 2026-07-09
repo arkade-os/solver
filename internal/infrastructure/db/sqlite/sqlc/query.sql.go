@@ -19,8 +19,8 @@ func (q *Queries) DeletePair(ctx context.Context, pair string) error {
 }
 
 const insertPair = `-- name: InsertPair :exec
-INSERT INTO banco_pair (pair, min_base_amount, max_base_amount, base_decimals, quote_decimals, price_feed, invert_price, tolerance_bps, fee_bps)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO banco_pair (pair, min_base_amount, max_base_amount, base_decimals, quote_decimals, base_name, base_ticker, quote_name, quote_ticker, price_feed, price_decimals, invert_price, tolerance_bps, fee_bps)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type InsertPairParams struct {
@@ -29,7 +29,12 @@ type InsertPairParams struct {
 	MaxBaseAmount int64
 	BaseDecimals  int64
 	QuoteDecimals int64
+	BaseName      string
+	BaseTicker    string
+	QuoteName     string
+	QuoteTicker   string
 	PriceFeed     string
+	PriceDecimals int64
 	InvertPrice   int64
 	ToleranceBps  int64
 	FeeBps        int64
@@ -42,7 +47,12 @@ func (q *Queries) InsertPair(ctx context.Context, arg InsertPairParams) error {
 		arg.MaxBaseAmount,
 		arg.BaseDecimals,
 		arg.QuoteDecimals,
+		arg.BaseName,
+		arg.BaseTicker,
+		arg.QuoteName,
+		arg.QuoteTicker,
 		arg.PriceFeed,
+		arg.PriceDecimals,
 		arg.InvertPrice,
 		arg.ToleranceBps,
 		arg.FeeBps,
@@ -81,7 +91,7 @@ func (q *Queries) InsertTrade(ctx context.Context, arg InsertTradeParams) error 
 }
 
 const listPairs = `-- name: ListPairs :many
-SELECT pair, min_base_amount, max_base_amount, base_decimals, quote_decimals, price_feed, invert_price, tolerance_bps, fee_bps FROM banco_pair
+SELECT pair, min_base_amount, max_base_amount, base_decimals, quote_decimals, price_feed, invert_price, tolerance_bps, fee_bps, base_name, base_ticker, quote_name, quote_ticker, price_decimals FROM banco_pair
 `
 
 func (q *Queries) ListPairs(ctx context.Context) ([]BancoPair, error) {
@@ -103,6 +113,11 @@ func (q *Queries) ListPairs(ctx context.Context) ([]BancoPair, error) {
 			&i.InvertPrice,
 			&i.ToleranceBps,
 			&i.FeeBps,
+			&i.BaseName,
+			&i.BaseTicker,
+			&i.QuoteName,
+			&i.QuoteTicker,
+			&i.PriceDecimals,
 		); err != nil {
 			return nil, err
 		}
@@ -156,7 +171,7 @@ func (q *Queries) ListTrades(ctx context.Context, limit int64) ([]Trade, error) 
 
 const updatePair = `-- name: UpdatePair :execrows
 UPDATE banco_pair
-SET min_base_amount = ?, max_base_amount = ?, base_decimals = ?, quote_decimals = ?, price_feed = ?, invert_price = ?, tolerance_bps = ?, fee_bps = ?
+SET min_base_amount = ?, max_base_amount = ?, base_decimals = ?, quote_decimals = ?, base_name = ?, base_ticker = ?, quote_name = ?, quote_ticker = ?, price_feed = ?, price_decimals = ?, invert_price = ?, tolerance_bps = ?, fee_bps = ?
 WHERE pair = ?
 `
 
@@ -165,7 +180,12 @@ type UpdatePairParams struct {
 	MaxBaseAmount int64
 	BaseDecimals  int64
 	QuoteDecimals int64
+	BaseName      string
+	BaseTicker    string
+	QuoteName     string
+	QuoteTicker   string
 	PriceFeed     string
+	PriceDecimals int64
 	InvertPrice   int64
 	ToleranceBps  int64
 	FeeBps        int64
@@ -178,7 +198,12 @@ func (q *Queries) UpdatePair(ctx context.Context, arg UpdatePairParams) (int64, 
 		arg.MaxBaseAmount,
 		arg.BaseDecimals,
 		arg.QuoteDecimals,
+		arg.BaseName,
+		arg.BaseTicker,
+		arg.QuoteName,
+		arg.QuoteTicker,
 		arg.PriceFeed,
+		arg.PriceDecimals,
 		arg.InvertPrice,
 		arg.ToleranceBps,
 		arg.FeeBps,

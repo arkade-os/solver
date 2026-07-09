@@ -187,6 +187,11 @@ func pairFlags(required bool) []cli.Flag {
 			Name:  "fee-bps",
 			Usage: "published spread in basis points; must be lower than --tolerance-bps",
 		},
+		&cli.StringFlag{Name: "base-name", Usage: "display name of the base asset (BTC side auto-fills 'Bitcoin'; assets fall back to indexer metadata)"},
+		&cli.StringFlag{Name: "base-ticker", Usage: "ticker of the base asset (BTC side auto-fills 'BTC'; assets fall back to indexer metadata)"},
+		&cli.StringFlag{Name: "quote-name", Usage: "display name of the quote asset"},
+		&cli.StringFlag{Name: "quote-ticker", Usage: "ticker of the quote asset"},
+		&cli.UintFlag{Name: "price-decimals", Usage: "decimal places encoded in the feed's value (price = value / 10^n); 0 = feed returns the price directly"},
 	}
 }
 
@@ -209,6 +214,21 @@ func pairOverrides(c *cli.Context) map[string]any {
 	}
 	if c.IsSet("fee-bps") {
 		out["fee_bps"] = c.Uint("fee-bps")
+	}
+	if c.IsSet("base-name") {
+		out["base_name"] = c.String("base-name")
+	}
+	if c.IsSet("base-ticker") {
+		out["base_ticker"] = c.String("base-ticker")
+	}
+	if c.IsSet("quote-name") {
+		out["quote_name"] = c.String("quote-name")
+	}
+	if c.IsSet("quote-ticker") {
+		out["quote_ticker"] = c.String("quote-ticker")
+	}
+	if c.IsSet("price-decimals") {
+		out["price_decimals"] = c.Uint("price-decimals")
 	}
 	return out
 }

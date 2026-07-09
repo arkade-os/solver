@@ -14,6 +14,11 @@ type BancoPair struct {
 	InvertPrice   int64
 	ToleranceBps  int64
 	FeeBps        int64
+	BaseName      string
+	BaseTicker    string
+	QuoteName     string
+	QuoteTicker   string
+	PriceDecimals int64
 }
 
 type Trade struct {
