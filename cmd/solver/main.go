@@ -39,7 +39,7 @@ func main() {
 			&cli.StringFlag{
 				Name:    "server",
 				Usage:   "solverd HTTP server address",
-				Value:   "http://localhost:7071",
+				Value:   "http://localhost:7171",
 				EnvVars: []string{"SOLVER_SERVER"},
 			},
 			&cli.BoolFlag{

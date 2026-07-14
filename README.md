@@ -1,170 +1,176 @@
 # solver
 
-`solver` is a Go implementation of a **solver bot** for the [Arkade Intents](https://arkadeos.com/). It ships the `solverd` daemon and the `solver` CLI.
+A **solver bot** for [Arkade Intents](https://arkadeos.com/). It watches an
+Arkade for swap offers, and automatically fills the ones that match the markets
+and prices you configure.
 
-A *maker* posts a swap offer as a VTXO on an Arkade. The solver bot watches the arkd
-transaction stream, finds offers that match its configured pairs and price ranges, and fulfills
-them atomically via an emulator-signed Arkade transaction.
+This is a guide to setting one up. It ships two binaries:
 
-## Architecture
-
-```
-arkd tx stream  ─►  Solver  ─►  Plugin.Match(tx)  ─►  intent  ─►  Plugin.Solve(intent)
-                       │
-                       └── runs enabled plugins in one runtime
-```
-
-A solver bot is a small runtime that subscribes to arkd's transaction stream and
-hands every PSBT it sees to one or more **plugins**. A plugin is just two
-methods:
-
-```go
-type Plugin interface {
-    Match(ctx, tx) (intent any, ok bool)   // is this tx relevant? extract what I need
-    Solve(ctx, intent)                     // react to it
-}
-```
-
-`Match` is the cheap filter+decode pass; `Solve` is the (usually slow) reaction.
-The runtime (`pkg/executor`) calls `Match` sequentially for each plugin, then
-spawns a goroutine for each matched `Solve`. Panics in either are recovered so
-one buggy plugin can't take the bot down, and `Run` waits for in-flight solves
-to drain on shutdown.
-
-Most plugins read protocol data from the Arkade **extension** TLV in the OP_RETURN
-output of the funding tx. Today one plugin ships with the daemon:
-
-- **`pkg/banco`** — swap solver library. Decodes a swap offer, range-checks the
-  amount and price, and fulfills via the emulator.
-
-`solverd` composes enabled plugins into one `Executor` runtime. The runtime may
-still use per-plugin arkd subscriptions internally so server-side filters can
-drop unrelated txs before they reach the bot. Adding a new protocol means
-writing a new `Plugin` and wiring it in `cmd/solverd`. See
-[`pkg/executor/README.md`](pkg/executor/README.md) for the plugin authoring guide.
-
-## Packages
-
-### `pkg/contract`
-
-Wire-protocol primitives for the swap.
-
-- `Offer` — typed swap offer, encoded as a TLV payload inside an Arkade
-  extension packet (`PacketType = 0x03`). Methods: `Serialize`, `ToPacket`,
-  `FulfillScript`, and `VtxoScript` (builds the swap taproot tree from the
-  maker, emulator, and signer keys).
-- `DeserializeOffer` / `FindBancoOffer` — decode an offer from raw bytes or
-  pull one out of an Arkade extension.
-- `CreateOffer` — maker-side helper: queries the emulator for its signer
-  key, derives the maker address from the Arkade client, assembles an `Offer`,
-  and returns the hex-encoded offer + extension packet + swap address to
-  fund (`CreateOfferParams` / `CreateOfferResult`).
-- `GetOffers` — queries the indexer for VTXOs sitting at a swap address, used
-  by a maker to check whether its offer is still live (`[]OfferStatus`).
-- `FulfillOffer` — taker-side atomic swap: builds the Arkade transaction that
-  spends the swap VTXO to the maker's pkScript (paying `WantAmount`/`WantAsset`)
-  and returns change to the taker, signs it with the emulator, and submits
-  it (`FulfillResult`).
-
-### `pkg/executor`
-
-Generic plugin-based executor runtime. Consumes a stream of PSBT packets and
-dispatches each one to its registered plugins.
-
-- `Plugin` interface — `Match(ctx, *psbt.Packet) (intent any, ok bool)` decides
-  whether a tx is interesting; `Solve(ctx, intent)` reacts to a match.
-- `Executor` / `New(plugins ...Plugin)` — runtime wrapping one or more plugins.
-- `Run(ctx, source) error` — subscribes plugins, fans matches out to `Solve`
-  goroutines, and returns `ctx.Err()` on cancel.
-
-### `pkg/banco`
-
-The solver plugin and its supporting types — the building block
-for a taker bot.
-
-- `Plugin` / `NewPlugin(Config)` — implements `executor.Plugin` for the
-  swap protocol: decodes the offer from a tx, looks up a matching configured
-  pair, range-checks `WantAmount`, validates price within 1% of the feed, and
-  fulfills via `contract.FulfillOffer`.
-- `Config` — dependencies: `arksdk.ArkClient`, emulator client,
-  `PairRepository`, `PriceFeed`, optional `FulfillmentListener`, optional
-  `logrus.FieldLogger`, and `PriceCacheTTL` (default 5 minutes).
-- `Offer` / `NewOffer(*wire.MsgTx)` — wraps `contract.Offer` with `FundingTxid`,
-  `DepositAsset`, and `DepositAmount` extracted from the funding tx. Helpers:
-  `IsBTCDeposit`, `DepositAssetStr`, `WantAssetStr`, `ComputePrice`.
-- `Pair` / `PairRepository` — trading pair definition (`base/quote`, min/max
-  amount, decimals, price-feed URL, invert flag) and the read-only repository
-  interface used by the plugin.
-- `PriceFeed` — pluggable price source; the plugin wraps it in an internal
-  TTL cache.
-- `FulfillmentEvent` / `FulfillmentListener` — emitted after every successful
-  fulfillment; the daemon wires a listener that persists trades to SQLite.
-- `SubscribeArkd` — helper that returns a `<-chan *psbt.Packet` from arkd's
-  transaction stream, suitable for feeding into `Executor.Run`.
-
-All `pkg/` packages are intended to be importable by other projects and do not
-depend on any `internal/` code.
+- `solverd` — the daemon that runs the bot, wallet, and API.
+- `solver` — the CLI you use to operate it (add markets, fund the wallet, check trades).
 
 ---
 
-## Binaries
+## 1. Before you start
 
-### `solverd`
+You need two services reachable from wherever you run `solverd`:
 
-Daemon that boots a solver, a SQLite-backed wallet, the gRPC+REST API, and the
-web UI. Configured entirely through environment variables:
+- an **arkd** gRPC endpoint (the Arkade the bot trades on),
+- an **emulator** endpoint (co-signs the swap transactions).
+
+You also need a **wallet seed** — 32 bytes of hex. Generate one however you
+like, e.g.:
+
+```sh
+openssl rand -hex 32
+```
+
+Keep it safe: it controls the bot's funds.
+
+## 2. Build
+
+With Go installed:
+
+```sh
+make build      # produces ./solverd and ./solver
+```
+
+Or run the daemon in a container:
+
+```sh
+make docker     # builds the solverd image
+```
+
+## 3. Start the daemon
+
+`solverd` is configured entirely through environment variables:
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
 | `SOLVER_ARK_URL` | ✓ | — | arkd gRPC endpoint |
-| `SOLVER_WALLET_SEED` | ✓ | — | wallet seed (hex) |
+| `SOLVER_WALLET_SEED` | ✓ | — | wallet seed (32-byte hex) |
 | `SOLVER_EMULATOR_URL` | ✓ | — | emulator endpoint |
-| `SOLVER_WALLET_PASSWORD` | | — | wallet unlock password |
-| `SOLVER_DATADIR` | | `$HOME/.solverd` | data directory (SQLite DB lives here) |
+| `SOLVER_WALLET_PASSWORD` | | — | password that unlocks the wallet |
+| `SOLVER_EXPLORER_URL` | | — | block explorer URL (optional) |
+| `SOLVER_DATADIR` | | `$HOME/.solverd` | data directory (wallet + SQLite DB) |
 | `SOLVER_GRPC_PORT` | | `7170` | gRPC listener |
-| `SOLVER_HTTP_PORT` | | `7171` | HTTP REST + web UI listener |
-| `SOLVER_LOG_LEVEL` | | `4` (Info) | logrus level |
-| `SOLVER_BANCO_ENABLED` | | `true` | enable the swap plugin |
+| `SOLVER_HTTP_PORT` | | `7171` | HTTP API + web UI listener |
+| `SOLVER_LOG_LEVEL` | | `4` (Info) | log verbosity |
 
-The banco plugin must be enabled. The daemon registers all enabled plugins
-in one solver runtime.
-
-### `solver`
-
-CLI client for the HTTP API. Points at `http://localhost:7071` by default
-(`--server` or `SOLVER_SERVER` to override). Commands:
-
+```sh
+SOLVER_ARK_URL=arkd.example.com:443 \
+SOLVER_EMULATOR_URL=emulator.example.com:7173 \
+SOLVER_WALLET_SEED=$(openssl rand -hex 32) \
+SOLVER_WALLET_PASSWORD=changeme \
+./solverd
 ```
-solver pair add     --pair BTC/<asset> --min … --max … --price-feed …
-solver pair update  …
-solver pair remove  --pair …
-solver pair list
+
+On first run it initializes the wallet from the seed and creates the data
+directory; on later runs it just unlocks and resumes. Leave it running.
+
+## 4. Point the CLI at the daemon
+
+The CLI talks to the daemon's HTTP API. Set it once so you don't repeat
+`--server` on every command:
+
+```sh
+export SOLVER_SERVER=http://localhost:7171   # match SOLVER_HTTP_PORT
+```
+
+Check it's up:
+
+```sh
 solver status
-solver balance
+```
+
+## 5. Fund the wallet
+
+Show the bot's addresses:
+
+```sh
 solver address
 ```
 
-## Building
+Send BTC to the **boarding (onchain)** address, then pull it into the Arkade so
+it's spendable off-chain:
 
 ```sh
-make build          # builds ./solverd and ./solver
-make docker         # builds the solverd image
-make proto          # regenerates api-spec/protobuf/gen
-make sqlc           # regenerates internal/infrastructure/db/sqlite/sqlc
-make lint
-make test           # unit tests
+solver settle          # joins a batch round to confirm boarding funds
+solver balance
 ```
 
-## Integration tests
+To move funds around later:
+
+```sh
+solver send --to ark1... --amount 100000            # send BTC off-chain
+solver send --to ark1... --amount 5000 --asset <hex asset id>
+solver exit --to bc1... --amount 100000             # collaboratively exit BTC on-chain
+```
+
+Wallet-spending commands ask for the password (or read `SOLVER_PASSWORD`).
+
+## 6. Add a market
+
+A market tells the bot which swaps to fill and at what price. The bot only
+fills offers whose price is within your tolerance of the price feed.
+
+```sh
+solver pair add \
+  --pair BTC/<asset id> \
+  --min 10000 \
+  --max 1000000 \
+  --price-feed https://feed.example.com/btc-asset \
+  --slippage-bps 100        # ±1% (default)
+```
+
+- `--min` / `--max` — bounds on the **want** amount, in the quote asset's base units.
+- `--price-feed` — URL the bot polls for the reference price.
+- `--invert-price` — set if your feed quotes the pair the other way round.
+- `--slippage-bps` — max deviation from the feed price, in basis points (100 = 1%).
+
+That's it — with a funded wallet and at least one market, the bot is live and
+will fill matching offers as they appear.
+
+## 7. Operate it
+
+```sh
+solver pair list                     # markets you've configured
+solver pair get    --pair BTC/<asset>
+solver pair update --pair BTC/<asset> --max 2000000   # only the given flags change
+solver pair remove --pair BTC/<asset>
+
+solver balance                       # funds by asset
+solver trades                        # fills, most recent first
+solver trades --limit 20
+solver status
+```
+
+Add `--json` (`-j`) to any command for raw output you can pipe into scripts.
+
+A web UI is also served on the HTTP port (`http://localhost:7171`).
+
+---
+
+## Development
+
+```sh
+make run              # run solverd against the local test stack
+make init-solverd     # fund it, mint a test asset, register pairs (after `make run`)
+make test             # unit tests
+make lint
+```
 
 End-to-end tests run against a local nigiri + arkd stack:
 
 ```sh
-make setup-test-env     # boot nigiri + arkd + emulator, fund arkd wallet
-make integrationtest    # run ./test/e2e/...
+make setup-test-env      # boot nigiri + arkd + emulator, fund arkd wallet
+make integrationtest     # run ./test/e2e/...
 make teardown-test-env
 ```
 
-If nigiri is already running (e.g. in CI, where the `vulpemventures/nigiri-github-action`
-sets it up), use `make docker-run` and `make docker-stop` instead — they bring up
-the solverd-side stack and fund the arkd wallet without touching nigiri.
+If nigiri is already running (e.g. in CI), use `make docker-run` / `make
+docker-stop` instead — they bring up the solverd-side stack without touching
+nigiri.
+
+The bot is plugin-based: each protocol it supports is a small `Plugin`. See
+[`pkg/executor/README.md`](pkg/executor/README.md) for the plugin authoring guide.
