@@ -79,7 +79,7 @@ func New(cfg *config.Config, wallet arksdk.Wallet) (*Service, error) {
 	pairRepo := sqlitedb.NewPairRepository(db)
 	tradeRepo := sqlitedb.NewTradeRepository(db)
 
-	feed := pricefeed.NewCoinGecko()
+	feed := pricefeed.New()
 
 	plugin := swap.NewPlugin(swap.Config{
 		SolverClient:    wallet,

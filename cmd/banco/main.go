@@ -140,7 +140,7 @@ func run(c *cli.Context) error {
 		return err
 	}
 
-	price, err := pricefeed.NewCoinGecko().Fetch(ctx, c.String("price-feed"))
+	price, err := pricefeed.New().Fetch(ctx, c.String("price-feed"))
 	if err != nil {
 		return fmt.Errorf("failed to fetch price: %w", err)
 	}
