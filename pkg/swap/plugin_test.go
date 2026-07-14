@@ -1,4 +1,4 @@
-package banco
+package swap
 
 import (
 	"context"
@@ -169,7 +169,7 @@ func emptyPSBT(t *testing.T) *psbt.Packet {
 	return pkt
 }
 
-func TestPlugin_Match_NonBancoTx(t *testing.T) {
+func TestPlugin_Match_NonSwapTx(t *testing.T) {
 	p := NewPlugin(Config{
 		PairsRepository: &fakePairs{pairs: nil},
 	})

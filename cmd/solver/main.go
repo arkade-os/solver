@@ -1,3 +1,4 @@
+// Command solver is the CLI for the solverd operator: manage markets, wallet and trades.
 package main
 
 import (
@@ -23,9 +24,7 @@ import (
 
 var (
 	Version string
-	// Generous so settle/send/exit can join a batch round; a down server still
-	// fails fast at dial time.
-	httpClient = &http.Client{Timeout: 180 * time.Second}
+	httpClient = &http.Client{Timeout: 5 * time.Minute} // settlement may take time
 	useColor   bool
 	unicodeOK  bool
 )

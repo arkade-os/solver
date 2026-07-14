@@ -32,7 +32,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	bancov1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/solverd/v1"
+	swapv1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/solverd/v1"
 )
 
 // log is a dedicated logger instance: go-sdk's wallet.Unlock forces the global
@@ -45,7 +45,7 @@ var log = logrus.New()
 type config struct {
 	arkURL       string // arkd gRPC endpoint the funder wallet connects to
 	arkHTTPURL   string // arkd REST endpoint serving the admin-note faucet
-	solverGRPC   string // solverd gRPC endpoint (Banco + Wallet services)
+	solverGRPC   string // solverd gRPC endpoint (Swap + Wallet services)
 	pricefeedURL string // base URL of the solver-pricefeed mock
 
 	funderPassword string
@@ -92,11 +92,11 @@ func run() error {
 	}
 	// nolint:errcheck
 	defer conn.Close()
-	banco := bancov1.NewBancoServiceClient(conn)
-	wallet := bancov1.NewWalletServiceClient(conn)
+	swap := swapv1.NewSwapServiceClient(conn)
+	wallet := swapv1.NewWalletServiceClient(conn)
 
 	log.Info("waiting for solverd to become ready...")
-	if err := waitSolverReady(ctx, banco, 90*time.Second); err != nil {
+	if err := waitSolverReady(ctx, swap, 90*time.Second); err != nil {
 		return err
 	}
 
@@ -161,7 +161,7 @@ func run() error {
 	}
 	log.Infof("pricefeed %s => BTC/%s price %v", btcAssetFeed, assetID, price)
 
-	pairs := []*bancov1.PairInfo{
+	pairs := []*swapv1.PairInfo{
 		{
 			Pair:      "BTC/" + assetID,
 			MinAmount: 1,
@@ -176,7 +176,7 @@ func run() error {
 		},
 	}
 	for _, p := range pairs {
-		if _, err := banco.AddPair(ctx, &bancov1.AddPairRequest{Pair: p}); err != nil {
+		if _, err := swap.AddPair(ctx, &swapv1.AddPairRequest{Pair: p}); err != nil {
 			return fmt.Errorf("add pair %s: %w", p.Pair, err)
 		}
 		log.Infof("added pair %s (feed %s)", p.Pair, p.PriceFeed)
@@ -186,15 +186,15 @@ func run() error {
 	return nil
 }
 
-// waitSolverReady polls BancoService.GetStatus until the bot reports running.
-func waitSolverReady(ctx context.Context, banco bancov1.BancoServiceClient, timeout time.Duration) error {
+// waitSolverReady polls SwapService.GetStatus until the bot reports running.
+func waitSolverReady(ctx context.Context, swap swapv1.SwapServiceClient, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		callCtx, callCancel := context.WithTimeout(ctx, time.Second)
-		resp, err := banco.GetStatus(callCtx, &bancov1.GetStatusRequest{})
+		resp, err := swap.GetStatus(callCtx, &swapv1.GetStatusRequest{})
 		callCancel()
 		if err == nil && resp.GetRunning() {
 			return nil
@@ -207,8 +207,8 @@ func waitSolverReady(ctx context.Context, banco bancov1.BancoServiceClient, time
 	}
 }
 
-func solverOffchainAddress(ctx context.Context, wallet bancov1.WalletServiceClient) (string, error) {
-	resp, err := wallet.GetAddress(ctx, &bancov1.GetAddressRequest{})
+func solverOffchainAddress(ctx context.Context, wallet swapv1.WalletServiceClient) (string, error) {
+	resp, err := wallet.GetAddress(ctx, &swapv1.GetAddressRequest{})
 	if err != nil {
 		return "", err
 	}
@@ -219,10 +219,10 @@ func solverOffchainAddress(ctx context.Context, wallet bancov1.WalletServiceClie
 }
 
 // pollSolverBTC waits until the solver's offchain settled balance reaches target.
-func pollSolverBTC(ctx context.Context, wallet bancov1.WalletServiceClient, target uint64, timeout time.Duration) error {
+func pollSolverBTC(ctx context.Context, wallet swapv1.WalletServiceClient, target uint64, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for {
-		resp, err := wallet.GetBalance(ctx, &bancov1.GetBalanceRequest{})
+		resp, err := wallet.GetBalance(ctx, &swapv1.GetBalanceRequest{})
 		if err == nil && resp.GetOffchainSettled() >= target {
 			return nil
 		}
@@ -234,10 +234,10 @@ func pollSolverBTC(ctx context.Context, wallet bancov1.WalletServiceClient, targ
 }
 
 // pollSolverAsset waits until the solver reports at least amount of assetID.
-func pollSolverAsset(ctx context.Context, wallet bancov1.WalletServiceClient, assetID string, amount uint64, timeout time.Duration) error {
+func pollSolverAsset(ctx context.Context, wallet swapv1.WalletServiceClient, assetID string, amount uint64, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for {
-		resp, err := wallet.GetBalance(ctx, &bancov1.GetBalanceRequest{})
+		resp, err := wallet.GetBalance(ctx, &swapv1.GetBalanceRequest{})
 		if err == nil && resp.GetAssetBalances()[assetID] >= amount {
 			return nil
 		}

@@ -7,37 +7,37 @@ import (
 	"strings"
 
 	"github.com/arkade-os/solver/internal/core/ports"
-	"github.com/arkade-os/solver/pkg/banco"
+	"github.com/arkade-os/solver/pkg/swap"
 )
 
 func (svc *Service) ListTrades(ctx context.Context, limit int) ([]ports.Trade, error) {
 	return svc.tradeRepo.List(ctx, limit)
 }
 
-func (svc *Service) AddPair(ctx context.Context, pair banco.Pair) (banco.Pair, error) {
+func (svc *Service) AddPair(ctx context.Context, pair swap.Pair) (swap.Pair, error) {
 	resolved, err := svc.resolveDecimals(ctx, pair)
 	if err != nil {
-		return banco.Pair{}, err
+		return swap.Pair{}, err
 	}
 	if err := validatePair(resolved); err != nil {
-		return banco.Pair{}, fmt.Errorf("invalid pair: %w", err)
+		return swap.Pair{}, fmt.Errorf("invalid pair: %w", err)
 	}
 	if err := svc.pairRepo.Add(ctx, resolved); err != nil {
-		return banco.Pair{}, err
+		return swap.Pair{}, err
 	}
 	return resolved, nil
 }
 
-func (svc *Service) UpdatePair(ctx context.Context, pair banco.Pair) (banco.Pair, error) {
+func (svc *Service) UpdatePair(ctx context.Context, pair swap.Pair) (swap.Pair, error) {
 	resolved, err := svc.resolveDecimals(ctx, pair)
 	if err != nil {
-		return banco.Pair{}, err
+		return swap.Pair{}, err
 	}
 	if err := validatePair(resolved); err != nil {
-		return banco.Pair{}, fmt.Errorf("invalid pair: %w", err)
+		return swap.Pair{}, fmt.Errorf("invalid pair: %w", err)
 	}
 	if err := svc.pairRepo.Update(ctx, resolved); err != nil {
-		return banco.Pair{}, err
+		return swap.Pair{}, err
 	}
 	return resolved, nil
 }
@@ -49,7 +49,7 @@ func (svc *Service) RemovePair(ctx context.Context, pairName string) error {
 	return svc.pairRepo.Remove(ctx, pairName)
 }
 
-func (svc *Service) ListPairs(ctx context.Context) ([]banco.Pair, error) {
+func (svc *Service) ListPairs(ctx context.Context) ([]swap.Pair, error) {
 	return svc.pairRepo.List(ctx)
 }
 
@@ -91,7 +91,7 @@ func (svc *Service) GetAddress(ctx context.Context) (*Address, error) {
 	}, nil
 }
 
-func (svc *Service) resolveDecimals(ctx context.Context, pair banco.Pair) (banco.Pair, error) {
+func (svc *Service) resolveDecimals(ctx context.Context, pair swap.Pair) (swap.Pair, error) {
 	base, quote, ok := splitPair(pair.Pair)
 	if !ok {
 		return pair, fmt.Errorf("pair must be in format 'base/quote'")
@@ -149,7 +149,7 @@ func splitPair(name string) (string, string, bool) {
 	return parts[0], parts[1], true
 }
 
-func validatePair(pair banco.Pair) error {
+func validatePair(pair swap.Pair) error {
 	if pair.Pair == "" {
 		return fmt.Errorf("pair name is required")
 	}

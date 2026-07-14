@@ -7,7 +7,7 @@ import (
 
 	"github.com/arkade-os/solver/internal/core/ports"
 	"github.com/arkade-os/solver/internal/infrastructure/db/sqlite/sqlc"
-	"github.com/arkade-os/solver/pkg/banco"
+	"github.com/arkade-os/solver/pkg/swap"
 	"modernc.org/sqlite"
 )
 
@@ -21,20 +21,20 @@ func NewPairRepository(db *sql.DB) *PairRepository {
 	}
 }
 
-func (r *PairRepository) List(ctx context.Context) ([]banco.Pair, error) {
+func (r *PairRepository) List(ctx context.Context) ([]swap.Pair, error) {
 	rows, err := r.queries.ListPairs(ctx)
 	if err != nil {
 		return nil, translateErr(err)
 	}
 
-	pairs := make([]banco.Pair, 0, len(rows))
+	pairs := make([]swap.Pair, 0, len(rows))
 	for _, row := range rows {
 		pairs = append(pairs, toDomainPair(row))
 	}
 	return pairs, nil
 }
 
-func (r *PairRepository) Add(ctx context.Context, pair banco.Pair) error {
+func (r *PairRepository) Add(ctx context.Context, pair swap.Pair) error {
 	return translateErr(r.queries.InsertPair(ctx, sqlc.InsertPairParams{
 		Pair:          pair.Pair,
 		MinAmount:     int64(pair.MinAmount),
@@ -47,7 +47,7 @@ func (r *PairRepository) Add(ctx context.Context, pair banco.Pair) error {
 	}))
 }
 
-func (r *PairRepository) Update(ctx context.Context, pair banco.Pair) error {
+func (r *PairRepository) Update(ctx context.Context, pair swap.Pair) error {
 	rows, err := r.queries.UpdatePair(ctx, sqlc.UpdatePairParams{
 		Pair:          pair.Pair,
 		MinAmount:     int64(pair.MinAmount),
@@ -71,8 +71,8 @@ func (r *PairRepository) Remove(ctx context.Context, pairName string) error {
 	return translateErr(r.queries.DeletePair(ctx, pairName))
 }
 
-func toDomainPair(row sqlc.BancoPair) banco.Pair {
-	return banco.Pair{
+func toDomainPair(row sqlc.SwapPair) swap.Pair {
+	return swap.Pair{
 		Pair:          row.Pair,
 		MinAmount:     uint64(row.MinAmount),
 		MaxAmount:     uint64(row.MaxAmount),

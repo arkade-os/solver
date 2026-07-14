@@ -16,7 +16,7 @@ import (
 	"github.com/btcsuite/btcd/txscript"
 )
 
-// PacketType is the extension packet type tag for a banco swap offer (0x03).
+// PacketType is the extension packet type tag for a swap offer (0x03).
 const PacketType = uint8(0x03)
 
 const (
@@ -32,7 +32,7 @@ const (
 	tlvExitTimelock   = 0x0c
 )
 
-// Offer contains all the fields from a decoded banco swap offer TLV packet.
+// Offer contains all the fields from a decoded swap offer TLV packet.
 type Offer struct {
 	SwapPkScript   []byte
 	WantAmount     uint64
@@ -171,7 +171,7 @@ func DeserializeOffer(data []byte) (*Offer, error) {
 	return offer, nil
 }
 
-// Serialize encodes a BancoOffer into TLV bytes.
+// Serialize encodes a SwapOffer into TLV bytes.
 func (o *Offer) Serialize() ([]byte, error) {
 	var buf bytes.Buffer
 
@@ -322,16 +322,16 @@ func (s *Offer) VtxoScript(server *btcec.PublicKey) (*script.TapscriptsVtxoScrip
 	return &script.TapscriptsVtxoScript{Closures: closures}, nil
 }
 
-// FindBancoOffer searches extension packets for a banco offer.
+// FindSwapOffer searches extension packets for a swap offer.
 // Returns nil, nil if not found (not an error -- the tx just isn't an offer).
-func FindBancoOffer(ext extension.Extension) (*Offer, error) {
+func FindSwapOffer(ext extension.Extension) (*Offer, error) {
 	p := ext.GetPacketByType(PacketType)
 	if p == nil {
 		return nil, nil
 	}
 	unknown, ok := p.(extension.UnknownPacket)
 	if !ok {
-		return nil, fmt.Errorf("banco offer packet (type 0x%02x) has unexpected concrete type %T", PacketType, p)
+		return nil, fmt.Errorf("swap offer packet (type 0x%02x) has unexpected concrete type %T", PacketType, p)
 	}
 	return DeserializeOffer(unknown.Data)
 }

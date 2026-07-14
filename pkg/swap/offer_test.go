@@ -1,4 +1,4 @@
-package banco
+package swap
 
 import (
 	"testing"
@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/arkade-os/solver/pkg/banco/contract"
+	"github.com/arkade-os/solver/pkg/swap/contract"
 )
 
 // ---------------------------------------------------------------------------
@@ -212,8 +212,8 @@ func TestNewOffer_NoExtensionOutput(t *testing.T) {
 	assert.Nil(t, offer, "tx without extension should return nil")
 }
 
-func TestNewOffer_ExtensionButNoBancoOffer(t *testing.T) {
-	// Build an extension with a non-banco packet type
+func TestNewOffer_ExtensionButNoSwapOffer(t *testing.T) {
+	// Build an extension with a non-swap packet type
 	pkt := extension.UnknownPacket{PacketType: 0xFF, Data: []byte{0xDE, 0xAD}}
 	ext := extension.Extension{pkt}
 	extOut, err := ext.TxOut()
@@ -227,7 +227,7 @@ func TestNewOffer_ExtensionButNoBancoOffer(t *testing.T) {
 
 	offer, err := NewOffer(tx)
 	require.NoError(t, err)
-	assert.Nil(t, offer, "extension without banco packet should return nil")
+	assert.Nil(t, offer, "extension without swap packet should return nil")
 }
 
 func TestNewOffer_OfferButNoMatchingSwapOutput(t *testing.T) {

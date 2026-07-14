@@ -24,7 +24,7 @@ import (
 	"github.com/arkade-os/solver/internal/core/ports"
 	sqlitedb "github.com/arkade-os/solver/internal/infrastructure/db/sqlite"
 	"github.com/arkade-os/solver/internal/infrastructure/pricefeed"
-	"github.com/arkade-os/solver/pkg/banco"
+	"github.com/arkade-os/solver/pkg/swap"
 	"github.com/arkade-os/solver/pkg/executor"
 	"github.com/arkade-os/solver/pkg/executor/arkdsource"
 )
@@ -43,7 +43,7 @@ type Service struct {
 }
 
 // New wires a Service from config and an unlocked wallet: it opens the
-// database, builds the banco plugin, and connects to the emulator.
+// database, builds the swap plugin, and connects to the emulator.
 func New(cfg *config.Config, wallet arksdk.Wallet) (*Service, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config must not be nil")
@@ -81,7 +81,7 @@ func New(cfg *config.Config, wallet arksdk.Wallet) (*Service, error) {
 
 	feed := pricefeed.NewCoinGecko()
 
-	plugin := banco.NewPlugin(banco.Config{
+	plugin := swap.NewPlugin(swap.Config{
 		SolverClient:    wallet,
 		Emulator:        emulator,
 		PairsRepository: pairRepo,
@@ -102,7 +102,7 @@ func New(cfg *config.Config, wallet arksdk.Wallet) (*Service, error) {
 		emulatorConn: emulatorConn,
 	}
 
-	log.Info("banco plugin enabled")
+	log.Info("swap plugin enabled")
 	return svc, nil
 }
 
@@ -202,7 +202,7 @@ type tradeListener struct {
 	repo ports.TradeRepository
 }
 
-func (l *tradeListener) OnFulfill(_ context.Context, evt banco.FulfillmentEvent) {
+func (l *tradeListener) OnFulfill(_ context.Context, evt swap.FulfillmentEvent) {
 	trade := ports.Trade{
 		Pair:          evt.Pair,
 		DepositAsset:  evt.DepositAsset,

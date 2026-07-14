@@ -10,7 +10,7 @@ import (
 )
 
 const deletePair = `-- name: DeletePair :exec
-DELETE FROM banco_pair WHERE pair = ?
+DELETE FROM swap_pair WHERE pair = ?
 `
 
 func (q *Queries) DeletePair(ctx context.Context, pair string) error {
@@ -19,7 +19,7 @@ func (q *Queries) DeletePair(ctx context.Context, pair string) error {
 }
 
 const insertPair = `-- name: InsertPair :exec
-INSERT INTO banco_pair (pair, min_amount, max_amount, base_decimals, quote_decimals, price_feed, invert_price, slippage_bps)
+INSERT INTO swap_pair (pair, min_amount, max_amount, base_decimals, quote_decimals, price_feed, invert_price, slippage_bps)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `
 
@@ -79,18 +79,18 @@ func (q *Queries) InsertTrade(ctx context.Context, arg InsertTradeParams) error 
 }
 
 const listPairs = `-- name: ListPairs :many
-SELECT pair, min_amount, max_amount, base_decimals, quote_decimals, price_feed, invert_price, slippage_bps FROM banco_pair
+SELECT pair, min_amount, max_amount, base_decimals, quote_decimals, price_feed, invert_price, slippage_bps FROM swap_pair
 `
 
-func (q *Queries) ListPairs(ctx context.Context) ([]BancoPair, error) {
+func (q *Queries) ListPairs(ctx context.Context) ([]SwapPair, error) {
 	rows, err := q.db.QueryContext(ctx, listPairs)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []BancoPair
+	var items []SwapPair
 	for rows.Next() {
-		var i BancoPair
+		var i SwapPair
 		if err := rows.Scan(
 			&i.Pair,
 			&i.MinAmount,
@@ -152,7 +152,7 @@ func (q *Queries) ListTrades(ctx context.Context, limit int64) ([]Trade, error) 
 }
 
 const updatePair = `-- name: UpdatePair :execrows
-UPDATE banco_pair
+UPDATE swap_pair
 SET min_amount = ?, max_amount = ?, base_decimals = ?, quote_decimals = ?, price_feed = ?, invert_price = ?, slippage_bps = ?
 WHERE pair = ?
 `

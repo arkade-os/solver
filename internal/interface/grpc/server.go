@@ -13,7 +13,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	bancov1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/solverd/v1"
+	swapv1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/solverd/v1"
 	"github.com/arkade-os/solver/internal/interface/web"
 	log "github.com/sirupsen/logrus"
 )
@@ -29,11 +29,11 @@ type Server struct {
 	httpPort   int
 }
 
-// NewServer creates a new Server that serves both gRPC and HTTP for the banco
+// NewServer creates a new Server that serves both gRPC and HTTP for the swap
 // service.
 func NewServer(
 	grpcPort, httpPort int,
-	svc BancoService,
+	svc SwapService,
 ) *Server {
 	return &Server{
 		grpcPort: grpcPort,
@@ -51,8 +51,8 @@ func (s *Server) Start() error {
 	}
 
 	s.grpcServer = grpc.NewServer()
-	bancov1.RegisterBancoServiceServer(s.grpcServer, s.handler)
-	bancov1.RegisterWalletServiceServer(s.grpcServer, s.handler)
+	swapv1.RegisterSwapServiceServer(s.grpcServer, s.handler)
+	swapv1.RegisterWalletServiceServer(s.grpcServer, s.handler)
 
 	go func() {
 		log.Infof("gRPC server listening on :%d", s.grpcPort)
@@ -102,13 +102,13 @@ func (s *Server) Stop() {
 // that avoids the full protobuf dependency for hand-written types.
 func newHTTPGateway(svc *handler) http.Handler {
 	mux := http.NewServeMux()
-	registerBancoRoutes(mux, svc)
+	registerSwapRoutes(mux, svc)
 	return mux
 }
 
-func registerBancoRoutes(mux *http.ServeMux, svc *handler) {
+func registerSwapRoutes(mux *http.ServeMux, svc *handler) {
 	mux.HandleFunc("POST /v1/pair", func(w http.ResponseWriter, r *http.Request) {
-		var req bancov1.AddPairRequest
+		var req swapv1.AddPairRequest
 		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			httpError(w, fmt.Errorf("invalid request body: %w", err), http.StatusBadRequest)
@@ -123,7 +123,7 @@ func registerBancoRoutes(mux *http.ServeMux, svc *handler) {
 	})
 
 	mux.HandleFunc("PUT /v1/pair", func(w http.ResponseWriter, r *http.Request) {
-		var req bancov1.UpdatePairRequest
+		var req swapv1.UpdatePairRequest
 		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			httpError(w, fmt.Errorf("invalid request body: %w", err), http.StatusBadRequest)
@@ -139,7 +139,7 @@ func registerBancoRoutes(mux *http.ServeMux, svc *handler) {
 
 	mux.HandleFunc("DELETE /v1/pair/{pair}", func(w http.ResponseWriter, r *http.Request) {
 		pairName := r.PathValue("pair")
-		resp, err := svc.RemovePair(r.Context(), &bancov1.RemovePairRequest{Pair: pairName})
+		resp, err := svc.RemovePair(r.Context(), &swapv1.RemovePairRequest{Pair: pairName})
 		if err != nil {
 			httpGRPCError(w, err)
 			return
@@ -148,7 +148,7 @@ func registerBancoRoutes(mux *http.ServeMux, svc *handler) {
 	})
 
 	mux.HandleFunc("GET /v1/pairs", func(w http.ResponseWriter, r *http.Request) {
-		resp, err := svc.ListPairs(r.Context(), &bancov1.ListPairsRequest{})
+		resp, err := svc.ListPairs(r.Context(), &swapv1.ListPairsRequest{})
 		if err != nil {
 			httpGRPCError(w, err)
 			return
@@ -157,7 +157,7 @@ func registerBancoRoutes(mux *http.ServeMux, svc *handler) {
 	})
 
 	mux.HandleFunc("GET /v1/status", func(w http.ResponseWriter, r *http.Request) {
-		resp, err := svc.GetStatus(r.Context(), &bancov1.GetStatusRequest{})
+		resp, err := svc.GetStatus(r.Context(), &swapv1.GetStatusRequest{})
 		if err != nil {
 			httpGRPCError(w, err)
 			return
@@ -166,7 +166,7 @@ func registerBancoRoutes(mux *http.ServeMux, svc *handler) {
 	})
 
 	mux.HandleFunc("GET /v1/balance", func(w http.ResponseWriter, r *http.Request) {
-		resp, err := svc.GetBalance(r.Context(), &bancov1.GetBalanceRequest{})
+		resp, err := svc.GetBalance(r.Context(), &swapv1.GetBalanceRequest{})
 		if err != nil {
 			httpGRPCError(w, err)
 			return
@@ -175,7 +175,7 @@ func registerBancoRoutes(mux *http.ServeMux, svc *handler) {
 	})
 
 	mux.HandleFunc("GET /v1/address", func(w http.ResponseWriter, r *http.Request) {
-		resp, err := svc.GetAddress(r.Context(), &bancov1.GetAddressRequest{})
+		resp, err := svc.GetAddress(r.Context(), &swapv1.GetAddressRequest{})
 		if err != nil {
 			httpGRPCError(w, err)
 			return
@@ -190,7 +190,7 @@ func registerBancoRoutes(mux *http.ServeMux, svc *handler) {
 				limit = int32(n) //nolint:gosec
 			}
 		}
-		resp, err := svc.ListTrades(r.Context(), &bancov1.ListTradesRequest{Limit: limit})
+		resp, err := svc.ListTrades(r.Context(), &swapv1.ListTradesRequest{Limit: limit})
 		if err != nil {
 			httpGRPCError(w, err)
 			return
@@ -199,7 +199,7 @@ func registerBancoRoutes(mux *http.ServeMux, svc *handler) {
 	})
 
 	mux.HandleFunc("GET /v1/assets", func(w http.ResponseWriter, r *http.Request) {
-		resp, err := svc.ListAssets(r.Context(), &bancov1.ListAssetsRequest{})
+		resp, err := svc.ListAssets(r.Context(), &swapv1.ListAssetsRequest{})
 		if err != nil {
 			httpGRPCError(w, err)
 			return
@@ -208,7 +208,7 @@ func registerBancoRoutes(mux *http.ServeMux, svc *handler) {
 	})
 
 	mux.HandleFunc("POST /v1/wallet/send", func(w http.ResponseWriter, r *http.Request) {
-		var req bancov1.SendOffchainRequest
+		var req swapv1.SendOffchainRequest
 		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			httpError(w, fmt.Errorf("invalid request body: %w", err), http.StatusBadRequest)
@@ -223,7 +223,7 @@ func registerBancoRoutes(mux *http.ServeMux, svc *handler) {
 	})
 
 	mux.HandleFunc("POST /v1/wallet/exit", func(w http.ResponseWriter, r *http.Request) {
-		var req bancov1.CollaborativeExitRequest
+		var req swapv1.CollaborativeExitRequest
 		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			httpError(w, fmt.Errorf("invalid request body: %w", err), http.StatusBadRequest)
@@ -238,7 +238,7 @@ func registerBancoRoutes(mux *http.ServeMux, svc *handler) {
 	})
 
 	mux.HandleFunc("POST /v1/wallet/settle", func(w http.ResponseWriter, r *http.Request) {
-		var req bancov1.SettleRequest
+		var req swapv1.SettleRequest
 		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			httpError(w, fmt.Errorf("invalid request body: %w", err), http.StatusBadRequest)

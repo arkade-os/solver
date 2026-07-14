@@ -10,7 +10,7 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2"
 )
 
-// serverConfig holds the subset of the server info used to build banco
+// serverConfig holds the subset of the server info used to build swap
 // contracts, decoded into the rich types the contract logic expects.
 type serverConfig struct {
 	Network             arklib.Network

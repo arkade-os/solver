@@ -1,4 +1,4 @@
-package banco
+package swap
 
 import (
 	"bytes"
@@ -8,7 +8,7 @@ import (
 	"github.com/arkade-os/arkd/pkg/ark-lib/extension"
 	"github.com/btcsuite/btcd/wire"
 
-	"github.com/arkade-os/solver/pkg/banco/contract"
+	"github.com/arkade-os/solver/pkg/swap/contract"
 )
 
 type Offer struct {
@@ -18,9 +18,9 @@ type Offer struct {
 	DepositAmount uint64         // expressed in satoshis
 }
 
-// NewOffer parses the extension from the transaction, extracts a banco offer,
+// NewOffer parses the extension from the transaction, extracts a swap offer,
 // locates the swap output, and determines the deposit asset. Returns nil if
-// the tx has no extension, no banco offer, or no matching swap output.
+// the tx has no extension, no swap offer, or no matching swap output.
 func NewOffer(tx *wire.MsgTx) (*Offer, error) {
 	ext, err := extension.NewExtensionFromTx(tx)
 	if err != nil {
@@ -31,10 +31,10 @@ func NewOffer(tx *wire.MsgTx) (*Offer, error) {
 
 // NewOfferFromExtension produces an *Offer from a transaction whose ark
 // extension has already been parsed (e.g. by builder.ForExtension). Returns
-// nil if no banco offer is present in the extension or no matching swap
+// nil if no swap offer is present in the extension or no matching swap
 // output is found.
 func NewOfferFromExtension(tx *wire.MsgTx, ext extension.Extension) (*Offer, error) {
-	offer, err := contract.FindBancoOffer(ext)
+	offer, err := contract.FindSwapOffer(ext)
 	if err != nil {
 		return nil, err
 	}

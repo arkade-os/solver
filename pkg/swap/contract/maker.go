@@ -16,7 +16,7 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2"
 )
 
-// CreateOfferParams holds parameters for creating a banco swap offer.
+// CreateOfferParams holds parameters for creating a swap offer.
 type CreateOfferParams struct {
 	WantAmount uint64         // sats the maker wants to receive
 	WantAsset  *asset.AssetId // nil for BTC
@@ -37,7 +37,7 @@ type OfferStatus struct {
 	Spendable bool
 }
 
-// CreateOffer creates a new banco swap offer.
+// CreateOffer creates a new swap offer.
 func CreateOffer(
 	ctx context.Context,
 	params CreateOfferParams,

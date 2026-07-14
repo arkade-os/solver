@@ -12,9 +12,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	bancov1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/solverd/v1"
-	"github.com/arkade-os/solver/pkg/banco"
-	"github.com/arkade-os/solver/pkg/banco/contract"
+	swapv1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/solverd/v1"
+	"github.com/arkade-os/solver/pkg/swap"
+	"github.com/arkade-os/solver/pkg/swap/contract"
 )
 
 const (
@@ -23,8 +23,8 @@ const (
 	mockAssetAssetPriceFeed = "http://solverd-pricefeed/asset-asset"
 )
 
-// TestBancoAssetToBTC: maker deposits asset, wants BTC.
-func TestBancoAssetToBTC(t *testing.T) {
+// TestSwapAssetToBTC: maker deposits asset, wants BTC.
+func TestSwapAssetToBTC(t *testing.T) {
 	ctx := t.Context()
 
 	// Create maker, fund with offchain BTC, issue asset.
@@ -32,7 +32,7 @@ func TestBancoAssetToBTC(t *testing.T) {
 	faucetOffchain(t, maker, 0.0005)
 	assetID := issueAsset(t, maker, 500)
 
-	pair := banco.Pair{
+	pair := swap.Pair{
 		Pair:      assetID + "/BTC",
 		MinAmount: 1,
 		MaxAmount: 100000000,
@@ -67,8 +67,8 @@ func TestBancoAssetToBTC(t *testing.T) {
 	requireFulfillment(t, ctx, makerVtxoCh, 60*time.Second)
 }
 
-// TestBancoBTCToAsset: maker deposits BTC, wants asset.
-func TestBancoBTCToAsset(t *testing.T) {
+// TestSwapBTCToAsset: maker deposits BTC, wants asset.
+func TestSwapBTCToAsset(t *testing.T) {
 	ctx := t.Context()
 
 	// Issue asset on a temp wallet and send it to the taker bot, so the
@@ -88,7 +88,7 @@ func TestBancoBTCToAsset(t *testing.T) {
 	// Wait for the dockerized solver to report the incoming asset balance.
 	pollSolverAssetBalance(t, ctx, assetID, 1000, 30*time.Second)
 
-	pair := banco.Pair{
+	pair := swap.Pair{
 		Pair:      "BTC/" + assetID,
 		MinAmount: 1,
 		MaxAmount: 100000000,
@@ -123,8 +123,8 @@ func TestBancoBTCToAsset(t *testing.T) {
 	requireAssetFulfillment(t, ctx, makerVtxoCh, assetID, 60*time.Second)
 }
 
-// TestBancoAssetToAsset: maker deposits assetA, wants assetB.
-func TestBancoAssetToAsset(t *testing.T) {
+// TestSwapAssetToAsset: maker deposits assetA, wants assetB.
+func TestSwapAssetToAsset(t *testing.T) {
 	ctx := t.Context()
 
 	maker := setupArkClient(t)
@@ -146,7 +146,7 @@ func TestBancoAssetToAsset(t *testing.T) {
 	require.NoError(t, err)
 	pollSolverAssetBalance(t, ctx, assetB, 1000, 30*time.Second)
 
-	pair := banco.Pair{
+	pair := swap.Pair{
 		Pair:      assetA + "/" + assetB,
 		MinAmount: 1,
 		MaxAmount: 100000000,
@@ -174,18 +174,18 @@ func TestBancoAssetToAsset(t *testing.T) {
 	requireAssetFulfillment(t, ctx, makerVtxoCh, assetB, 60*time.Second)
 }
 
-func dialBancoClient(t *testing.T) bancov1.BancoServiceClient {
+func dialSwapClient(t *testing.T) swapv1.SwapServiceClient {
 	t.Helper()
 	conn, err := grpc.NewClient(e2eGRPCAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = conn.Close() })
-	return bancov1.NewBancoServiceClient(conn)
+	return swapv1.NewSwapServiceClient(conn)
 }
 
-func addPair(t *testing.T, pair banco.Pair) {
+func addPair(t *testing.T, pair swap.Pair) {
 	t.Helper()
-	_, err := dialBancoClient(t).AddPair(t.Context(), &bancov1.AddPairRequest{
-		Pair: &bancov1.PairInfo{
+	_, err := dialSwapClient(t).AddPair(t.Context(), &swapv1.AddPairRequest{
+		Pair: &swapv1.PairInfo{
 			Pair:        pair.Pair,
 			MinAmount:   pair.MinAmount,
 			MaxAmount:   pair.MaxAmount,
@@ -196,9 +196,9 @@ func addPair(t *testing.T, pair banco.Pair) {
 	require.NoError(t, err)
 }
 
-func getAddress(t *testing.T) *bancov1.GetAddressResponse {
+func getAddress(t *testing.T) *swapv1.GetAddressResponse {
 	t.Helper()
-	resp, err := dialWalletClient(t).GetAddress(t.Context(), &bancov1.GetAddressRequest{})
+	resp, err := dialWalletClient(t).GetAddress(t.Context(), &swapv1.GetAddressRequest{})
 	require.NoError(t, err)
 	require.NotEmpty(t, resp.OffchainAddress)
 	return resp

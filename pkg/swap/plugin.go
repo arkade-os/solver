@@ -1,4 +1,4 @@
-package banco
+package swap
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/sirupsen/logrus"
 
-	"github.com/arkade-os/solver/pkg/banco/contract"
+	"github.com/arkade-os/solver/pkg/swap/contract"
 	"github.com/arkade-os/solver/pkg/executor"
 )
 
@@ -24,7 +24,7 @@ type MatchedOffer struct {
 	Pair  *Pair
 }
 
-// plugin implements executor.Plugin for banco. It's constructed by NewPlugin
+// plugin implements executor.Plugin for swap. It's constructed by NewPlugin
 // and never escapes the package.
 type plugin struct {
 	arkClient arksdk.Wallet
@@ -35,7 +35,7 @@ type plugin struct {
 	log       logrus.FieldLogger
 }
 
-// NewPlugin builds a banco executor.Plugin.
+// NewPlugin builds a swap executor.Plugin.
 func NewPlugin(cfg Config) executor.Plugin {
 	cfg = cfg.WithDefault()
 	return &plugin{
@@ -48,18 +48,18 @@ func NewPlugin(cfg Config) executor.Plugin {
 	}
 }
 
-// Filter applies no server-side CEL filter: banco inspects every tx for an
+// Filter applies no server-side CEL filter: swap inspects every tx for an
 // ark extension OP_RETURN in Match.
 func (p *plugin) Filter() string { return "" }
 
 // Match decodes the tx into a *MatchedOffer and runs the validation gates.
-// It returns (nil, false) for any tx that isn't a banco offer, doesn't match
+// It returns (nil, false) for any tx that isn't a swap offer, doesn't match
 // a configured pair, or fails a validation check. Errors are logged at Debug
 // and treated as a non-match so a single bad tx never stops the stream.
 func (p *plugin) Match(ctx context.Context, tx *psbt.Packet) (any, bool) {
 	m, err := p.decode(ctx, tx)
 	if err != nil {
-		p.log.WithError(err).Debug("banco decode failed")
+		p.log.WithError(err).Debug("swap decode failed")
 		return nil, false
 	}
 	if m == nil {
@@ -104,7 +104,7 @@ func (p *plugin) Solve(ctx context.Context, intent any) {
 }
 
 // decode parses the tx's ark extension into a *MatchedOffer. It returns a nil
-// *MatchedOffer (with nil error) when the tx isn't a banco offer or no
+// *MatchedOffer (with nil error) when the tx isn't a swap offer or no
 // configured pair matches; a non-nil error means an unexpected failure that
 // should be reported.
 func (p *plugin) decode(ctx context.Context, tx *psbt.Packet) (*MatchedOffer, error) {

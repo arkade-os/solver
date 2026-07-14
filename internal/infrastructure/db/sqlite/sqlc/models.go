@@ -4,7 +4,7 @@
 
 package sqlc
 
-type BancoPair struct {
+type SwapPair struct {
 	Pair          string
 	MinAmount     int64
 	MaxAmount     int64

@@ -33,7 +33,7 @@ type FulfillResult struct {
 	ArkTxid string
 }
 
-// FulfillOffer constructs and submits the fulfillment transaction for a banco offer.
+// FulfillOffer constructs and submits the fulfillment transaction for a swap offer.
 func FulfillOffer(
 	ctx context.Context,
 	offer Offer,

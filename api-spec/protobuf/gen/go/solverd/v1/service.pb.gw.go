@@ -31,7 +31,7 @@ var _ = runtime.String
 var _ = utilities.NewDoubleArray
 var _ = metadata.Join
 
-func request_BancoService_AddPair_0(ctx context.Context, marshaler runtime.Marshaler, client BancoServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+func request_SwapService_AddPair_0(ctx context.Context, marshaler runtime.Marshaler, client SwapServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq AddPairRequest
 	var metadata runtime.ServerMetadata
 
@@ -48,7 +48,7 @@ func request_BancoService_AddPair_0(ctx context.Context, marshaler runtime.Marsh
 
 }
 
-func local_request_BancoService_AddPair_0(ctx context.Context, marshaler runtime.Marshaler, server BancoServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+func local_request_SwapService_AddPair_0(ctx context.Context, marshaler runtime.Marshaler, server SwapServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq AddPairRequest
 	var metadata runtime.ServerMetadata
 
@@ -65,7 +65,7 @@ func local_request_BancoService_AddPair_0(ctx context.Context, marshaler runtime
 
 }
 
-func request_BancoService_UpdatePair_0(ctx context.Context, marshaler runtime.Marshaler, client BancoServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+func request_SwapService_UpdatePair_0(ctx context.Context, marshaler runtime.Marshaler, client SwapServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq UpdatePairRequest
 	var metadata runtime.ServerMetadata
 
@@ -82,7 +82,7 @@ func request_BancoService_UpdatePair_0(ctx context.Context, marshaler runtime.Ma
 
 }
 
-func local_request_BancoService_UpdatePair_0(ctx context.Context, marshaler runtime.Marshaler, server BancoServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+func local_request_SwapService_UpdatePair_0(ctx context.Context, marshaler runtime.Marshaler, server SwapServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq UpdatePairRequest
 	var metadata runtime.ServerMetadata
 
@@ -99,7 +99,7 @@ func local_request_BancoService_UpdatePair_0(ctx context.Context, marshaler runt
 
 }
 
-func request_BancoService_RemovePair_0(ctx context.Context, marshaler runtime.Marshaler, client BancoServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+func request_SwapService_RemovePair_0(ctx context.Context, marshaler runtime.Marshaler, client SwapServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq RemovePairRequest
 	var metadata runtime.ServerMetadata
 
@@ -125,7 +125,7 @@ func request_BancoService_RemovePair_0(ctx context.Context, marshaler runtime.Ma
 
 }
 
-func local_request_BancoService_RemovePair_0(ctx context.Context, marshaler runtime.Marshaler, server BancoServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+func local_request_SwapService_RemovePair_0(ctx context.Context, marshaler runtime.Marshaler, server SwapServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq RemovePairRequest
 	var metadata runtime.ServerMetadata
 
@@ -151,7 +151,7 @@ func local_request_BancoService_RemovePair_0(ctx context.Context, marshaler runt
 
 }
 
-func request_BancoService_ListPairs_0(ctx context.Context, marshaler runtime.Marshaler, client BancoServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+func request_SwapService_ListPairs_0(ctx context.Context, marshaler runtime.Marshaler, client SwapServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq ListPairsRequest
 	var metadata runtime.ServerMetadata
 
@@ -160,7 +160,7 @@ func request_BancoService_ListPairs_0(ctx context.Context, marshaler runtime.Mar
 
 }
 
-func local_request_BancoService_ListPairs_0(ctx context.Context, marshaler runtime.Marshaler, server BancoServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+func local_request_SwapService_ListPairs_0(ctx context.Context, marshaler runtime.Marshaler, server SwapServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq ListPairsRequest
 	var metadata runtime.ServerMetadata
 
@@ -169,7 +169,7 @@ func local_request_BancoService_ListPairs_0(ctx context.Context, marshaler runti
 
 }
 
-func request_BancoService_GetStatus_0(ctx context.Context, marshaler runtime.Marshaler, client BancoServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+func request_SwapService_GetStatus_0(ctx context.Context, marshaler runtime.Marshaler, client SwapServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq GetStatusRequest
 	var metadata runtime.ServerMetadata
 
@@ -178,7 +178,7 @@ func request_BancoService_GetStatus_0(ctx context.Context, marshaler runtime.Mar
 
 }
 
-func local_request_BancoService_GetStatus_0(ctx context.Context, marshaler runtime.Marshaler, server BancoServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+func local_request_SwapService_GetStatus_0(ctx context.Context, marshaler runtime.Marshaler, server SwapServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq GetStatusRequest
 	var metadata runtime.ServerMetadata
 
@@ -188,17 +188,17 @@ func local_request_BancoService_GetStatus_0(ctx context.Context, marshaler runti
 }
 
 var (
-	filter_BancoService_ListTrades_0 = &utilities.DoubleArray{Encoding: map[string]int{}, Base: []int(nil), Check: []int(nil)}
+	filter_SwapService_ListTrades_0 = &utilities.DoubleArray{Encoding: map[string]int{}, Base: []int(nil), Check: []int(nil)}
 )
 
-func request_BancoService_ListTrades_0(ctx context.Context, marshaler runtime.Marshaler, client BancoServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+func request_SwapService_ListTrades_0(ctx context.Context, marshaler runtime.Marshaler, client SwapServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq ListTradesRequest
 	var metadata runtime.ServerMetadata
 
 	if err := req.ParseForm(); err != nil {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
-	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_BancoService_ListTrades_0); err != nil {
+	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_SwapService_ListTrades_0); err != nil {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
@@ -207,14 +207,14 @@ func request_BancoService_ListTrades_0(ctx context.Context, marshaler runtime.Ma
 
 }
 
-func local_request_BancoService_ListTrades_0(ctx context.Context, marshaler runtime.Marshaler, server BancoServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+func local_request_SwapService_ListTrades_0(ctx context.Context, marshaler runtime.Marshaler, server SwapServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq ListTradesRequest
 	var metadata runtime.ServerMetadata
 
 	if err := req.ParseForm(); err != nil {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
-	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_BancoService_ListTrades_0); err != nil {
+	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_SwapService_ListTrades_0); err != nil {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
@@ -223,13 +223,13 @@ func local_request_BancoService_ListTrades_0(ctx context.Context, marshaler runt
 
 }
 
-// RegisterBancoServiceHandlerServer registers the http handlers for service BancoService to "mux".
-// UnaryRPC     :call BancoServiceServer directly.
+// RegisterSwapServiceHandlerServer registers the http handlers for service SwapService to "mux".
+// UnaryRPC     :call SwapServiceServer directly.
 // StreamingRPC :currently unsupported pending https://github.com/grpc/grpc-go/issues/906.
-// Note that using this registration option will cause many gRPC library features to stop working. Consider using RegisterBancoServiceHandlerFromEndpoint instead.
-func RegisterBancoServiceHandlerServer(ctx context.Context, mux *runtime.ServeMux, server BancoServiceServer) error {
+// Note that using this registration option will cause many gRPC library features to stop working. Consider using RegisterSwapServiceHandlerFromEndpoint instead.
+func RegisterSwapServiceHandlerServer(ctx context.Context, mux *runtime.ServeMux, server SwapServiceServer) error {
 
-	mux.Handle("POST", pattern_BancoService_AddPair_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("POST", pattern_SwapService_AddPair_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		var stream runtime.ServerTransportStream
@@ -237,12 +237,12 @@ func RegisterBancoServiceHandlerServer(ctx context.Context, mux *runtime.ServeMu
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/solverd.v1.BancoService/AddPair", runtime.WithHTTPPathPattern("/v1/pair"))
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/solverd.v1.SwapService/AddPair", runtime.WithHTTPPathPattern("/v1/pair"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := local_request_BancoService_AddPair_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		resp, md, err := local_request_SwapService_AddPair_0(annotatedContext, inboundMarshaler, server, req, pathParams)
 		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
 		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
 		if err != nil {
@@ -250,11 +250,11 @@ func RegisterBancoServiceHandlerServer(ctx context.Context, mux *runtime.ServeMu
 			return
 		}
 
-		forward_BancoService_AddPair_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_SwapService_AddPair_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
-	mux.Handle("PUT", pattern_BancoService_UpdatePair_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("PUT", pattern_SwapService_UpdatePair_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		var stream runtime.ServerTransportStream
@@ -262,12 +262,12 @@ func RegisterBancoServiceHandlerServer(ctx context.Context, mux *runtime.ServeMu
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/solverd.v1.BancoService/UpdatePair", runtime.WithHTTPPathPattern("/v1/pair"))
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/solverd.v1.SwapService/UpdatePair", runtime.WithHTTPPathPattern("/v1/pair"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := local_request_BancoService_UpdatePair_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		resp, md, err := local_request_SwapService_UpdatePair_0(annotatedContext, inboundMarshaler, server, req, pathParams)
 		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
 		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
 		if err != nil {
@@ -275,11 +275,11 @@ func RegisterBancoServiceHandlerServer(ctx context.Context, mux *runtime.ServeMu
 			return
 		}
 
-		forward_BancoService_UpdatePair_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_SwapService_UpdatePair_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
-	mux.Handle("DELETE", pattern_BancoService_RemovePair_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("DELETE", pattern_SwapService_RemovePair_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		var stream runtime.ServerTransportStream
@@ -287,12 +287,12 @@ func RegisterBancoServiceHandlerServer(ctx context.Context, mux *runtime.ServeMu
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/solverd.v1.BancoService/RemovePair", runtime.WithHTTPPathPattern("/v1/pair/{pair}"))
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/solverd.v1.SwapService/RemovePair", runtime.WithHTTPPathPattern("/v1/pair/{pair}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := local_request_BancoService_RemovePair_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		resp, md, err := local_request_SwapService_RemovePair_0(annotatedContext, inboundMarshaler, server, req, pathParams)
 		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
 		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
 		if err != nil {
@@ -300,11 +300,11 @@ func RegisterBancoServiceHandlerServer(ctx context.Context, mux *runtime.ServeMu
 			return
 		}
 
-		forward_BancoService_RemovePair_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_SwapService_RemovePair_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
-	mux.Handle("GET", pattern_BancoService_ListPairs_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("GET", pattern_SwapService_ListPairs_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		var stream runtime.ServerTransportStream
@@ -312,12 +312,12 @@ func RegisterBancoServiceHandlerServer(ctx context.Context, mux *runtime.ServeMu
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/solverd.v1.BancoService/ListPairs", runtime.WithHTTPPathPattern("/v1/pairs"))
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/solverd.v1.SwapService/ListPairs", runtime.WithHTTPPathPattern("/v1/pairs"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := local_request_BancoService_ListPairs_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		resp, md, err := local_request_SwapService_ListPairs_0(annotatedContext, inboundMarshaler, server, req, pathParams)
 		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
 		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
 		if err != nil {
@@ -325,11 +325,11 @@ func RegisterBancoServiceHandlerServer(ctx context.Context, mux *runtime.ServeMu
 			return
 		}
 
-		forward_BancoService_ListPairs_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_SwapService_ListPairs_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
-	mux.Handle("GET", pattern_BancoService_GetStatus_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("GET", pattern_SwapService_GetStatus_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		var stream runtime.ServerTransportStream
@@ -337,12 +337,12 @@ func RegisterBancoServiceHandlerServer(ctx context.Context, mux *runtime.ServeMu
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/solverd.v1.BancoService/GetStatus", runtime.WithHTTPPathPattern("/v1/status"))
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/solverd.v1.SwapService/GetStatus", runtime.WithHTTPPathPattern("/v1/status"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := local_request_BancoService_GetStatus_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		resp, md, err := local_request_SwapService_GetStatus_0(annotatedContext, inboundMarshaler, server, req, pathParams)
 		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
 		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
 		if err != nil {
@@ -350,11 +350,11 @@ func RegisterBancoServiceHandlerServer(ctx context.Context, mux *runtime.ServeMu
 			return
 		}
 
-		forward_BancoService_GetStatus_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_SwapService_GetStatus_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
-	mux.Handle("GET", pattern_BancoService_ListTrades_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("GET", pattern_SwapService_ListTrades_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		var stream runtime.ServerTransportStream
@@ -362,12 +362,12 @@ func RegisterBancoServiceHandlerServer(ctx context.Context, mux *runtime.ServeMu
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/solverd.v1.BancoService/ListTrades", runtime.WithHTTPPathPattern("/v1/trades"))
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/solverd.v1.SwapService/ListTrades", runtime.WithHTTPPathPattern("/v1/trades"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := local_request_BancoService_ListTrades_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		resp, md, err := local_request_SwapService_ListTrades_0(annotatedContext, inboundMarshaler, server, req, pathParams)
 		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
 		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
 		if err != nil {
@@ -375,16 +375,16 @@ func RegisterBancoServiceHandlerServer(ctx context.Context, mux *runtime.ServeMu
 			return
 		}
 
-		forward_BancoService_ListTrades_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_SwapService_ListTrades_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
 	return nil
 }
 
-// RegisterBancoServiceHandlerFromEndpoint is same as RegisterBancoServiceHandler but
+// RegisterSwapServiceHandlerFromEndpoint is same as RegisterSwapServiceHandler but
 // automatically dials to "endpoint" and closes the connection when "ctx" gets done.
-func RegisterBancoServiceHandlerFromEndpoint(ctx context.Context, mux *runtime.ServeMux, endpoint string, opts []grpc.DialOption) (err error) {
+func RegisterSwapServiceHandlerFromEndpoint(ctx context.Context, mux *runtime.ServeMux, endpoint string, opts []grpc.DialOption) (err error) {
 	conn, err := grpc.DialContext(ctx, endpoint, opts...)
 	if err != nil {
 		return err
@@ -404,151 +404,151 @@ func RegisterBancoServiceHandlerFromEndpoint(ctx context.Context, mux *runtime.S
 		}()
 	}()
 
-	return RegisterBancoServiceHandler(ctx, mux, conn)
+	return RegisterSwapServiceHandler(ctx, mux, conn)
 }
 
-// RegisterBancoServiceHandler registers the http handlers for service BancoService to "mux".
+// RegisterSwapServiceHandler registers the http handlers for service SwapService to "mux".
 // The handlers forward requests to the grpc endpoint over "conn".
-func RegisterBancoServiceHandler(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error {
-	return RegisterBancoServiceHandlerClient(ctx, mux, NewBancoServiceClient(conn))
+func RegisterSwapServiceHandler(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error {
+	return RegisterSwapServiceHandlerClient(ctx, mux, NewSwapServiceClient(conn))
 }
 
-// RegisterBancoServiceHandlerClient registers the http handlers for service BancoService
-// to "mux". The handlers forward requests to the grpc endpoint over the given implementation of "BancoServiceClient".
-// Note: the gRPC framework executes interceptors within the gRPC handler. If the passed in "BancoServiceClient"
+// RegisterSwapServiceHandlerClient registers the http handlers for service SwapService
+// to "mux". The handlers forward requests to the grpc endpoint over the given implementation of "SwapServiceClient".
+// Note: the gRPC framework executes interceptors within the gRPC handler. If the passed in "SwapServiceClient"
 // doesn't go through the normal gRPC flow (creating a gRPC client etc.) then it will be up to the passed in
-// "BancoServiceClient" to call the correct interceptors.
-func RegisterBancoServiceHandlerClient(ctx context.Context, mux *runtime.ServeMux, client BancoServiceClient) error {
+// "SwapServiceClient" to call the correct interceptors.
+func RegisterSwapServiceHandlerClient(ctx context.Context, mux *runtime.ServeMux, client SwapServiceClient) error {
 
-	mux.Handle("POST", pattern_BancoService_AddPair_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("POST", pattern_SwapService_AddPair_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/solverd.v1.BancoService/AddPair", runtime.WithHTTPPathPattern("/v1/pair"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/solverd.v1.SwapService/AddPair", runtime.WithHTTPPathPattern("/v1/pair"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := request_BancoService_AddPair_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		resp, md, err := request_SwapService_AddPair_0(annotatedContext, inboundMarshaler, client, req, pathParams)
 		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
 		if err != nil {
 			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
 			return
 		}
 
-		forward_BancoService_AddPair_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_SwapService_AddPair_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
-	mux.Handle("PUT", pattern_BancoService_UpdatePair_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("PUT", pattern_SwapService_UpdatePair_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/solverd.v1.BancoService/UpdatePair", runtime.WithHTTPPathPattern("/v1/pair"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/solverd.v1.SwapService/UpdatePair", runtime.WithHTTPPathPattern("/v1/pair"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := request_BancoService_UpdatePair_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		resp, md, err := request_SwapService_UpdatePair_0(annotatedContext, inboundMarshaler, client, req, pathParams)
 		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
 		if err != nil {
 			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
 			return
 		}
 
-		forward_BancoService_UpdatePair_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_SwapService_UpdatePair_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
-	mux.Handle("DELETE", pattern_BancoService_RemovePair_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("DELETE", pattern_SwapService_RemovePair_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/solverd.v1.BancoService/RemovePair", runtime.WithHTTPPathPattern("/v1/pair/{pair}"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/solverd.v1.SwapService/RemovePair", runtime.WithHTTPPathPattern("/v1/pair/{pair}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := request_BancoService_RemovePair_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		resp, md, err := request_SwapService_RemovePair_0(annotatedContext, inboundMarshaler, client, req, pathParams)
 		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
 		if err != nil {
 			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
 			return
 		}
 
-		forward_BancoService_RemovePair_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_SwapService_RemovePair_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
-	mux.Handle("GET", pattern_BancoService_ListPairs_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("GET", pattern_SwapService_ListPairs_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/solverd.v1.BancoService/ListPairs", runtime.WithHTTPPathPattern("/v1/pairs"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/solverd.v1.SwapService/ListPairs", runtime.WithHTTPPathPattern("/v1/pairs"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := request_BancoService_ListPairs_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		resp, md, err := request_SwapService_ListPairs_0(annotatedContext, inboundMarshaler, client, req, pathParams)
 		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
 		if err != nil {
 			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
 			return
 		}
 
-		forward_BancoService_ListPairs_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_SwapService_ListPairs_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
-	mux.Handle("GET", pattern_BancoService_GetStatus_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("GET", pattern_SwapService_GetStatus_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/solverd.v1.BancoService/GetStatus", runtime.WithHTTPPathPattern("/v1/status"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/solverd.v1.SwapService/GetStatus", runtime.WithHTTPPathPattern("/v1/status"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := request_BancoService_GetStatus_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		resp, md, err := request_SwapService_GetStatus_0(annotatedContext, inboundMarshaler, client, req, pathParams)
 		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
 		if err != nil {
 			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
 			return
 		}
 
-		forward_BancoService_GetStatus_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_SwapService_GetStatus_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
-	mux.Handle("GET", pattern_BancoService_ListTrades_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("GET", pattern_SwapService_ListTrades_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/solverd.v1.BancoService/ListTrades", runtime.WithHTTPPathPattern("/v1/trades"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/solverd.v1.SwapService/ListTrades", runtime.WithHTTPPathPattern("/v1/trades"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := request_BancoService_ListTrades_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		resp, md, err := request_SwapService_ListTrades_0(annotatedContext, inboundMarshaler, client, req, pathParams)
 		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
 		if err != nil {
 			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
 			return
 		}
 
-		forward_BancoService_ListTrades_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_SwapService_ListTrades_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
@@ -556,29 +556,29 @@ func RegisterBancoServiceHandlerClient(ctx context.Context, mux *runtime.ServeMu
 }
 
 var (
-	pattern_BancoService_AddPair_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "pair"}, ""))
+	pattern_SwapService_AddPair_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "pair"}, ""))
 
-	pattern_BancoService_UpdatePair_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "pair"}, ""))
+	pattern_SwapService_UpdatePair_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "pair"}, ""))
 
-	pattern_BancoService_RemovePair_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 1}, []string{"v1", "pair"}, ""))
+	pattern_SwapService_RemovePair_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 1}, []string{"v1", "pair"}, ""))
 
-	pattern_BancoService_ListPairs_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "pairs"}, ""))
+	pattern_SwapService_ListPairs_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "pairs"}, ""))
 
-	pattern_BancoService_GetStatus_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "status"}, ""))
+	pattern_SwapService_GetStatus_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "status"}, ""))
 
-	pattern_BancoService_ListTrades_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "trades"}, ""))
+	pattern_SwapService_ListTrades_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "trades"}, ""))
 )
 
 var (
-	forward_BancoService_AddPair_0 = runtime.ForwardResponseMessage
+	forward_SwapService_AddPair_0 = runtime.ForwardResponseMessage
 
-	forward_BancoService_UpdatePair_0 = runtime.ForwardResponseMessage
+	forward_SwapService_UpdatePair_0 = runtime.ForwardResponseMessage
 
-	forward_BancoService_RemovePair_0 = runtime.ForwardResponseMessage
+	forward_SwapService_RemovePair_0 = runtime.ForwardResponseMessage
 
-	forward_BancoService_ListPairs_0 = runtime.ForwardResponseMessage
+	forward_SwapService_ListPairs_0 = runtime.ForwardResponseMessage
 
-	forward_BancoService_GetStatus_0 = runtime.ForwardResponseMessage
+	forward_SwapService_GetStatus_0 = runtime.ForwardResponseMessage
 
-	forward_BancoService_ListTrades_0 = runtime.ForwardResponseMessage
+	forward_SwapService_ListTrades_0 = runtime.ForwardResponseMessage
 )

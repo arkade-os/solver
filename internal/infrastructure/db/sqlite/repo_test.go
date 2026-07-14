@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	sqlitedb "github.com/arkade-os/solver/internal/infrastructure/db/sqlite"
-	"github.com/arkade-os/solver/pkg/banco"
+	"github.com/arkade-os/solver/pkg/swap"
 )
 
 // Verifies migrations apply on a fresh DB and slippage round-trips through
@@ -21,7 +21,7 @@ func TestPairSlippageRoundTrip(t *testing.T) {
 	repo := sqlitedb.NewPairRepository(db)
 	ctx := context.Background()
 
-	in := banco.Pair{
+	in := swap.Pair{
 		Pair:        "BTC/aabbcc",
 		MinAmount:   1000,
 		MaxAmount:   100000,
@@ -51,7 +51,7 @@ func TestPairSlippageRoundTrip(t *testing.T) {
 	if pairs[0].SlippageBps != 0 {
 		t.Fatalf("update mismatch: %+v", pairs)
 	}
-	if pairs[0].EffectiveSlippageBps() != banco.DefaultSlippageBps {
+	if pairs[0].EffectiveSlippageBps() != swap.DefaultSlippageBps {
 		t.Fatalf("default resolution mismatch: %d", pairs[0].EffectiveSlippageBps())
 	}
 }

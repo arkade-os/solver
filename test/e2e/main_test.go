@@ -14,7 +14,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	bancov1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/solverd/v1"
+	swapv1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/solverd/v1"
 )
 
 const e2eGRPCAddr = "localhost:7170"
@@ -34,7 +34,7 @@ func runTests(m *testing.M) int {
 		return 1
 	}
 
-	if err := waitBancoReady(ctx); err != nil {
+	if err := waitSwapReady(ctx); err != nil {
 		log.Errorf("failed waiting for solverd readiness: %s", err)
 		return 1
 	}
@@ -47,7 +47,7 @@ func runTests(m *testing.M) int {
 	return m.Run()
 }
 
-func waitBancoReady(ctx context.Context) error {
+func waitSwapReady(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
 	ticker := time.NewTicker(500 * time.Millisecond)
@@ -59,11 +59,11 @@ func waitBancoReady(ctx context.Context) error {
 	}
 	// nolint:errcheck
 	defer conn.Close()
-	client := bancov1.NewBancoServiceClient(conn)
+	client := swapv1.NewSwapServiceClient(conn)
 
 	for {
 		callCtx, callCancel := context.WithTimeout(ctx, time.Second)
-		resp, err := client.GetStatus(callCtx, &bancov1.GetStatusRequest{})
+		resp, err := client.GetStatus(callCtx, &swapv1.GetStatusRequest{})
 		callCancel()
 		if err == nil && resp.GetRunning() {
 			return nil

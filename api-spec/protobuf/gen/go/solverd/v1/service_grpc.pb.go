@@ -19,18 +19,18 @@ import (
 const _ = grpc.SupportPackageIsVersion8
 
 const (
-	BancoService_AddPair_FullMethodName    = "/solverd.v1.BancoService/AddPair"
-	BancoService_UpdatePair_FullMethodName = "/solverd.v1.BancoService/UpdatePair"
-	BancoService_RemovePair_FullMethodName = "/solverd.v1.BancoService/RemovePair"
-	BancoService_ListPairs_FullMethodName  = "/solverd.v1.BancoService/ListPairs"
-	BancoService_GetStatus_FullMethodName  = "/solverd.v1.BancoService/GetStatus"
-	BancoService_ListTrades_FullMethodName = "/solverd.v1.BancoService/ListTrades"
+	SwapService_AddPair_FullMethodName    = "/solverd.v1.SwapService/AddPair"
+	SwapService_UpdatePair_FullMethodName = "/solverd.v1.SwapService/UpdatePair"
+	SwapService_RemovePair_FullMethodName = "/solverd.v1.SwapService/RemovePair"
+	SwapService_ListPairs_FullMethodName  = "/solverd.v1.SwapService/ListPairs"
+	SwapService_GetStatus_FullMethodName  = "/solverd.v1.SwapService/GetStatus"
+	SwapService_ListTrades_FullMethodName = "/solverd.v1.SwapService/ListTrades"
 )
 
-// BancoServiceClient is the client API for BancoService service.
+// SwapServiceClient is the client API for SwapService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type BancoServiceClient interface {
+type SwapServiceClient interface {
 	AddPair(ctx context.Context, in *AddPairRequest, opts ...grpc.CallOption) (*AddPairResponse, error)
 	UpdatePair(ctx context.Context, in *UpdatePairRequest, opts ...grpc.CallOption) (*UpdatePairResponse, error)
 	RemovePair(ctx context.Context, in *RemovePairRequest, opts ...grpc.CallOption) (*RemovePairResponse, error)
@@ -39,78 +39,78 @@ type BancoServiceClient interface {
 	ListTrades(ctx context.Context, in *ListTradesRequest, opts ...grpc.CallOption) (*ListTradesResponse, error)
 }
 
-type bancoServiceClient struct {
+type swapServiceClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewBancoServiceClient(cc grpc.ClientConnInterface) BancoServiceClient {
-	return &bancoServiceClient{cc}
+func NewSwapServiceClient(cc grpc.ClientConnInterface) SwapServiceClient {
+	return &swapServiceClient{cc}
 }
 
-func (c *bancoServiceClient) AddPair(ctx context.Context, in *AddPairRequest, opts ...grpc.CallOption) (*AddPairResponse, error) {
+func (c *swapServiceClient) AddPair(ctx context.Context, in *AddPairRequest, opts ...grpc.CallOption) (*AddPairResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AddPairResponse)
-	err := c.cc.Invoke(ctx, BancoService_AddPair_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, SwapService_AddPair_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *bancoServiceClient) UpdatePair(ctx context.Context, in *UpdatePairRequest, opts ...grpc.CallOption) (*UpdatePairResponse, error) {
+func (c *swapServiceClient) UpdatePair(ctx context.Context, in *UpdatePairRequest, opts ...grpc.CallOption) (*UpdatePairResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UpdatePairResponse)
-	err := c.cc.Invoke(ctx, BancoService_UpdatePair_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, SwapService_UpdatePair_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *bancoServiceClient) RemovePair(ctx context.Context, in *RemovePairRequest, opts ...grpc.CallOption) (*RemovePairResponse, error) {
+func (c *swapServiceClient) RemovePair(ctx context.Context, in *RemovePairRequest, opts ...grpc.CallOption) (*RemovePairResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RemovePairResponse)
-	err := c.cc.Invoke(ctx, BancoService_RemovePair_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, SwapService_RemovePair_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *bancoServiceClient) ListPairs(ctx context.Context, in *ListPairsRequest, opts ...grpc.CallOption) (*ListPairsResponse, error) {
+func (c *swapServiceClient) ListPairs(ctx context.Context, in *ListPairsRequest, opts ...grpc.CallOption) (*ListPairsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListPairsResponse)
-	err := c.cc.Invoke(ctx, BancoService_ListPairs_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, SwapService_ListPairs_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *bancoServiceClient) GetStatus(ctx context.Context, in *GetStatusRequest, opts ...grpc.CallOption) (*GetStatusResponse, error) {
+func (c *swapServiceClient) GetStatus(ctx context.Context, in *GetStatusRequest, opts ...grpc.CallOption) (*GetStatusResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetStatusResponse)
-	err := c.cc.Invoke(ctx, BancoService_GetStatus_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, SwapService_GetStatus_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *bancoServiceClient) ListTrades(ctx context.Context, in *ListTradesRequest, opts ...grpc.CallOption) (*ListTradesResponse, error) {
+func (c *swapServiceClient) ListTrades(ctx context.Context, in *ListTradesRequest, opts ...grpc.CallOption) (*ListTradesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListTradesResponse)
-	err := c.cc.Invoke(ctx, BancoService_ListTrades_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, SwapService_ListTrades_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// BancoServiceServer is the server API for BancoService service.
-// All implementations should embed UnimplementedBancoServiceServer
+// SwapServiceServer is the server API for SwapService service.
+// All implementations should embed UnimplementedSwapServiceServer
 // for forward compatibility
-type BancoServiceServer interface {
+type SwapServiceServer interface {
 	AddPair(context.Context, *AddPairRequest) (*AddPairResponse, error)
 	UpdatePair(context.Context, *UpdatePairRequest) (*UpdatePairResponse, error)
 	RemovePair(context.Context, *RemovePairRequest) (*RemovePairResponse, error)
@@ -119,178 +119,178 @@ type BancoServiceServer interface {
 	ListTrades(context.Context, *ListTradesRequest) (*ListTradesResponse, error)
 }
 
-// UnimplementedBancoServiceServer should be embedded to have forward compatible implementations.
-type UnimplementedBancoServiceServer struct {
+// UnimplementedSwapServiceServer should be embedded to have forward compatible implementations.
+type UnimplementedSwapServiceServer struct {
 }
 
-func (UnimplementedBancoServiceServer) AddPair(context.Context, *AddPairRequest) (*AddPairResponse, error) {
+func (UnimplementedSwapServiceServer) AddPair(context.Context, *AddPairRequest) (*AddPairResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddPair not implemented")
 }
-func (UnimplementedBancoServiceServer) UpdatePair(context.Context, *UpdatePairRequest) (*UpdatePairResponse, error) {
+func (UnimplementedSwapServiceServer) UpdatePair(context.Context, *UpdatePairRequest) (*UpdatePairResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdatePair not implemented")
 }
-func (UnimplementedBancoServiceServer) RemovePair(context.Context, *RemovePairRequest) (*RemovePairResponse, error) {
+func (UnimplementedSwapServiceServer) RemovePair(context.Context, *RemovePairRequest) (*RemovePairResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RemovePair not implemented")
 }
-func (UnimplementedBancoServiceServer) ListPairs(context.Context, *ListPairsRequest) (*ListPairsResponse, error) {
+func (UnimplementedSwapServiceServer) ListPairs(context.Context, *ListPairsRequest) (*ListPairsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListPairs not implemented")
 }
-func (UnimplementedBancoServiceServer) GetStatus(context.Context, *GetStatusRequest) (*GetStatusResponse, error) {
+func (UnimplementedSwapServiceServer) GetStatus(context.Context, *GetStatusRequest) (*GetStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetStatus not implemented")
 }
-func (UnimplementedBancoServiceServer) ListTrades(context.Context, *ListTradesRequest) (*ListTradesResponse, error) {
+func (UnimplementedSwapServiceServer) ListTrades(context.Context, *ListTradesRequest) (*ListTradesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListTrades not implemented")
 }
 
-// UnsafeBancoServiceServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to BancoServiceServer will
+// UnsafeSwapServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to SwapServiceServer will
 // result in compilation errors.
-type UnsafeBancoServiceServer interface {
-	mustEmbedUnimplementedBancoServiceServer()
+type UnsafeSwapServiceServer interface {
+	mustEmbedUnimplementedSwapServiceServer()
 }
 
-func RegisterBancoServiceServer(s grpc.ServiceRegistrar, srv BancoServiceServer) {
-	s.RegisterService(&BancoService_ServiceDesc, srv)
+func RegisterSwapServiceServer(s grpc.ServiceRegistrar, srv SwapServiceServer) {
+	s.RegisterService(&SwapService_ServiceDesc, srv)
 }
 
-func _BancoService_AddPair_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _SwapService_AddPair_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AddPairRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(BancoServiceServer).AddPair(ctx, in)
+		return srv.(SwapServiceServer).AddPair(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: BancoService_AddPair_FullMethodName,
+		FullMethod: SwapService_AddPair_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BancoServiceServer).AddPair(ctx, req.(*AddPairRequest))
+		return srv.(SwapServiceServer).AddPair(ctx, req.(*AddPairRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _BancoService_UpdatePair_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _SwapService_UpdatePair_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdatePairRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(BancoServiceServer).UpdatePair(ctx, in)
+		return srv.(SwapServiceServer).UpdatePair(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: BancoService_UpdatePair_FullMethodName,
+		FullMethod: SwapService_UpdatePair_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BancoServiceServer).UpdatePair(ctx, req.(*UpdatePairRequest))
+		return srv.(SwapServiceServer).UpdatePair(ctx, req.(*UpdatePairRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _BancoService_RemovePair_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _SwapService_RemovePair_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RemovePairRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(BancoServiceServer).RemovePair(ctx, in)
+		return srv.(SwapServiceServer).RemovePair(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: BancoService_RemovePair_FullMethodName,
+		FullMethod: SwapService_RemovePair_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BancoServiceServer).RemovePair(ctx, req.(*RemovePairRequest))
+		return srv.(SwapServiceServer).RemovePair(ctx, req.(*RemovePairRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _BancoService_ListPairs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _SwapService_ListPairs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListPairsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(BancoServiceServer).ListPairs(ctx, in)
+		return srv.(SwapServiceServer).ListPairs(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: BancoService_ListPairs_FullMethodName,
+		FullMethod: SwapService_ListPairs_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BancoServiceServer).ListPairs(ctx, req.(*ListPairsRequest))
+		return srv.(SwapServiceServer).ListPairs(ctx, req.(*ListPairsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _BancoService_GetStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _SwapService_GetStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetStatusRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(BancoServiceServer).GetStatus(ctx, in)
+		return srv.(SwapServiceServer).GetStatus(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: BancoService_GetStatus_FullMethodName,
+		FullMethod: SwapService_GetStatus_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BancoServiceServer).GetStatus(ctx, req.(*GetStatusRequest))
+		return srv.(SwapServiceServer).GetStatus(ctx, req.(*GetStatusRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _BancoService_ListTrades_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _SwapService_ListTrades_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListTradesRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(BancoServiceServer).ListTrades(ctx, in)
+		return srv.(SwapServiceServer).ListTrades(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: BancoService_ListTrades_FullMethodName,
+		FullMethod: SwapService_ListTrades_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BancoServiceServer).ListTrades(ctx, req.(*ListTradesRequest))
+		return srv.(SwapServiceServer).ListTrades(ctx, req.(*ListTradesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// BancoService_ServiceDesc is the grpc.ServiceDesc for BancoService service.
+// SwapService_ServiceDesc is the grpc.ServiceDesc for SwapService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var BancoService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "solverd.v1.BancoService",
-	HandlerType: (*BancoServiceServer)(nil),
+var SwapService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "solverd.v1.SwapService",
+	HandlerType: (*SwapServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "AddPair",
-			Handler:    _BancoService_AddPair_Handler,
+			Handler:    _SwapService_AddPair_Handler,
 		},
 		{
 			MethodName: "UpdatePair",
-			Handler:    _BancoService_UpdatePair_Handler,
+			Handler:    _SwapService_UpdatePair_Handler,
 		},
 		{
 			MethodName: "RemovePair",
-			Handler:    _BancoService_RemovePair_Handler,
+			Handler:    _SwapService_RemovePair_Handler,
 		},
 		{
 			MethodName: "ListPairs",
-			Handler:    _BancoService_ListPairs_Handler,
+			Handler:    _SwapService_ListPairs_Handler,
 		},
 		{
 			MethodName: "GetStatus",
-			Handler:    _BancoService_GetStatus_Handler,
+			Handler:    _SwapService_GetStatus_Handler,
 		},
 		{
 			MethodName: "ListTrades",
-			Handler:    _BancoService_ListTrades_Handler,
+			Handler:    _SwapService_ListTrades_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

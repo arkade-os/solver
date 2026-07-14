@@ -1,6 +1,6 @@
-# `pkg/banco` — Banco swap solver plugin
+# `pkg/swap` — Swap solver plugin
 
-A `solver.Plugin` that fulfills banco swap offers stamped into the ark
+A `solver.Plugin` that fulfills swap offers stamped into the ark
 OP_RETURN extension of broadcast Ark txs. The taker (this bot) deposits
 its asset into the offer's swap output, atomically receiving the maker's
 deposit in return.
@@ -10,8 +10,8 @@ deposit in return.
 A tx is picked up when **all** of the following hold:
 
 1. It carries an ark OP_RETURN extension (pre-filter from `builder.ForExtension`).
-2. The extension contains a banco offer TLV packet (`contract.PacketType = 0x03`)
-   parsed by `contract.FindBancoOffer` / `NewOfferFromExtension`.
+2. The extension contains a swap offer TLV packet (`contract.PacketType = 0x03`)
+   parsed by `contract.FindSwapOffer` / `NewOfferFromExtension`.
 3. A tx output's `PkScript` matches the offer's declared `SwapPkScript`
    (locates the swap output and its value).
 4. A configured `Pair` in `PairsRepository` exists for the offer's
@@ -60,7 +60,7 @@ lands.
 ## Wiring
 
 ```go
-plugin := banco.NewPlugin(banco.Config{
+plugin := swap.NewPlugin(swap.Config{
     SolverClient:    arkClient,    // arksdk.Wallet — signs + holds funds
     Emulator:    emulatorClient,  // submits fulfilled bundles
     PairsRepository: pairRepo,     // configured trading pairs (CRUD via TakerService)
@@ -73,13 +73,13 @@ plugins = append(plugins, plugin)
 
 The application-level service (`internal/core/application/swap_service.go`)
 exposes pair/trade CRUD; `cmd/solverd` wires the plugin into the shared solver
-runtime. `pkg/banco` only owns match/validate/solve.
+runtime. `pkg/swap` only owns match/validate/solve.
 
 ## Files quick-reference
 
 - `plugin.go` — `NewPlugin`, decode + validators + fulfill wired via `builder.ForExtension`.
 - `offer.go` — `Offer` struct + `NewOfferFromExtension` (locates swap output, resolves deposit asset).
-- `contract/offer.go` — TLV codec for the offer packet (`PacketType = 0x03`) and `FindBancoOffer`.
+- `contract/offer.go` — TLV codec for the offer packet (`PacketType = 0x03`) and `FindSwapOffer`.
 - `contract/maker.go` / `contract/taker.go` — offer construction + fulfillment.
 - `pair.go` — `Pair` (configured market) + repository contract.
 - `price.go` — `PriceFeed` interface + cached lookup with tolerance check.

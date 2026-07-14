@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/arkade-os/solver/pkg/banco"
+	"github.com/arkade-os/solver/pkg/swap"
 )
 
 var (
@@ -12,10 +12,10 @@ var (
 	ErrPairExists   = errors.New("pair already exists")
 )
 
-// PairRepository extends banco.PairRepository with CRUD operations
+// PairRepository extends swap.PairRepository with CRUD operations
 type PairRepository interface {
-	banco.PairRepository
-	Add(ctx context.Context, pair banco.Pair) error
-	Update(ctx context.Context, pair banco.Pair) error
+	swap.PairRepository
+	Add(ctx context.Context, pair swap.Pair) error
+	Update(ctx context.Context, pair swap.Pair) error
 	Remove(ctx context.Context, pairName string) error
 }

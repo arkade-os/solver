@@ -1,11 +1,11 @@
-package banco
+package swap
 
 import (
 	"context"
 	"strings"
 )
 
-// Pair defines a trading pair and its price-feed constraints for the banco plugin.
+// Pair defines a trading pair and its price-feed constraints for the swap plugin.
 // The Pair field uses the format "{base}/{quote}" where each side is either
 // "BTC" (for native bitcoin) or the hex asset ID (for arkade assets).
 // Examples: "a1b2c3.../BTC", "BTC/d4e5f6...", "a1b2c3.../d4e5f6..."
@@ -45,7 +45,7 @@ func (p Pair) Quote() string {
 	return ""
 }
 
-// PairRepository is the read-only view of configured trading pairs used by the banco plugin.
+// PairRepository is the read-only view of configured trading pairs used by the swap plugin.
 type PairRepository interface {
 	List(ctx context.Context) ([]Pair, error)
 }

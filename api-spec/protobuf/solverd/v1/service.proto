@@ -4,7 +4,7 @@ option go_package = "github.com/arkade-os/solver/api-spec/protobuf/gen/solverd/v
 
 import "google/api/annotations.proto";
 
-service BancoService {
+service SwapService {
   rpc AddPair(AddPairRequest) returns (AddPairResponse) {
     option (google.api.http) = { post: "/v1/pair" body: "*" };
   }

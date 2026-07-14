@@ -1,11 +1,11 @@
-package banco
+package swap
 
 import (
 	"context"
 	"time"
 )
 
-// FulfillmentEvent describes a successful fulfillment of a banco offer.
+// FulfillmentEvent describes a successful fulfillment of a swap offer.
 // Amounts are in raw base units (sats for BTC, or the asset's own base unit).
 type FulfillmentEvent struct {
 	Pair          string
@@ -18,7 +18,7 @@ type FulfillmentEvent struct {
 	Timestamp     time.Time
 }
 
-// FulfillmentListener is notified when the banco plugin successfully fulfills an offer.
+// FulfillmentListener is notified when the swap plugin successfully fulfills an offer.
 // Implementations should return quickly; any persistence or network I/O should
 // be non-blocking or delegated to a background goroutine.
 type FulfillmentListener interface {

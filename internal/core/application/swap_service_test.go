@@ -5,11 +5,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/arkade-os/solver/pkg/banco"
+	"github.com/arkade-os/solver/pkg/swap"
 )
 
-func validPair() banco.Pair {
-	return banco.Pair{
+func validPair() swap.Pair {
+	return swap.Pair{
 		Pair:      "BTC/aabbcc",
 		MinAmount: 1000,
 		MaxAmount: 100000,

@@ -1,8 +1,8 @@
-# Banco Swap Protocol V1 Specification (Working Draft)
+# Swap Protocol V1 Specification (Working Draft)
 
 ## 1. Overview
 
-The Banco swap is a non-interactive, atomic asset swap projected onto the
+A swap is a non-interactive, atomic asset swap projected onto the
 Arkade virtual mempool. A **maker** publishes a standing offer by funding a
 VTXO whose script encodes "pay me `WantAmount` of `WantAsset` and you may sweep
 the deposit". A **taker** (the `solverd` solver bot) watches arkd's transaction
@@ -43,7 +43,7 @@ encoding, per-packet length) are an existing Ark feature documented in the
 this section specifies only the `0x03` payload.
 
 A funding transaction MUST contain at most one Type `0x03` record. A consumer
-that finds none treats the transaction as "not a Banco offer" and ignores it.
+that finds none treats the transaction as "not a swap offer" and ignores it.
 
 The payload is a flat stream of TLV records with **fixed 2-byte big-endian
 length framing**, parsed sequentially by type:
@@ -61,40 +61,43 @@ TLV_Record := Type(1 byte) || Length(u16 BE) || Value[Length]
 
 ```
 Offer := {
-  0x01 SwapPkScript        : bytes        # REQUIRED. pkScript of the swap output.
-  0x02 WantAmount          : u64 BE       # REQUIRED. Amount the maker wants to receive.
-  0x03 WantAsset?          : AssetId       # absent => BTC. Asset the maker wants.
-  0x04 CancelAt?           : u64 BE       # unix timestamp; absent/0 => no cancel path.
-  0x05 MakerPkScript       : bytes(34)    # REQUIRED. OP_1 || PUSH32 || <32-byte key>.
-  0x07 MakerPublicKey?     : xonly(32)    # REQUIRED iff CancelAt or ExitDelay is set.
+  0x01 SwapPkScript    : bytes        # REQUIRED. pkScript of the swap output.
+  0x02 WantAmount      : u64 BE       # REQUIRED. Amount the maker wants to receive.
+  0x03 WantAsset?      : AssetId      # absent => BTC. Asset the maker wants.
+  0x05 MakerPkScript   : bytes(34)    # REQUIRED. OP_1 || PUSH32 || <32-byte key>.
+  0x07 MakerPublicKey  : xonly(32)    # REQUIRED. Drives the cancel and exit closures.
   0x08 EmulatorPubkey  : xonly(32)    # REQUIRED. Covenant co-signer key.
-  0x09 RatioNum?           : u64 BE       # partial-fill numerator; absent/0 => unset.
-  0x0a RatioDen?           : u64 BE       # partial-fill denominator; absent/0 => unset.
-  0x0b OfferAsset?         : AssetId       # absent => BTC. Asset deposited into the swap.
-  0x0c ExitDelay?          : ExitTimelock # maker's relative-locktime exit path.
+  0x09 RatioNum?       : u64 BE       # partial-fill numerator; absent/0 => unset.
+  0x0a RatioDen?       : u64 BE       # partial-fill denominator; absent/0 => unset.
+  0x0b OfferAsset?     : AssetId      # absent => BTC. Asset deposited into the swap.
+  0x0c ExitDelay?      : ExitTimelock # maker's relative-locktime exit path.
 }
 
 ExitTimelock := { type: u8, value: u64 BE }       # type 0x00 = blocks, 0x01 = seconds
 ```
 
-`AssetId` is the Arkade Asset identifier `(genesis_txid, group_index)` defined by
-the [Arkade Asset spec](https://github.com/ArkLabsHQ/arkade-assets/blob/master/arkade-assets.md).
+Tags `0x04` and `0x06` are unassigned in V1. `AssetId` is the Arkade Asset
+identifier `(genesis_txid, group_index)` defined by the
+[Arkade Asset spec](https://github.com/ArkLabsHQ/arkade-assets/blob/master/arkade-assets.md).
 
-**Required fields:** `SwapPkScript`, `WantAmount`, `MakerPkScript`,
-`EmulatorPubkey`. An offer missing any of these is INVALID.
+**Required fields.** `SwapPkScript`, `WantAmount`, `MakerPkScript`, and
+`EmulatorPubkey` are enforced at parse time; an offer missing any of them is
+INVALID. `MakerPublicKey` is not checked by the parser but is required to
+reconstruct the VTXO tree (Section 3) — the mandatory cancel closure commits to
+it — so an offer without it cannot be verified or fulfilled and a taker rejects
+it at the tree-consistency check.
 
 **Serialization order.** A serializer MUST emit present records in this order:
 `SwapPkScript`, `WantAmount`, `WantAsset?`, `RatioNum?`, `RatioDen?`,
-`OfferAsset?`, `CancelAt?`, `MakerPkScript`, `MakerPublicKey?`,
-`EmulatorPubkey?`, `ExitDelay?`. Parsers MUST NOT assume this order — the
-stream is parsed by `Type` — but emitting it canonically keeps offer hashes
-stable across implementations.
+`OfferAsset?`, `MakerPkScript`, `MakerPublicKey`, `EmulatorPubkey`, `ExitDelay?`.
+Parsers MUST NOT assume this order — the stream is parsed by `Type` — but
+emitting it canonically keeps offer hashes stable across implementations.
 
 ### 2.2. Encoding details
 
--   **Byte order.** All scalar integer fields (`WantAmount`, `CancelAt`,
-    `RatioNum`, `RatioDen`, `ExitTimelock.value`) are **big-endian** u64 (8
-    bytes), following the convention of the reference ts-sdk.
+-   **Byte order.** All scalar integer fields (`WantAmount`, `RatioNum`,
+    `RatioDen`, `ExitTimelock.value`) are **big-endian** u64 (8 bytes),
+    following the convention of the reference ts-sdk.
 -   **`MakerPkScript`** MUST be exactly 34 bytes and a well-formed taproot
     program: `OP_1 (0x51) || OP_DATA_32 (0x20) || <32-byte witness program>`.
     The trailing 32 bytes are the maker's witness program, reused as
@@ -115,11 +118,14 @@ reconstructed swap pkScript equals the offer's `SwapPkScript` before spending.
 
 ```
 TapscriptsVtxoScript {
-  Closures[0] = MultisigClosure{ SignerPubKey, FulfillTweakedKey }      # REQUIRED
-  Closures[1] = CLTVMultisigClosure{ {MakerPublicKey, SignerPubKey}, CancelAt }   # iff CancelAt
-  Closures[2] = CSVMultisigClosure{  {MakerPublicKey, SignerPubKey}, ExitDelay }  # iff ExitDelay
+  Closures[0] = MultisigClosure{ SignerPubKey, FulfillTweakedKey }              # REQUIRED — fulfill
+  Closures[1] = MultisigClosure{ MakerPublicKey, SignerPubKey }                 # REQUIRED — cancel
+  Closures[2] = CSVMultisigClosure{ {MakerPublicKey, SignerPubKey}, ExitDelay } # iff ExitDelay
 }
 ```
+
+Because both the cancel and exit closures reference `MakerPublicKey`, it is a
+required field for any fulfillable offer (Section 2.1).
 
 ### 3.1. Fulfill closure
 
@@ -164,20 +170,20 @@ the amount and scriptPubKey checks run as above. The asset group the taker emits
 for `WantAsset` MUST therefore sit at group index 0 of the fulfillment
 transaction's asset packet (Section 4.2).
 
-### 3.3. Cancel and exit closures (optional)
+### 3.3. Cancel and exit closures
 
--   **Cancel** (`CancelAt` set): a `CLTVMultisigClosure` of
-    `{MakerPublicKey, SignerPubKey}` spendable after the absolute locktime
-    `CancelAt`. Lets the maker reclaim the deposit if no taker fills the offer.
+-   **Cancel** (mandatory): an unconditional `MultisigClosure` of
+    `{MakerPublicKey, SignerPubKey}` — no timelock. It lets the maker reclaim an
+    unfilled deposit cooperatively with the signer at any time. This is why
+    `MakerPublicKey` is required for every offer.
 -   **Exit** (`ExitDelay` set): a `CSVMultisigClosure` of the same keys with a
-    relative locktime, for the maker's unilateral-exit path.
+    relative locktime, for the maker's unilateral-exit path when the signer is
+    unresponsive.
 
-Both require `MakerPublicKey` (record `0x07`); an offer that sets `CancelAt` or
-`ExitDelay` without it is INVALID.
-
-> Note: V1 of `solverd`'s maker helper does not yet construct cancel/exit
-> offers (`CreateOffer` rejects them), but the wire format and tree support
-> them for forward compatibility.
+`solverd`'s maker helper (`CreateOffer`) always builds both: the cancel closure
+via `MakerPublicKey`, and the exit closure using the server's configured
+`UnilateralExitDelay`. Partial-fill (`RatioNum`/`RatioDen`) and an
+absolute-locktime cancel remain reserved wire space, not yet emitted.
 
 ## 4. Fulfillment transaction
 
@@ -214,7 +220,7 @@ The fulfillment transaction's OP_RETURN extension carries:
     Arkade-script, so it can evaluate the covenant before co-signing.
 2.  An **[Arkade Asset packet](https://github.com/ArkLabsHQ/arkade-assets/blob/master/arkade-assets.md)**
     (only when assets move), tracking every asset across inputs and outputs.
-    Banco's usage constraint: the wanted asset group MUST be at group index 0
+    The protocol's usage constraint: the wanted asset group MUST be at group index 0
     (the fulfill script's `OP_INSPECTOUTASSETLOOKUP` uses `lookup_index = 0`).
     Maker-bound asset amounts go to vout 0; all remaining asset balance goes to
     the taker (vout 1).
@@ -263,8 +269,10 @@ MAY apply any subset. `solverd` applies, in order:
     `(DepositAsset → WantAsset)` direction. Otherwise the offer is ignored.
 -   **Amount in range**: `WantAmount ∈ [MinAmount, MaxAmount]` for the pair.
 -   **Price tolerance**: the offer price (deposit/want, decimal-adjusted) MUST be
-    within **±1%** of the configured price feed mid. A stale feed logs a warning
-    but does not auto-reject; an unavailable feed rejects.
+    within the pair's configured **slippage** of the price feed mid. Slippage is
+    per-pair `slippage_bps` (basis points), defaulting to **100 bps (±1%)** when
+    unset. A stale feed logs a warning but does not auto-reject; an unavailable
+    feed rejects.
 -   **Solvency**: if the want leg is BTC, the taker's off-chain balance MUST be
     ≥ `WantAmount`. Asset wants skip this check.
 
@@ -282,8 +290,10 @@ swap VTXO simply remains unspent and available to another taker.
 -   **Monitor.** `GetOffers(swapAddress)` queries the indexer for VTXOs at the
     swap address, returning `{txid, vout, value, spendable}` per offer so the
     maker can tell whether its offer is still live or has been filled.
--   **Reclaim.** If the offer carried a cancel/exit path, the maker can reclaim
-    the deposit after the locktime via the corresponding closure.
+-   **Reclaim.** The maker can reclaim an unfilled deposit at any time via the
+    cancel closure, cooperating with the signer (mandatory, no timelock). If the
+    signer is unresponsive, the maker falls back to the exit closure after its
+    relative locktime.
 
 ## 7. Rationale and notes
 

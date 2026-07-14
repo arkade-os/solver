@@ -1,3 +1,4 @@
+// Command banco is a test-only CLI for non-interactive swaps. Do not use with real funds.
 package main
 
 import (
@@ -26,7 +27,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/arkade-os/solver/internal/infrastructure/pricefeed"
-	"github.com/arkade-os/solver/pkg/banco/contract"
+	"github.com/arkade-os/solver/pkg/swap/contract"
 )
 
 var Version string

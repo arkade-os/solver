@@ -23,7 +23,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	bancov1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/solverd/v1"
+	swapv1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/solverd/v1"
 )
 
 const (
@@ -197,12 +197,12 @@ func issueAsset(t *testing.T, client arksdk.Wallet, supply uint64) string {
 }
 
 // dialWalletClient dials the dockerized solver's WalletService.
-func dialWalletClient(t *testing.T) bancov1.WalletServiceClient {
+func dialWalletClient(t *testing.T) swapv1.WalletServiceClient {
 	t.Helper()
 	conn, err := grpc.NewClient(e2eGRPCAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = conn.Close() })
-	return bancov1.NewWalletServiceClient(conn)
+	return swapv1.NewWalletServiceClient(conn)
 }
 
 // solverOffchainAddress fetches the solver's offchain address over the
@@ -214,7 +214,7 @@ func solverOffchainAddress(ctx context.Context) (string, error) {
 	}
 	// nolint:errcheck
 	defer conn.Close()
-	resp, err := bancov1.NewWalletServiceClient(conn).GetAddress(ctx, &bancov1.GetAddressRequest{})
+	resp, err := swapv1.NewWalletServiceClient(conn).GetAddress(ctx, &swapv1.GetAddressRequest{})
 	if err != nil {
 		return "", err
 	}
@@ -233,11 +233,11 @@ func pollSolverOffchain(ctx context.Context, target uint64, timeout time.Duratio
 	}
 	// nolint:errcheck
 	defer conn.Close()
-	client := bancov1.NewWalletServiceClient(conn)
+	client := swapv1.NewWalletServiceClient(conn)
 
 	deadline := time.Now().Add(timeout)
 	for {
-		resp, err := client.GetBalance(ctx, &bancov1.GetBalanceRequest{})
+		resp, err := client.GetBalance(ctx, &swapv1.GetBalanceRequest{})
 		if err == nil && resp.GetOffchainSettled() >= target {
 			return nil
 		}
@@ -255,7 +255,7 @@ func pollSolverAssetBalance(t *testing.T, ctx context.Context, assetID string, a
 	client := dialWalletClient(t)
 	deadline := time.Now().Add(timeout)
 	for {
-		resp, err := client.GetBalance(ctx, &bancov1.GetBalanceRequest{})
+		resp, err := client.GetBalance(ctx, &swapv1.GetBalanceRequest{})
 		if err == nil {
 			if got := resp.GetAssetBalances()[assetID]; got >= amount {
 				return
