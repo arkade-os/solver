@@ -273,7 +273,7 @@ func (o *Offer) FulfillScript() ([]byte, error) {
 	b := txscript.NewScriptBuilder()
 	b.AddOp(txscript.OP_0) // output index 0
 	b.AddData(o.WantAsset.Txid[:])
-	b.AddOp(txscript.OP_0) // asset group lookup index 0
+	b.AddInt64(int64(o.WantAsset.Index))
 	b.AddOp(arkade.OP_INSPECTOUTASSETLOOKUP)
 	b.AddOp(txscript.OP_VERIFY) // success flag must be 1
 	b.AddInt64(int64(o.WantAmount))
