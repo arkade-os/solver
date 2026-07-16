@@ -25,6 +25,8 @@ const ICONS = {
   external:
     '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
   "arrow-right": '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+  "arrow-left-right":
+    '<path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/>',
   info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
   eye:
     '<path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/>',
@@ -77,10 +79,14 @@ const api = {
     const txt = await res.text();
     return txt ? JSON.parse(txt) : null;
   },
-  listPairs: () => api._req("GET", "/v1/pairs"),
-  addPair: (pair) => api._req("POST", "/v1/pair", { pair }),
-  updatePair: (pair) => api._req("PUT", "/v1/pair", { pair }),
-  removePair: (name) => api._req("DELETE", `/v1/pair/${encodeURIComponent(name)}`),
+  listMarkets: () => api._req("GET", "/v1/markets"),
+  addMarket: (market) => api._req("POST", "/v1/market", { market }),
+  updateMarket: (market) => api._req("PUT", "/v1/market", { market }),
+  removeMarket: (base, quote) =>
+    api._req(
+      "DELETE",
+      `/v1/market/${encodeURIComponent(base)}/${encodeURIComponent(quote)}`
+    ),
   status: () => api._req("GET", "/v1/status"),
   balance: () => api._req("GET", "/v1/balance"),
   address: () => api._req("GET", "/v1/address"),
@@ -140,8 +146,14 @@ function assetLabel(s, head = 6, tail = 4) {
   return truncMid(s, head, tail);
 }
 
-// pairWantAsset returns the want-side (quote) asset of a pair name.
-function pairWantAsset(name) {
+// marketBase / marketQuote split a "base/quote" market id (used by trade rows,
+// which carry the market id plus the concrete deposit/want assets).
+function marketBase(name) {
+  if (!name) return "";
+  const i = name.indexOf("/");
+  return i < 0 ? name : name.slice(0, i);
+}
+function marketQuote(name) {
   if (!name) return "";
   const i = name.indexOf("/");
   return i < 0 ? "" : name.slice(i + 1);
@@ -185,7 +197,7 @@ function setSection(name) {
   if (target) target.hidden = false;
 
   if (name === "wallet") loadWallet();
-  if (name === "pairs") loadPairs();
+  if (name === "pairs") loadMarkets();
   if (name === "history") loadTrades();
 }
 
@@ -194,44 +206,58 @@ $("#nav").addEventListener("click", (e) => {
   if (btn) setSection(btn.dataset.section);
 });
 
-// -------- pairs --------
+// -------- markets --------
 
-let pairsCache = [];
+let marketsCache = [];
 
 // assetMeta maps a known asset id to its metadata (ticker/icon/decimals) so
-// pairs can show real tickers and icons instead of a raw hex id.
+// markets can show real tickers and icons instead of a raw hex id.
 let assetMeta = new Map();
 
-// metaFor returns metadata for a pair side; BTC and unknown assets fall back to
-// a minimal record.
+// metaFor returns metadata for a market side; BTC and unknown assets fall back
+// to a minimal record.
 function metaFor(id) {
   if (id === "BTC") return { asset_id: "BTC", ticker: "BTC", decimals: 8 };
   return assetMeta.get(id) || { asset_id: id };
 }
 
-// wantAmount formats a min/max on the want side, scaling by decimals and using
-// the ticker when the asset is known; else a bare count + generic unit.
-function wantAmount(raw, meta) {
-  if (meta.asset_id === "BTC") {
-    return `${Number(raw).toLocaleString("en-US")} sats`;
-  }
-  if (meta.ticker || meta.decimals) {
-    return fmtAssetAmount(raw, meta.decimals, meta.ticker);
-  }
-  return `${Number(raw).toLocaleString("en-US")} units`;
+// assetDisplay resolves an id (or "BTC") to its ticker/name when known, else a
+// short truncated id — used wherever we'd otherwise show a raw hex id.
+function assetDisplay(id) {
+  if (id === "BTC") return "BTC";
+  const m = metaFor(id);
+  return m.ticker || m.name || assetLabel(id);
 }
 
-async function loadPairs() {
+// amountParts splits a raw bound into its formatted number and unit, so a
+// min–max range can render the unit once. Scales by decimals, drops trailing
+// zeros, and uses the ticker as the unit when the asset is known.
+function amountParts(raw, meta) {
+  if (meta.asset_id === "BTC") {
+    return { num: Number(raw).toLocaleString("en-US"), unit: "sats" };
+  }
+  const d = Number(meta.decimals || 0);
+  const num =
+    d > 0
+      ? (Number(raw) / 10 ** d).toLocaleString("en-US", {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: d,
+        })
+      : Number(raw).toLocaleString("en-US");
+  return { num, unit: meta.ticker || "units" };
+}
+
+async function loadMarkets() {
   const grid = $("#pairs-grid");
   const empty = $("#pairs-empty");
   try {
     const [data, assetsResp] = await Promise.all([
-      api.listPairs(),
+      api.listMarkets(),
       api.listAssets().catch(() => ({ assets: [] })),
     ]);
     assetMeta = new Map((assetsResp.assets || []).map((a) => [a.asset_id, a]));
-    pairsCache = data.pairs || [];
-    renderPairs(pairsCache);
+    marketsCache = data.markets || [];
+    renderMarkets(marketsCache);
   } catch (err) {
     toast(err.message, "error");
     grid.innerHTML = "";
@@ -255,16 +281,39 @@ function feedHost(url) {
 // feed marker. 500 bps (5%) or wider spans the whole track; a floor keeps tiny
 // tolerances visible. Returns percentages of the track width.
 function bandGeom(bps) {
-  const pct = (Number(bps) || 100) / 100;
+  const pct = (Number(bps) || DEFAULT_SLIPPAGE_BPS) / 100;
   const half = Math.max(Math.min(pct / 5, 1) * 50, 3);
   return { left: 50 - half, width: half * 2 };
 }
 
-function renderPairs(pairs) {
+// marketId is the canonical "base/quote" identifier used for delete + dedup.
+function marketId(m) {
+  return `${m.base_asset}/${m.quote_asset}`;
+}
+
+// dirStat renders one direction block on a market card. A direction is enabled
+// when its want-side max is non-zero; otherwise it reads "Disabled".
+function dirStat(label, enabled, minRaw, maxRaw, meta) {
+  if (!enabled) {
+    return `<div class="mstat"><span class="mstat-k">${escapeHTML(
+      label
+    )}</span><span class="mstat-v off">Disabled</span></div>`;
+  }
+  const min = amountParts(minRaw, meta);
+  const max = amountParts(maxRaw, meta);
+  const v = `${min.num} – ${max.num} ${max.unit}`;
+  return `<div class="mstat"><span class="mstat-k">${escapeHTML(
+    label
+  )}</span><span class="mstat-v" title="${escapeAttr(v)}">${escapeHTML(
+    v
+  )}</span></div>`;
+}
+
+function renderMarkets(markets) {
   const grid = $("#pairs-grid");
   const empty = $("#pairs-empty");
   const count = $("#pairs-count");
-  if (!pairs.length) {
+  if (!markets.length) {
     grid.innerHTML = "";
     grid.hidden = true;
     empty.hidden = false;
@@ -274,23 +323,27 @@ function renderPairs(pairs) {
   empty.hidden = true;
   grid.hidden = false;
   count.hidden = false;
-  count.textContent = `${pairs.length} ${pairs.length === 1 ? "market" : "markets"}`;
+  count.textContent = `${markets.length} ${
+    markets.length === 1 ? "market" : "markets"
+  }`;
   grid.innerHTML = "";
-  for (const p of pairs) {
-    const base = pairBase(p.pair);
-    const quote = pairWantAsset(p.pair);
+  for (const m of markets) {
+    const base = m.base_asset;
+    const quote = m.quote_asset;
     const baseMeta = metaFor(base);
     const quoteMeta = metaFor(quote);
     // Prefer a real ticker/name; fall back to a short truncated id.
     const baseLabel = baseMeta.ticker || baseMeta.name || assetLabel(base, 4, 4);
     const quoteLabel =
       quoteMeta.ticker || quoteMeta.name || assetLabel(quote, 4, 4);
-    const band = bandGeom(p.slippage_bps);
-    const minStr = wantAmount(p.min_amount, quoteMeta);
-    const maxStr = wantAmount(p.max_amount, quoteMeta);
+    // Sell-base: deposit base, want quote (quote-denominated bounds).
+    // Buy-base: deposit quote, want base (base-denominated bounds).
+    const sellOn = Number(m.max_quote_amount) > 0;
+    const buyOn = Number(m.max_base_amount) > 0;
+    const band = bandGeom(m.slippage_bps);
     const card = document.createElement("article");
     card.className = "market";
-    card.dataset.pair = p.pair;
+    card.dataset.market = marketId(m);
     card.innerHTML = `
       <div class="market-head">
         <div class="market-flow">
@@ -298,14 +351,14 @@ function renderPairs(pairs) {
             ${assetAvatar(baseMeta)}
             <span class="market-sym"><b title="${escapeAttr(base)}">${escapeHTML(
               baseLabel
-            )}</b><small>Deposit</small></span>
+            )}</b><small>Base</small></span>
           </div>
-          ${icon("arrow-right", "market-flow-arrow")}
+          ${icon("arrow-left-right", "market-flow-arrow")}
           <div class="market-side">
             ${assetAvatar(quoteMeta)}
             <span class="market-sym"><b title="${escapeAttr(quote)}">${escapeHTML(
               quoteLabel
-            )}</b><small>Want</small></span>
+            )}</b><small>Quote</small></span>
           </div>
         </div>
         <div class="market-actions">
@@ -319,24 +372,26 @@ function renderPairs(pairs) {
       </div>
 
       <div class="market-stats">
-        <div class="mstat">
-          <span class="mstat-k">Min want</span>
-          <span class="mstat-v" title="${escapeAttr(minStr)}">${escapeHTML(
-            minStr
-          )}</span>
-        </div>
-        <div class="mstat">
-          <span class="mstat-k">Max want</span>
-          <span class="mstat-v" title="${escapeAttr(maxStr)}">${escapeHTML(
-            maxStr
-          )}</span>
-        </div>
+        ${dirStat(
+          `${baseLabel} → ${quoteLabel}`,
+          sellOn,
+          m.min_quote_amount,
+          m.max_quote_amount,
+          quoteMeta
+        )}
+        ${dirStat(
+          `${quoteLabel} → ${baseLabel}`,
+          buyOn,
+          m.min_base_amount,
+          m.max_base_amount,
+          baseMeta
+        )}
       </div>
 
       <div class="market-band">
         <div class="band-head">
           <span>Fill tolerance</span>
-          <span class="band-pct">±${escapeHTML(fmtSlippage(p.slippage_bps))}</span>
+          <span class="band-pct">±${escapeHTML(fmtSlippage(m.slippage_bps))}</span>
         </div>
         <div class="band-track">
           <div class="band-fill" style="left:${band.left}%;width:${band.width}%"></div>
@@ -345,32 +400,37 @@ function renderPairs(pairs) {
       </div>
 
       <div class="market-foot">
-        <a class="feed-link" href="${escapeAttr(safeHref(p.price_feed))}"
+        <a class="feed-link" href="${escapeAttr(safeHref(m.price_feed))}"
           target="_blank" rel="noreferrer noopener" title="${escapeAttr(
-            p.price_feed
-          )}">${icon("external")}<span>${escapeHTML(feedHost(p.price_feed))}</span></a>
-        ${p.invert_price ? '<span class="badge on">Inverted</span>' : ""}
+            m.price_feed
+          )}">${icon("external")}<span>${escapeHTML(feedHost(m.price_feed))}</span></a>
+        ${
+          Number(m.fee_bps) > 0
+            ? `<span class="badge on" title="Solver margin">Fee ${escapeHTML(
+                fmtSlippage(m.fee_bps)
+              )}</span>`
+            : ""
+        }
       </div>`;
-    card.querySelector("[data-edit]").addEventListener("click", () => openEdit(p));
-    card.querySelector("[data-del]").addEventListener("click", () => deletePair(p));
+    card.querySelector("[data-edit]").addEventListener("click", () => openEdit(m));
+    card
+      .querySelector("[data-del]")
+      .addEventListener("click", () => deleteMarket(m));
     grid.appendChild(card);
   }
 }
 
-function pairBase(name) {
-  if (!name) return "";
-  const i = name.indexOf("/");
-  return i < 0 ? name : name.slice(0, i);
-}
+// DEFAULT_SLIPPAGE_BPS mirrors the server's DefaultSlippageBps (0/unset).
+const DEFAULT_SLIPPAGE_BPS = 10;
 
 // fmtSlippage renders basis points as a percentage; 0/unset means the server
-// default of 100 bps.
+// default.
 function fmtSlippage(bps) {
-  const n = Number(bps) || 100;
+  const n = Number(bps) || DEFAULT_SLIPPAGE_BPS;
   return `${n / 100}%`;
 }
 
-// -------- pair dialog --------
+// -------- market dialog --------
 
 const dialog = $("#pair-dialog");
 const form = $("#pair-form");
@@ -383,6 +443,11 @@ function sideValue(side) {
     .trim()
     .toLowerCase()
     .replace(/^0x/, "");
+}
+
+// dirEnabled reports whether a direction's toggle ("sell" | "buy") is on.
+function dirEnabled(dir) {
+  return form.elements[`${dir}_enabled`].checked;
 }
 
 // syncAssetInputs shows the hex input only when its side is set to "asset",
@@ -400,45 +465,57 @@ function updateForm() {
   syncAssetInputs();
   const base = sideValue("base");
   const quote = sideValue("quote");
-  const baseDisp = base === "BTC" ? "BTC" : base ? assetLabel(base) : "an asset";
-  const quoteDisp =
-    quote === "BTC" ? "BTC" : quote ? assetLabel(quote) : "an asset";
+  const baseDisp = base ? assetDisplay(base) : "an asset";
+  const quoteDisp = quote ? assetDisplay(quote) : "an asset";
 
-  // unit suffix + amount hint follow the want (quote) asset.
-  const unit = quote === "BTC" ? "sats" : "units";
-  $$("[data-unit-suffix]").forEach((el) => (el.textContent = unit));
-  $("#amount-hint").textContent =
-    quote === "BTC"
-      ? "Bounds are in satoshis on the want side (BTC dust ≥ 330 sats)."
-      : "Bounds are in the want asset's smallest (raw) unit.";
+  // per-direction descriptions + want-side unit suffixes.
+  $("#sell-desc").textContent = `Deposit ${baseDisp}, receive ${quoteDisp}.`;
+  $("#buy-desc").textContent = `Deposit ${quoteDisp}, receive ${baseDisp}.`;
+  const quoteUnit = quote === "BTC" ? "sats" : "units";
+  const baseUnit = base === "BTC" ? "sats" : "units";
+  $$("[data-quote-unit]").forEach((el) => (el.textContent = quoteUnit));
+  $$("[data-base-unit]").forEach((el) => (el.textContent = baseUnit));
+  $("#sell-hint").textContent = `Bounds apply to the ${quoteDisp} amount makers want${
+    quote === "BTC" ? " (BTC dust ≥ 330 sats)" : ""
+  }.`;
+  $("#buy-hint").textContent = `Bounds apply to the ${baseDisp} amount makers want${
+    base === "BTC" ? " (BTC dust ≥ 330 sats)" : ""
+  }.`;
 
-  // invert hint references the actual sides.
-  $("#invert-hint").textContent = `Offers are priced as ${baseDisp} per ${quoteDisp}. Enable if your feed returns ${quoteDisp} per ${baseDisp} instead.`;
+  // enable/disable each direction's inputs from its toggle.
+  ["sell", "buy"].forEach((dir) => {
+    const on = dirEnabled(dir);
+    $(`#${dir}-section`).classList.toggle("off", !on);
+    $$(`[data-dir-fields="${dir}"] input`).forEach((i) => (i.disabled = !on));
+  });
 
   // feed hint reflects the configured slippage.
-  $("#feed-hint").textContent = `The solver polls this URL for the reference price and fulfills offers within ${fmtSlippage(
+  $("#feed-hint").textContent = `The solver polls this URL for the quote-per-base price and fulfills offers within ${fmtSlippage(
     form.elements.slippage_bps.value
   )}.`;
 
   // live preview.
-  const baseStr = base || "?";
-  const quoteStr = quote || "?";
-  $("#preview-pair-str").textContent = `${assetLabel(baseStr)} / ${assetLabel(
-    quoteStr
-  )}`;
-  const min = form.elements.min_amount.value;
-  const max = form.elements.max_amount.value;
-  const minStr = min ? Number(min).toLocaleString("en-US") : "min";
-  const maxStr = max ? Number(max).toLocaleString("en-US") : "max";
-  $("#preview-text").innerHTML = `The solver fulfills offers depositing <strong>${escapeHTML(
-    baseDisp
-  )}</strong> for <strong>${escapeHTML(
-    quoteDisp
-  )}</strong> when the maker wants between <strong>${escapeHTML(
-    minStr
-  )}</strong> and <strong>${escapeHTML(maxStr)}</strong> <strong>${escapeHTML(
-    unit
-  )}</strong>.`;
+  $("#preview-pair-str").textContent = `${
+    base ? assetDisplay(base) : "?"
+  } / ${quote ? assetDisplay(quote) : "?"}`;
+  const flows = [];
+  if (dirEnabled("sell")) {
+    flows.push(
+      `deposit <strong>${escapeHTML(baseDisp)}</strong> for <strong>${escapeHTML(
+        quoteDisp
+      )}</strong>`
+    );
+  }
+  if (dirEnabled("buy")) {
+    flows.push(
+      `deposit <strong>${escapeHTML(quoteDisp)}</strong> for <strong>${escapeHTML(
+        baseDisp
+      )}</strong>`
+    );
+  }
+  $("#preview-text").innerHTML = flows.length
+    ? `The solver fulfills offers that ${flows.join(" or ")}.`
+    : "Enable at least one direction to preview this market.";
 
   // fill-tolerance band mirrors the market card.
   $("#preview-band-pct").textContent = `±${fmtSlippage(
@@ -460,21 +537,46 @@ function setAssetsLocked(locked) {
   $("#assets-section").style.opacity = locked ? "0.7" : "";
 }
 
+const DIR_FIELDS = [
+  "min_quote_amount",
+  "max_quote_amount",
+  "min_base_amount",
+  "max_base_amount",
+];
+
 function clearFormErrors() {
-  $("#assets-error").textContent = "";
-  $("#amount-error").textContent = "";
-  ["base_asset", "quote_asset", "min_amount", "max_amount"].forEach((n) =>
+  ["assets", "sell", "buy"].forEach(
+    (k) => ($(`#${k}-error`).textContent = "")
+  );
+  ["base_asset", "quote_asset", ...DIR_FIELDS].forEach((n) =>
     form.elements[n].classList.remove("invalid")
   );
 }
 
+// populateAssetDatalist fills the shared <datalist> with the wallet's known
+// assets so operators can pick a market side by ticker instead of pasting hex.
+function populateAssetDatalist() {
+  const dl = $("#known-assets");
+  if (!dl) return;
+  dl.innerHTML = "";
+  for (const [id, meta] of assetMeta) {
+    const opt = document.createElement("option");
+    opt.value = id;
+    opt.label = meta.ticker || meta.name || id;
+    dl.appendChild(opt);
+  }
+}
+
 function openAdd() {
   form.reset();
+  populateAssetDatalist();
   form.dataset.mode = "add";
   setAssetsLocked(false);
-  // defaults: deposit BTC, want asset.
+  // defaults: base BTC, quote asset, both directions on.
   form.elements.base_kind.value = "BTC";
   form.elements.quote_kind.value = "asset";
+  form.elements.sell_enabled.checked = true;
+  form.elements.buy_enabled.checked = true;
   clearFormErrors();
   $("#dialog-title").textContent = "Add market";
   $("#pair-submit").textContent = "Add market";
@@ -482,20 +584,29 @@ function openAdd() {
   dialog.showModal();
 }
 
-function openEdit(pair) {
+function openEdit(m) {
   form.reset();
+  populateAssetDatalist();
   form.dataset.mode = "edit";
-  const base = pairBase(pair.pair);
-  const quote = pairWantAsset(pair.pair);
+  const base = m.base_asset;
+  const quote = m.quote_asset;
   form.elements.base_kind.value = base === "BTC" ? "BTC" : "asset";
   form.elements.quote_kind.value = quote === "BTC" ? "BTC" : "asset";
   form.elements.base_asset.value = base === "BTC" ? "" : base;
   form.elements.quote_asset.value = quote === "BTC" ? "" : quote;
-  form.elements.min_amount.value = pair.min_amount;
-  form.elements.max_amount.value = pair.max_amount;
-  form.elements.price_feed.value = pair.price_feed;
-  form.elements.invert_price.checked = !!pair.invert_price;
-  form.elements.slippage_bps.value = pair.slippage_bps || "";
+
+  const sellOn = Number(m.max_quote_amount) > 0;
+  const buyOn = Number(m.max_base_amount) > 0;
+  form.elements.sell_enabled.checked = sellOn;
+  form.elements.buy_enabled.checked = buyOn;
+  form.elements.min_quote_amount.value = sellOn ? m.min_quote_amount : "";
+  form.elements.max_quote_amount.value = sellOn ? m.max_quote_amount : "";
+  form.elements.min_base_amount.value = buyOn ? m.min_base_amount : "";
+  form.elements.max_base_amount.value = buyOn ? m.max_base_amount : "";
+
+  form.elements.price_feed.value = m.price_feed;
+  form.elements.slippage_bps.value = m.slippage_bps || "";
+  form.elements.fee_bps.value = m.fee_bps || "";
   setAssetsLocked(true); // identity can't change on edit
   clearFormErrors();
   $("#dialog-title").textContent = "Edit market";
@@ -504,34 +615,59 @@ function openEdit(pair) {
   dialog.showModal();
 }
 
-function validateForm(base, quote, min, max) {
-  let ok = true;
+// validateDirection checks one enabled direction's min/max, writing to its
+// error slot. Returns true when valid (or disabled).
+function validateDirection(dir, minEl, maxEl, errId) {
+  if (!dirEnabled(dir)) return true;
+  const min = Number(form.elements[minEl].value);
+  const max = Number(form.elements[maxEl].value);
+  if (!(min > 0) || !(max > 0)) {
+    $(errId).textContent = "Min and max must be greater than 0.";
+    return false;
+  }
+  if (min > max) {
+    $(errId).textContent = "Min must be less than or equal to max.";
+    form.elements[minEl].classList.add("invalid");
+    return false;
+  }
+  return true;
+}
+
+function validateForm(base, quote) {
   const isHex = (s) => /^[0-9a-f]+$/.test(s) && s.length % 2 === 0;
   if (!form.dataset.locked) {
     if (base !== "BTC" && !isHex(base)) {
-      $("#assets-error").textContent = "Deposit asset must be a valid hex id.";
+      $("#assets-error").textContent = "Base asset must be a valid hex id.";
       form.elements.base_asset.classList.add("invalid");
-      ok = false;
-    } else if (quote !== "BTC" && !isHex(quote)) {
-      $("#assets-error").textContent = "Want asset must be a valid hex id.";
+      return false;
+    }
+    if (quote !== "BTC" && !isHex(quote)) {
+      $("#assets-error").textContent = "Quote asset must be a valid hex id.";
       form.elements.quote_asset.classList.add("invalid");
-      ok = false;
-    } else if (base === quote) {
-      $("#assets-error").textContent = "Deposit and want assets must differ.";
-      ok = false;
+      return false;
+    }
+    if (base === quote) {
+      $("#assets-error").textContent = "Base and quote assets must differ.";
+      return false;
     }
   }
-  if (ok) {
-    if (!(min > 0) || !(max > 0)) {
-      $("#amount-error").textContent = "Min and max must be greater than 0.";
-      ok = false;
-    } else if (min > max) {
-      $("#amount-error").textContent = "Min must be less than or equal to max.";
-      form.elements.min_amount.classList.add("invalid");
-      ok = false;
-    }
+  if (!dirEnabled("sell") && !dirEnabled("buy")) {
+    $("#sell-error").textContent = "Enable at least one direction.";
+    return false;
   }
-  return ok;
+  const okSell = validateDirection(
+    "sell",
+    "min_quote_amount",
+    "max_quote_amount",
+    "#sell-error"
+  );
+  const okBuy = validateDirection(
+    "buy",
+    "min_base_amount",
+    "max_base_amount",
+    "#buy-error"
+  );
+  return okSell && okBuy;
 }
 
 form.addEventListener("input", updateForm);
@@ -548,31 +684,35 @@ form.addEventListener("submit", async (e) => {
   clearFormErrors();
   const base = sideValue("base");
   const quote = sideValue("quote");
-  const min = Number(form.elements.min_amount.value);
-  const max = Number(form.elements.max_amount.value);
-  if (!validateForm(base, quote, min, max)) return;
+  if (!validateForm(base, quote)) return;
 
-  const pair = {
-    pair: `${base}/${quote}`,
-    min_amount: min,
-    max_amount: max,
+  const sellOn = dirEnabled("sell");
+  const buyOn = dirEnabled("buy");
+  const num = (n) => Number(form.elements[n].value) || 0;
+  const market = {
+    base_asset: base,
+    quote_asset: quote,
+    min_quote_amount: sellOn ? num("min_quote_amount") : 0,
+    max_quote_amount: sellOn ? num("max_quote_amount") : 0,
+    min_base_amount: buyOn ? num("min_base_amount") : 0,
+    max_base_amount: buyOn ? num("max_base_amount") : 0,
     price_feed: String(form.elements.price_feed.value).trim(),
-    invert_price: form.elements.invert_price.checked,
     slippage_bps: Number(form.elements.slippage_bps.value) || 0,
+    fee_bps: Number(form.elements.fee_bps.value) || 0,
   };
   const mode = form.dataset.mode;
   const submit = $("#pair-submit");
   submit.disabled = true;
   try {
     if (mode === "edit") {
-      await api.updatePair(pair);
-      toast("Pair updated", "success");
+      await api.updateMarket(market);
+      toast("Market updated", "success");
     } else {
-      await api.addPair(pair);
-      toast("Pair added", "success");
+      await api.addMarket(market);
+      toast("Market added", "success");
     }
     dialog.close();
-    await loadPairs();
+    await loadMarkets();
   } catch (err) {
     toast(err.message, "error");
   } finally {
@@ -580,24 +720,24 @@ form.addEventListener("submit", async (e) => {
   }
 });
 
-async function deletePair(pair) {
-  if (!confirm(`Delete pair ${pair.pair}?`)) return;
-  const prev = pairsCache.slice();
-  pairsCache = pairsCache.filter((p) => p.pair !== pair.pair);
-  renderPairs(pairsCache);
+async function deleteMarket(m) {
+  if (!confirm(`Delete market ${marketId(m)}?`)) return;
+  const prev = marketsCache.slice();
+  marketsCache = marketsCache.filter((x) => marketId(x) !== marketId(m));
+  renderMarkets(marketsCache);
   try {
-    await api.removePair(pair.pair);
-    toast("Pair deleted", "success", "Undo", async () => {
+    await api.removeMarket(m.base_asset, m.quote_asset);
+    toast("Market deleted", "success", "Undo", async () => {
       try {
-        await api.addPair(pair);
-        await loadPairs();
+        await api.addMarket(m);
+        await loadMarkets();
       } catch (err) {
         toast(err.message, "error");
       }
     });
   } catch (err) {
-    pairsCache = prev;
-    renderPairs(pairsCache);
+    marketsCache = prev;
+    renderMarkets(marketsCache);
     toast(err.message, "error");
   }
 }
@@ -674,10 +814,11 @@ function assetAvatar(a) {
 function fmtAssetAmount(raw, decimals, ticker) {
   const n = Number(raw || 0);
   const d = Number(decimals || 0);
+  // Trailing zeros are dropped (min 0, max d fraction digits).
   const valStr =
     d > 0
       ? (n / 10 ** d).toLocaleString("en-US", {
-          minimumFractionDigits: d,
+          minimumFractionDigits: 0,
           maximumFractionDigits: d,
         })
       : n.toLocaleString("en-US");
@@ -989,8 +1130,8 @@ async function loadTrades() {
     empty.hidden = true;
     body.innerHTML = "";
     for (const t of trades) {
-      const dep = t.deposit_asset || pairBase(t.pair);
-      const want = t.want_asset || pairWantAsset(t.pair);
+      const dep = t.deposit_asset || marketBase(t.market);
+      const want = t.want_asset || marketQuote(t.market);
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td class="trade-time" title="${escapeAttr(

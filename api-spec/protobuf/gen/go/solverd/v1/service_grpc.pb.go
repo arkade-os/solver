@@ -19,22 +19,22 @@ import (
 const _ = grpc.SupportPackageIsVersion8
 
 const (
-	SwapService_AddPair_FullMethodName    = "/solverd.v1.SwapService/AddPair"
-	SwapService_UpdatePair_FullMethodName = "/solverd.v1.SwapService/UpdatePair"
-	SwapService_RemovePair_FullMethodName = "/solverd.v1.SwapService/RemovePair"
-	SwapService_ListPairs_FullMethodName  = "/solverd.v1.SwapService/ListPairs"
-	SwapService_GetStatus_FullMethodName  = "/solverd.v1.SwapService/GetStatus"
-	SwapService_ListTrades_FullMethodName = "/solverd.v1.SwapService/ListTrades"
+	SwapService_AddMarket_FullMethodName    = "/solverd.v1.SwapService/AddMarket"
+	SwapService_UpdateMarket_FullMethodName = "/solverd.v1.SwapService/UpdateMarket"
+	SwapService_RemoveMarket_FullMethodName = "/solverd.v1.SwapService/RemoveMarket"
+	SwapService_ListMarkets_FullMethodName  = "/solverd.v1.SwapService/ListMarkets"
+	SwapService_GetStatus_FullMethodName    = "/solverd.v1.SwapService/GetStatus"
+	SwapService_ListTrades_FullMethodName   = "/solverd.v1.SwapService/ListTrades"
 )
 
 // SwapServiceClient is the client API for SwapService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type SwapServiceClient interface {
-	AddPair(ctx context.Context, in *AddPairRequest, opts ...grpc.CallOption) (*AddPairResponse, error)
-	UpdatePair(ctx context.Context, in *UpdatePairRequest, opts ...grpc.CallOption) (*UpdatePairResponse, error)
-	RemovePair(ctx context.Context, in *RemovePairRequest, opts ...grpc.CallOption) (*RemovePairResponse, error)
-	ListPairs(ctx context.Context, in *ListPairsRequest, opts ...grpc.CallOption) (*ListPairsResponse, error)
+	AddMarket(ctx context.Context, in *AddMarketRequest, opts ...grpc.CallOption) (*AddMarketResponse, error)
+	UpdateMarket(ctx context.Context, in *UpdateMarketRequest, opts ...grpc.CallOption) (*UpdateMarketResponse, error)
+	RemoveMarket(ctx context.Context, in *RemoveMarketRequest, opts ...grpc.CallOption) (*RemoveMarketResponse, error)
+	ListMarkets(ctx context.Context, in *ListMarketsRequest, opts ...grpc.CallOption) (*ListMarketsResponse, error)
 	GetStatus(ctx context.Context, in *GetStatusRequest, opts ...grpc.CallOption) (*GetStatusResponse, error)
 	ListTrades(ctx context.Context, in *ListTradesRequest, opts ...grpc.CallOption) (*ListTradesResponse, error)
 }
@@ -47,40 +47,40 @@ func NewSwapServiceClient(cc grpc.ClientConnInterface) SwapServiceClient {
 	return &swapServiceClient{cc}
 }
 
-func (c *swapServiceClient) AddPair(ctx context.Context, in *AddPairRequest, opts ...grpc.CallOption) (*AddPairResponse, error) {
+func (c *swapServiceClient) AddMarket(ctx context.Context, in *AddMarketRequest, opts ...grpc.CallOption) (*AddMarketResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(AddPairResponse)
-	err := c.cc.Invoke(ctx, SwapService_AddPair_FullMethodName, in, out, cOpts...)
+	out := new(AddMarketResponse)
+	err := c.cc.Invoke(ctx, SwapService_AddMarket_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *swapServiceClient) UpdatePair(ctx context.Context, in *UpdatePairRequest, opts ...grpc.CallOption) (*UpdatePairResponse, error) {
+func (c *swapServiceClient) UpdateMarket(ctx context.Context, in *UpdateMarketRequest, opts ...grpc.CallOption) (*UpdateMarketResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(UpdatePairResponse)
-	err := c.cc.Invoke(ctx, SwapService_UpdatePair_FullMethodName, in, out, cOpts...)
+	out := new(UpdateMarketResponse)
+	err := c.cc.Invoke(ctx, SwapService_UpdateMarket_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *swapServiceClient) RemovePair(ctx context.Context, in *RemovePairRequest, opts ...grpc.CallOption) (*RemovePairResponse, error) {
+func (c *swapServiceClient) RemoveMarket(ctx context.Context, in *RemoveMarketRequest, opts ...grpc.CallOption) (*RemoveMarketResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(RemovePairResponse)
-	err := c.cc.Invoke(ctx, SwapService_RemovePair_FullMethodName, in, out, cOpts...)
+	out := new(RemoveMarketResponse)
+	err := c.cc.Invoke(ctx, SwapService_RemoveMarket_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *swapServiceClient) ListPairs(ctx context.Context, in *ListPairsRequest, opts ...grpc.CallOption) (*ListPairsResponse, error) {
+func (c *swapServiceClient) ListMarkets(ctx context.Context, in *ListMarketsRequest, opts ...grpc.CallOption) (*ListMarketsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListPairsResponse)
-	err := c.cc.Invoke(ctx, SwapService_ListPairs_FullMethodName, in, out, cOpts...)
+	out := new(ListMarketsResponse)
+	err := c.cc.Invoke(ctx, SwapService_ListMarkets_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -111,10 +111,10 @@ func (c *swapServiceClient) ListTrades(ctx context.Context, in *ListTradesReques
 // All implementations should embed UnimplementedSwapServiceServer
 // for forward compatibility
 type SwapServiceServer interface {
-	AddPair(context.Context, *AddPairRequest) (*AddPairResponse, error)
-	UpdatePair(context.Context, *UpdatePairRequest) (*UpdatePairResponse, error)
-	RemovePair(context.Context, *RemovePairRequest) (*RemovePairResponse, error)
-	ListPairs(context.Context, *ListPairsRequest) (*ListPairsResponse, error)
+	AddMarket(context.Context, *AddMarketRequest) (*AddMarketResponse, error)
+	UpdateMarket(context.Context, *UpdateMarketRequest) (*UpdateMarketResponse, error)
+	RemoveMarket(context.Context, *RemoveMarketRequest) (*RemoveMarketResponse, error)
+	ListMarkets(context.Context, *ListMarketsRequest) (*ListMarketsResponse, error)
 	GetStatus(context.Context, *GetStatusRequest) (*GetStatusResponse, error)
 	ListTrades(context.Context, *ListTradesRequest) (*ListTradesResponse, error)
 }
@@ -123,17 +123,17 @@ type SwapServiceServer interface {
 type UnimplementedSwapServiceServer struct {
 }
 
-func (UnimplementedSwapServiceServer) AddPair(context.Context, *AddPairRequest) (*AddPairResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method AddPair not implemented")
+func (UnimplementedSwapServiceServer) AddMarket(context.Context, *AddMarketRequest) (*AddMarketResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddMarket not implemented")
 }
-func (UnimplementedSwapServiceServer) UpdatePair(context.Context, *UpdatePairRequest) (*UpdatePairResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdatePair not implemented")
+func (UnimplementedSwapServiceServer) UpdateMarket(context.Context, *UpdateMarketRequest) (*UpdateMarketResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateMarket not implemented")
 }
-func (UnimplementedSwapServiceServer) RemovePair(context.Context, *RemovePairRequest) (*RemovePairResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RemovePair not implemented")
+func (UnimplementedSwapServiceServer) RemoveMarket(context.Context, *RemoveMarketRequest) (*RemoveMarketResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveMarket not implemented")
 }
-func (UnimplementedSwapServiceServer) ListPairs(context.Context, *ListPairsRequest) (*ListPairsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListPairs not implemented")
+func (UnimplementedSwapServiceServer) ListMarkets(context.Context, *ListMarketsRequest) (*ListMarketsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListMarkets not implemented")
 }
 func (UnimplementedSwapServiceServer) GetStatus(context.Context, *GetStatusRequest) (*GetStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetStatus not implemented")
@@ -153,74 +153,74 @@ func RegisterSwapServiceServer(s grpc.ServiceRegistrar, srv SwapServiceServer) {
 	s.RegisterService(&SwapService_ServiceDesc, srv)
 }
 
-func _SwapService_AddPair_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AddPairRequest)
+func _SwapService_AddMarket_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddMarketRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SwapServiceServer).AddPair(ctx, in)
+		return srv.(SwapServiceServer).AddMarket(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SwapService_AddPair_FullMethodName,
+		FullMethod: SwapService_AddMarket_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SwapServiceServer).AddPair(ctx, req.(*AddPairRequest))
+		return srv.(SwapServiceServer).AddMarket(ctx, req.(*AddMarketRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SwapService_UpdatePair_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdatePairRequest)
+func _SwapService_UpdateMarket_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateMarketRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SwapServiceServer).UpdatePair(ctx, in)
+		return srv.(SwapServiceServer).UpdateMarket(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SwapService_UpdatePair_FullMethodName,
+		FullMethod: SwapService_UpdateMarket_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SwapServiceServer).UpdatePair(ctx, req.(*UpdatePairRequest))
+		return srv.(SwapServiceServer).UpdateMarket(ctx, req.(*UpdateMarketRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SwapService_RemovePair_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RemovePairRequest)
+func _SwapService_RemoveMarket_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveMarketRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SwapServiceServer).RemovePair(ctx, in)
+		return srv.(SwapServiceServer).RemoveMarket(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SwapService_RemovePair_FullMethodName,
+		FullMethod: SwapService_RemoveMarket_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SwapServiceServer).RemovePair(ctx, req.(*RemovePairRequest))
+		return srv.(SwapServiceServer).RemoveMarket(ctx, req.(*RemoveMarketRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SwapService_ListPairs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListPairsRequest)
+func _SwapService_ListMarkets_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListMarketsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SwapServiceServer).ListPairs(ctx, in)
+		return srv.(SwapServiceServer).ListMarkets(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SwapService_ListPairs_FullMethodName,
+		FullMethod: SwapService_ListMarkets_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SwapServiceServer).ListPairs(ctx, req.(*ListPairsRequest))
+		return srv.(SwapServiceServer).ListMarkets(ctx, req.(*ListMarketsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -269,20 +269,20 @@ var SwapService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*SwapServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "AddPair",
-			Handler:    _SwapService_AddPair_Handler,
+			MethodName: "AddMarket",
+			Handler:    _SwapService_AddMarket_Handler,
 		},
 		{
-			MethodName: "UpdatePair",
-			Handler:    _SwapService_UpdatePair_Handler,
+			MethodName: "UpdateMarket",
+			Handler:    _SwapService_UpdateMarket_Handler,
 		},
 		{
-			MethodName: "RemovePair",
-			Handler:    _SwapService_RemovePair_Handler,
+			MethodName: "RemoveMarket",
+			Handler:    _SwapService_RemoveMarket_Handler,
 		},
 		{
-			MethodName: "ListPairs",
-			Handler:    _SwapService_ListPairs_Handler,
+			MethodName: "ListMarkets",
+			Handler:    _SwapService_ListMarkets_Handler,
 		},
 		{
 			MethodName: "GetStatus",

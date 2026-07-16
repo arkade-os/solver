@@ -2,7 +2,6 @@ package swap
 
 import (
 	"bytes"
-	"math"
 
 	"github.com/arkade-os/arkd/pkg/ark-lib/asset"
 	"github.com/arkade-os/arkd/pkg/ark-lib/extension"
@@ -95,15 +94,4 @@ func (o *Offer) WantAssetStr() string {
 		return "BTC"
 	}
 	return o.WantAsset.String()
-}
-
-// ComputePrice calculates the offer price as base/quote using the pair's
-// decimal configuration. Returns 0, false if amounts are invalid.
-func (o *Offer) ComputePrice(pair *Pair) (float64, bool) {
-	if o.DepositAmount <= 0 || o.WantAmount <= 0 {
-		return 0, false
-	}
-	baseAmount := float64(o.DepositAmount) / math.Pow10(pair.BaseDecimals)
-	quoteAmount := float64(o.WantAmount) / math.Pow10(pair.QuoteDecimals)
-	return baseAmount / quoteAmount, true
 }

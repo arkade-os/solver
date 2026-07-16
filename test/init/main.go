@@ -6,8 +6,8 @@
 //  1. Fund the solver's offchain BTC balance from a throwaway funder wallet.
 //  2. Mint a regtest asset and send a slice of it to the solver, so the bot
 //     can also pay out assets.
-//  3. Read the price from the solver-pricefeed mock and register both
-//     BTC/<asset> and <asset>/BTC trading pairs pointing at that feed.
+//  3. Read the price from the solver-pricefeed mock and register a
+//     bidirectional asset/BTC market pointing at that feed.
 //
 // Endpoints default to the topology used by `make run` (arkd@7070, arkd
 // admin HTTP@7071, emulator@7173, solverd gRPC@7170) and the pricefeed port
@@ -151,38 +151,30 @@ func run() error {
 		return err
 	}
 
-	// 3. Read the price from the solver-pricefeed mock and register the pairs.
-	btcAssetFeed := cfg.pricefeedURL + "/btc-asset"
+	// 3. Read the price from the solver-pricefeed mock and register the market.
 	assetBtcFeed := cfg.pricefeedURL + "/asset-btc"
 
-	price, err := fetchPrice(ctx, btcAssetFeed)
+	price, err := fetchPrice(ctx, assetBtcFeed)
 	if err != nil {
-		return fmt.Errorf("read pricefeed %s: %w", btcAssetFeed, err)
+		return fmt.Errorf("read pricefeed %s: %w", assetBtcFeed, err)
 	}
-	log.Infof("pricefeed %s => BTC/%s price %v", btcAssetFeed, assetID, price)
+	log.Infof("pricefeed %s => %s/BTC price %v", assetBtcFeed, assetID, price)
 
-	pairs := []*swapv1.PairInfo{
-		{
-			Pair:      "BTC/" + assetID,
-			MinAmount: 1,
-			MaxAmount: 100_000_000,
-			PriceFeed: btcAssetFeed,
-		},
-		{
-			Pair:      assetID + "/BTC",
-			MinAmount: 1,
-			MaxAmount: 100_000_000,
-			PriceFeed: assetBtcFeed,
-		},
+	market := &swapv1.MarketInfo{
+		BaseAsset:      assetID,
+		QuoteAsset:     "BTC",
+		MinQuoteAmount: 1,
+		MaxQuoteAmount: 100_000_000,
+		MinBaseAmount:  1,
+		MaxBaseAmount:  100_000_000,
+		PriceFeed:      assetBtcFeed,
 	}
-	for _, p := range pairs {
-		if _, err := swap.AddPair(ctx, &swapv1.AddPairRequest{Pair: p}); err != nil {
-			return fmt.Errorf("add pair %s: %w", p.Pair, err)
-		}
-		log.Infof("added pair %s (feed %s)", p.Pair, p.PriceFeed)
+	if _, err := swap.AddMarket(ctx, &swapv1.AddMarketRequest{Market: market}); err != nil {
+		return fmt.Errorf("add market %s/%s: %w", market.BaseAsset, market.QuoteAsset, err)
 	}
+	log.Infof("added market %s/%s (feed %s)", market.BaseAsset, market.QuoteAsset, market.PriceFeed)
 
-	log.Info("init-solverd complete: solver funded, asset minted, pairs registered")
+	log.Info("init-solverd complete: solver funded, asset minted, market registered")
 	return nil
 }
 

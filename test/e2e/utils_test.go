@@ -268,6 +268,20 @@ func pollSolverAssetBalance(t *testing.T, ctx context.Context, assetID string, a
 	}
 }
 
+// fundSolverAsset sends `amount` units of assetID (with a matching BTC carrier)
+// from client to the taker bot, then waits for the solver to report the balance.
+func fundSolverAsset(t *testing.T, ctx context.Context, client arksdk.Wallet, assetID string, amount uint64) {
+	t.Helper()
+	solverAddr := getAddress(t)
+	_, err := client.SendOffChain(ctx, []clientTypes.Receiver{{
+		To:     solverAddr.OffchainAddress,
+		Amount: amount,
+		Assets: []clientTypes.Asset{{AssetId: assetID, Amount: amount}},
+	}})
+	require.NoError(t, err)
+	pollSolverAssetBalance(t, ctx, assetID, amount, 30*time.Second)
+}
+
 // newFunderWallet builds, inits, and unlocks a throwaway go-sdk wallet on a
 // temp datadir for funding the solver. Returns a cleanup that stops the wallet
 // and removes the datadir.

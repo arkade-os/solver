@@ -1,20 +1,20 @@
--- name: InsertPair :exec
-INSERT INTO swap_pair (pair, min_amount, max_amount, base_decimals, quote_decimals, price_feed, invert_price, slippage_bps)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+-- name: InsertMarket :exec
+INSERT INTO market (base_asset, quote_asset, base_decimals, quote_decimals, min_quote_amount, max_quote_amount, min_base_amount, max_base_amount, price_feed, slippage_bps, fee_bps)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
--- name: UpdatePair :execrows
-UPDATE swap_pair
-SET min_amount = ?, max_amount = ?, base_decimals = ?, quote_decimals = ?, price_feed = ?, invert_price = ?, slippage_bps = ?
-WHERE pair = ?;
+-- name: UpdateMarket :execrows
+UPDATE market
+SET base_decimals = ?, quote_decimals = ?, min_quote_amount = ?, max_quote_amount = ?, min_base_amount = ?, max_base_amount = ?, price_feed = ?, slippage_bps = ?, fee_bps = ?
+WHERE base_asset = ? AND quote_asset = ?;
 
--- name: DeletePair :exec
-DELETE FROM swap_pair WHERE pair = ?;
+-- name: DeleteMarket :exec
+DELETE FROM market WHERE base_asset = ? AND quote_asset = ?;
 
--- name: ListPairs :many
-SELECT * FROM swap_pair;
+-- name: ListMarkets :many
+SELECT * FROM market;
 
 -- name: InsertTrade :exec
-INSERT INTO trade (pair, deposit_asset, deposit_amount, want_asset, want_amount, offer_txid, fulfill_txid, created_at)
+INSERT INTO trade (market, deposit_asset, deposit_amount, want_asset, want_amount, offer_txid, fulfill_txid, created_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: ListTrades :many

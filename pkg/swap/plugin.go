@@ -12,16 +12,17 @@ import (
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/sirupsen/logrus"
 
-	"github.com/arkade-os/solver/pkg/swap/contract"
 	"github.com/arkade-os/solver/pkg/executor"
+	"github.com/arkade-os/solver/pkg/swap/contract"
 )
 
 // MatchedOffer is the typed intent produced by Match and consumed by Solve.
-// It carries the parsed offer plus the matched pair so Solve doesn't redo
-// lookups.
+// It carries the parsed offer plus the matched market and direction so Solve
+// doesn't redo lookups.
 type MatchedOffer struct {
-	Offer *Offer
-	Pair  *Pair
+	Offer     *Offer
+	Market    *Market
+	Direction Direction
 }
 
 // plugin implements executor.Plugin for swap. It's constructed by NewPlugin
@@ -29,7 +30,7 @@ type MatchedOffer struct {
 type plugin struct {
 	arkClient arksdk.Wallet
 	emulator  emulatorclient.TransportClient
-	pairs     PairRepository
+	markets   MarketRepository
 	prices    *priceCache
 	listener  FulfillmentListener
 	log       logrus.FieldLogger
@@ -41,7 +42,7 @@ func NewPlugin(cfg Config) executor.Plugin {
 	return &plugin{
 		arkClient: cfg.SolverClient,
 		emulator:  cfg.Emulator,
-		pairs:     cfg.PairsRepository,
+		markets:   cfg.MarketsRepository,
 		prices:    newPriceCache(cfg.PriceFeed, cfg.PriceCacheTTL),
 		listener:  cfg.Listener,
 		log:       cfg.Log,
@@ -54,7 +55,7 @@ func (p *plugin) Filter() string { return "" }
 
 // Match decodes the tx into a *MatchedOffer and runs the validation gates.
 // It returns (nil, false) for any tx that isn't a swap offer, doesn't match
-// a configured pair, or fails a validation check. Errors are logged at Debug
+// a configured market, or fails a validation check. Errors are logged at Debug
 // and treated as a non-match so a single bad tx never stops the stream.
 func (p *plugin) Match(ctx context.Context, tx *psbt.Packet) (any, bool) {
 	m, err := p.decode(ctx, tx)
@@ -63,11 +64,6 @@ func (p *plugin) Match(ctx context.Context, tx *psbt.Packet) (any, bool) {
 		return nil, false
 	}
 	if m == nil {
-		return nil, false
-	}
-
-	// offer is not in range, skip
-	if m.Offer.WantAmount < m.Pair.MinAmount || m.Offer.WantAmount > m.Pair.MaxAmount {
 		return nil, false
 	}
 
@@ -105,7 +101,7 @@ func (p *plugin) Solve(ctx context.Context, intent any) {
 
 // decode parses the tx's ark extension into a *MatchedOffer. It returns a nil
 // *MatchedOffer (with nil error) when the tx isn't a swap offer or no
-// configured pair matches; a non-nil error means an unexpected failure that
+// configured market matches; a non-nil error means an unexpected failure that
 // should be reported.
 func (p *plugin) decode(ctx context.Context, tx *psbt.Packet) (*MatchedOffer, error) {
 	if tx == nil || tx.UnsignedTx == nil {
@@ -125,25 +121,25 @@ func (p *plugin) decode(ctx context.Context, tx *psbt.Packet) (*MatchedOffer, er
 	if offer == nil {
 		return nil, nil
 	}
-	if p.pairs == nil {
+	if p.markets == nil {
 		return nil, nil
 	}
-	pairs, err := p.pairs.List(ctx)
+	markets, err := p.markets.List(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("list pairs: %w", err)
+		return nil, fmt.Errorf("list markets: %w", err)
 	}
-	pair := findMatchingPair(pairs, offer)
-	if pair == nil {
+	market, dir := findMatchingMarket(markets, offer)
+	if market == nil {
 		return nil, nil
 	}
-	return &MatchedOffer{Offer: offer, Pair: pair}, nil
+	return &MatchedOffer{Offer: offer, Market: market, Direction: dir}, nil
 }
 
 // checkPriceTolerance rejects offers whose price deviates more than the
-// pair's slippage from the feed. Logs (Warn) when the price feed is
+// market's slippage from the feed. Logs (Warn) when the price feed is
 // unavailable or stale.
 func (p *plugin) checkPriceTolerance(ctx context.Context, m *MatchedOffer) (bool, error) {
-	feedPrice, err := p.prices.get(ctx, m.Pair.PriceFeed)
+	feedPrice, err := p.prices.get(ctx, m.Market.PriceFeed)
 	if err != nil && feedPrice == 0 {
 		p.log.WithError(err).Warn("price feed unavailable, skipping offer")
 		return false, nil
@@ -151,14 +147,11 @@ func (p *plugin) checkPriceTolerance(ctx context.Context, m *MatchedOffer) (bool
 	if err != nil {
 		p.log.WithError(err).Warn("using stale price feed")
 	}
-	if m.Pair.InvertPrice {
-		feedPrice = 1.0 / feedPrice
-	}
-	offerPrice, ok := m.Offer.ComputePrice(m.Pair)
+	offerPrice, ok := m.Market.ComputePrice(m.Offer.DepositAmount, m.Offer.WantAmount, m.Direction)
 	if !ok {
 		return false, nil
 	}
-	return validatePrice(offerPrice, feedPrice, m.Pair.EffectiveSlippageBps()), nil
+	return validatePrice(offerPrice, feedPrice, m.Market.EffectiveSlippageBps()), nil
 }
 
 // checkBTCBalance ensures we hold enough offchain BTC to honor a BTC-deposit
@@ -193,7 +186,7 @@ func (p *plugin) fulfill(ctx context.Context, m *MatchedOffer) {
 		return
 	}
 	p.listener.OnFulfill(ctx, FulfillmentEvent{
-		Pair:          m.Pair.Pair,
+		Market:        m.Market.ID(),
 		DepositAsset:  m.Offer.DepositAssetStr(),
 		DepositAmount: m.Offer.DepositAmount,
 		WantAsset:     m.Offer.WantAssetStr(),
@@ -204,20 +197,14 @@ func (p *plugin) fulfill(ctx context.Context, m *MatchedOffer) {
 	})
 }
 
-// findMatchingPair returns the first pair whose base+quote both match
-// the offer's deposit and want assets.
-func findMatchingPair(pairs []Pair, o *Offer) *Pair {
-	depositAsset := o.DepositAssetStr()
-	wantAsset := o.WantAssetStr()
-	for i := range pairs {
-		pair := &pairs[i]
-		if pair.Base() != depositAsset {
-			continue
+// findMatchingMarket returns the first market (and direction) the offer matches.
+func findMatchingMarket(markets []Market, o *Offer) (*Market, Direction) {
+	deposit := o.DepositAssetStr()
+	want := o.WantAssetStr()
+	for i := range markets {
+		if dir := markets[i].Match(deposit, want, o.WantAmount); dir != NoMatch {
+			return &markets[i], dir
 		}
-		if pair.Quote() != wantAsset {
-			continue
-		}
-		return pair
 	}
-	return nil
+	return nil, NoMatch
 }

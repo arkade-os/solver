@@ -4,20 +4,23 @@
 
 package sqlc
 
-type SwapPair struct {
-	Pair          string
-	MinAmount     int64
-	MaxAmount     int64
-	BaseDecimals  int64
-	QuoteDecimals int64
-	PriceFeed     string
-	InvertPrice   int64
-	SlippageBps   int64
+type Market struct {
+	BaseAsset      string
+	QuoteAsset     string
+	BaseDecimals   int64
+	QuoteDecimals  int64
+	MinQuoteAmount int64
+	MaxQuoteAmount int64
+	MinBaseAmount  int64
+	MaxBaseAmount  int64
+	PriceFeed      string
+	SlippageBps    int64
+	FeeBps         int64
 }
 
 type Trade struct {
 	ID            int64
-	Pair          string
+	Market        string
 	DepositAsset  string
 	DepositAmount int64
 	WantAsset     string

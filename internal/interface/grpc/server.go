@@ -107,14 +107,14 @@ func newHTTPGateway(svc *handler) http.Handler {
 }
 
 func registerSwapRoutes(mux *http.ServeMux, svc *handler) {
-	mux.HandleFunc("POST /v1/pair", func(w http.ResponseWriter, r *http.Request) {
-		var req swapv1.AddPairRequest
+	mux.HandleFunc("POST /v1/market", func(w http.ResponseWriter, r *http.Request) {
+		var req swapv1.AddMarketRequest
 		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			httpError(w, fmt.Errorf("invalid request body: %w", err), http.StatusBadRequest)
 			return
 		}
-		resp, err := svc.AddPair(r.Context(), &req)
+		resp, err := svc.AddMarket(r.Context(), &req)
 		if err != nil {
 			httpGRPCError(w, err)
 			return
@@ -122,14 +122,14 @@ func registerSwapRoutes(mux *http.ServeMux, svc *handler) {
 		jsonResponse(w, resp)
 	})
 
-	mux.HandleFunc("PUT /v1/pair", func(w http.ResponseWriter, r *http.Request) {
-		var req swapv1.UpdatePairRequest
+	mux.HandleFunc("PUT /v1/market", func(w http.ResponseWriter, r *http.Request) {
+		var req swapv1.UpdateMarketRequest
 		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			httpError(w, fmt.Errorf("invalid request body: %w", err), http.StatusBadRequest)
 			return
 		}
-		resp, err := svc.UpdatePair(r.Context(), &req)
+		resp, err := svc.UpdateMarket(r.Context(), &req)
 		if err != nil {
 			httpGRPCError(w, err)
 			return
@@ -137,9 +137,10 @@ func registerSwapRoutes(mux *http.ServeMux, svc *handler) {
 		jsonResponse(w, resp)
 	})
 
-	mux.HandleFunc("DELETE /v1/pair/{pair}", func(w http.ResponseWriter, r *http.Request) {
-		pairName := r.PathValue("pair")
-		resp, err := svc.RemovePair(r.Context(), &swapv1.RemovePairRequest{Pair: pairName})
+	mux.HandleFunc("DELETE /v1/market/{base}/{quote}", func(w http.ResponseWriter, r *http.Request) {
+		base := r.PathValue("base")
+		quote := r.PathValue("quote")
+		resp, err := svc.RemoveMarket(r.Context(), &swapv1.RemoveMarketRequest{BaseAsset: base, QuoteAsset: quote})
 		if err != nil {
 			httpGRPCError(w, err)
 			return
@@ -147,8 +148,8 @@ func registerSwapRoutes(mux *http.ServeMux, svc *handler) {
 		jsonResponse(w, resp)
 	})
 
-	mux.HandleFunc("GET /v1/pairs", func(w http.ResponseWriter, r *http.Request) {
-		resp, err := svc.ListPairs(r.Context(), &swapv1.ListPairsRequest{})
+	mux.HandleFunc("GET /v1/markets", func(w http.ResponseWriter, r *http.Request) {
+		resp, err := svc.ListMarkets(r.Context(), &swapv1.ListMarketsRequest{})
 		if err != nil {
 			httpGRPCError(w, err)
 			return

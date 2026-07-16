@@ -24,16 +24,16 @@ import (
 	"github.com/arkade-os/solver/internal/core/ports"
 	sqlitedb "github.com/arkade-os/solver/internal/infrastructure/db/sqlite"
 	"github.com/arkade-os/solver/internal/infrastructure/pricefeed"
-	"github.com/arkade-os/solver/pkg/swap"
 	"github.com/arkade-os/solver/pkg/executor"
 	"github.com/arkade-os/solver/pkg/executor/arkdsource"
+	"github.com/arkade-os/solver/pkg/swap"
 )
 
 type Service struct {
-	pairRepo  ports.PairRepository
-	tradeRepo ports.TradeRepository
-	arkClient arksdk.Wallet
-	indexer   indexer.Indexer
+	marketRepo ports.MarketRepository
+	tradeRepo  ports.TradeRepository
+	arkClient  arksdk.Wallet
+	indexer    indexer.Indexer
 
 	log          *logrus.Logger
 	cfg          *config.Config
@@ -76,22 +76,22 @@ func New(cfg *config.Config, wallet arksdk.Wallet) (*Service, error) {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	pairRepo := sqlitedb.NewPairRepository(db)
+	marketRepo := sqlitedb.NewMarketRepository(db)
 	tradeRepo := sqlitedb.NewTradeRepository(db)
 
 	feed := pricefeed.New()
 
 	plugin := swap.NewPlugin(swap.Config{
-		SolverClient:    wallet,
-		Emulator:        emulator,
-		PairsRepository: pairRepo,
-		PriceFeed:       feed,
-		Listener:        &tradeListener{tradeRepo},
-		Log:             log,
+		SolverClient:      wallet,
+		Emulator:          emulator,
+		MarketsRepository: marketRepo,
+		PriceFeed:         feed,
+		Listener:          &tradeListener{tradeRepo},
+		Log:               log,
 	})
 
 	svc := &Service{
-		pairRepo:     pairRepo,
+		marketRepo:   marketRepo,
 		tradeRepo:    tradeRepo,
 		arkClient:    wallet,
 		indexer:      wallet.Indexer(),
@@ -204,7 +204,7 @@ type tradeListener struct {
 
 func (l *tradeListener) OnFulfill(_ context.Context, evt swap.FulfillmentEvent) {
 	trade := ports.Trade{
-		Pair:          evt.Pair,
+		Market:        evt.Market,
 		DepositAsset:  evt.DepositAsset,
 		DepositAmount: evt.DepositAmount,
 		WantAsset:     evt.WantAsset,

@@ -32,13 +32,16 @@ func TestSwapAssetToBTC(t *testing.T) {
 	faucetOffchain(t, maker, 0.0005)
 	assetID := issueAsset(t, maker, 500)
 
-	pair := swap.Pair{
-		Pair:      assetID + "/BTC",
-		MinAmount: 1,
-		MaxAmount: 100000000,
-		PriceFeed: mockAssetBTCPriceFeed,
+	market := swap.Market{
+		BaseAsset:      assetID,
+		QuoteAsset:     "BTC",
+		MinQuoteAmount: 1,
+		MaxQuoteAmount: 100000000,
+		MinBaseAmount:  1,
+		MaxBaseAmount:  100000000,
+		PriceFeed:      mockAssetBTCPriceFeed,
 	}
-	addPair(t, pair)
+	addMarket(t, market)
 
 	// Maker creates offer: deposit asset, want 500 sats BTC.
 	emulator := newEmulatorClient(t)
@@ -77,24 +80,18 @@ func TestSwapBTCToAsset(t *testing.T) {
 	faucetOffchain(t, tempClient, 0.001)
 	assetID := issueAsset(t, tempClient, 1000)
 
-	solverAddr := getAddress(t)
+	fundSolverAsset(t, ctx, tempClient, assetID, 1000)
 
-	_, err := tempClient.SendOffChain(ctx, []clientTypes.Receiver{{
-		To:     solverAddr.OffchainAddress,
-		Amount: 1000,
-		Assets: []clientTypes.Asset{{AssetId: assetID, Amount: 1000}},
-	}})
-	require.NoError(t, err)
-	// Wait for the dockerized solver to report the incoming asset balance.
-	pollSolverAssetBalance(t, ctx, assetID, 1000, 30*time.Second)
-
-	pair := swap.Pair{
-		Pair:      "BTC/" + assetID,
-		MinAmount: 1,
-		MaxAmount: 100000000,
-		PriceFeed: mockBTCAssetPriceFeed,
+	market := swap.Market{
+		BaseAsset:      "BTC",
+		QuoteAsset:     assetID,
+		MinQuoteAmount: 1,
+		MaxQuoteAmount: 100000000,
+		MinBaseAmount:  1,
+		MaxBaseAmount:  100000000,
+		PriceFeed:      mockBTCAssetPriceFeed,
 	}
-	addPair(t, pair)
+	addMarket(t, market)
 
 	// Maker creates offer: deposit BTC, want 500 units of asset.
 	maker := setupArkClient(t)
@@ -136,23 +133,18 @@ func TestSwapAssetToAsset(t *testing.T) {
 	faucetOffchain(t, tempClient, 0.001)
 	assetB := issueAsset(t, tempClient, 1000)
 
-	solverAddr := getAddress(t)
+	fundSolverAsset(t, ctx, tempClient, assetB, 1000)
 
-	_, err := tempClient.SendOffChain(ctx, []clientTypes.Receiver{{
-		To:     solverAddr.OffchainAddress,
-		Amount: 1000,
-		Assets: []clientTypes.Asset{{AssetId: assetB, Amount: 1000}},
-	}})
-	require.NoError(t, err)
-	pollSolverAssetBalance(t, ctx, assetB, 1000, 30*time.Second)
-
-	pair := swap.Pair{
-		Pair:      assetA + "/" + assetB,
-		MinAmount: 1,
-		MaxAmount: 100000000,
-		PriceFeed: mockAssetAssetPriceFeed,
+	market := swap.Market{
+		BaseAsset:      assetA,
+		QuoteAsset:     assetB,
+		MinQuoteAmount: 1,
+		MaxQuoteAmount: 100000000,
+		MinBaseAmount:  1,
+		MaxBaseAmount:  100000000,
+		PriceFeed:      mockAssetAssetPriceFeed,
 	}
-	addPair(t, pair)
+	addMarket(t, market)
 
 	emulator := newEmulatorClient(t)
 	wantAssetID, err := asset.NewAssetIdFromString(assetB)
@@ -174,6 +166,148 @@ func TestSwapAssetToAsset(t *testing.T) {
 	requireAssetFulfillment(t, ctx, makerVtxoCh, assetB, 60*time.Second)
 }
 
+// TestSwapSingleMarketBothDirections: a single bidirectional market serves
+// both a sell-base offer (deposit asset, want BTC) and a buy-base offer
+// (deposit BTC, want asset).
+func TestSwapSingleMarketBothDirections(t *testing.T) {
+	ctx := t.Context()
+
+	// Issuer mints the asset and keeps half; the other half goes to the taker
+	// bot so it can pay the asset side of the buy-base direction.
+	issuer := setupArkClient(t)
+	faucetOffchain(t, issuer, 0.001)
+	assetID := issueAsset(t, issuer, 2000)
+
+	fundSolverAsset(t, ctx, issuer, assetID, 1000)
+
+	// ONE market, both directions enabled.
+	addMarket(t, swap.Market{
+		BaseAsset:      assetID,
+		QuoteAsset:     "BTC",
+		MinQuoteAmount: 1,
+		MaxQuoteAmount: 100000000,
+		MinBaseAmount:  1,
+		MaxBaseAmount:  100000000,
+		PriceFeed:      mockAssetBTCPriceFeed,
+	})
+
+	// Direction 1 — sell-base: issuer deposits 500 asset, wants 500 sats BTC.
+	sellOffer, err := contract.CreateOffer(ctx, contract.CreateOfferParams{
+		WantAmount: 500,
+	}, issuer, newEmulatorClient(t))
+	require.NoError(t, err)
+	require.NotEmpty(t, sellOffer.SwapAddress)
+
+	issuerVtxoCh := issuer.GetVtxoEventChannel(ctx)
+	sendOffChainWithExtension(t, issuer, clientTypes.Receiver{
+		To:     sellOffer.SwapAddress,
+		Amount: 450,
+		Assets: []clientTypes.Asset{{AssetId: assetID, Amount: 500}},
+	}, sellOffer.Packet)
+	requireFulfillment(t, ctx, issuerVtxoCh, 60*time.Second)
+
+	// Direction 2 — buy-base: a fresh maker deposits 500 sats BTC, wants 500 asset.
+	buyMaker := setupArkClient(t)
+	faucetOffchain(t, buyMaker, 0.0005)
+	wantAssetID, err := asset.NewAssetIdFromString(assetID)
+	require.NoError(t, err)
+	buyOffer, err := contract.CreateOffer(ctx, contract.CreateOfferParams{
+		WantAmount: 500,
+		WantAsset:  wantAssetID,
+	}, buyMaker, newEmulatorClient(t))
+	require.NoError(t, err)
+
+	buyMakerVtxoCh := buyMaker.GetVtxoEventChannel(ctx)
+	sendOffChainWithExtension(t, buyMaker, clientTypes.Receiver{
+		To:     buyOffer.SwapAddress,
+		Amount: 500,
+	}, buyOffer.Packet)
+	requireAssetFulfillment(t, ctx, buyMakerVtxoCh, assetID, 60*time.Second)
+}
+
+// TestSwapMarketDisabledDirection: a market with the buy-base direction
+// disabled (MaxBaseAmount == 0) must NOT fulfill a buy-base offer, even though
+// the taker holds enough asset to do so.
+func TestSwapMarketDisabledDirection(t *testing.T) {
+	ctx := t.Context()
+
+	// Fund the taker bot with the asset so lack-of-funds cannot explain the
+	// rejection — the only reason the offer must fail is the disabled direction.
+	issuer := setupArkClient(t)
+	faucetOffchain(t, issuer, 0.001)
+	assetID := issueAsset(t, issuer, 1000)
+
+	fundSolverAsset(t, ctx, issuer, assetID, 1000)
+
+	// Sell-base enabled, buy-base disabled (zero base bounds).
+	addMarket(t, swap.Market{
+		BaseAsset:      assetID,
+		QuoteAsset:     "BTC",
+		MinQuoteAmount: 1,
+		MaxQuoteAmount: 100000000,
+		MinBaseAmount:  0,
+		MaxBaseAmount:  0,
+		PriceFeed:      mockAssetBTCPriceFeed,
+	})
+
+	// Buy-base offer (deposit BTC, want asset) — the disabled direction.
+	maker := setupArkClient(t)
+	faucetOffchain(t, maker, 0.0005)
+	wantAssetID, err := asset.NewAssetIdFromString(assetID)
+	require.NoError(t, err)
+	offer, err := contract.CreateOffer(ctx, contract.CreateOfferParams{
+		WantAmount: 500,
+		WantAsset:  wantAssetID,
+	}, maker, newEmulatorClient(t))
+	require.NoError(t, err)
+
+	makerVtxoCh := maker.GetVtxoEventChannel(ctx)
+	sendOffChainWithExtension(t, maker, clientTypes.Receiver{
+		To:     offer.SwapAddress,
+		Amount: 500,
+	}, offer.Packet)
+
+	// The solver must never fulfill: no asset VTXO should land at the maker.
+	requireNoAssetFulfillment(t, ctx, makerVtxoCh, assetID, 30*time.Second)
+}
+
+// requireNoAssetFulfillment asserts that no VTXO carrying assetID lands at the
+// maker within timeout. BTC change VTXOs from funding are ignored, so a false
+// negative from settlement noise can't occur — only an asset payout fails it.
+func requireNoAssetFulfillment(
+	t *testing.T,
+	ctx context.Context,
+	vtxoCh <-chan sdktypes.VtxoEvent,
+	assetID string,
+	timeout time.Duration,
+) {
+	t.Helper()
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-deadline.C:
+			return // success: the disabled direction was never fulfilled
+		case ev, ok := <-vtxoCh:
+			if !ok {
+				return
+			}
+			if ev.Type != sdktypes.VtxosAdded {
+				continue
+			}
+			for _, v := range ev.Vtxos {
+				for _, a := range v.Assets {
+					if a.AssetId == assetID {
+						t.Fatalf("disabled direction was fulfilled: asset %s VTXO landed at maker", assetID)
+					}
+				}
+			}
+		}
+	}
+}
+
 func dialSwapClient(t *testing.T) swapv1.SwapServiceClient {
 	t.Helper()
 	conn, err := grpc.NewClient(e2eGRPCAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -182,15 +316,18 @@ func dialSwapClient(t *testing.T) swapv1.SwapServiceClient {
 	return swapv1.NewSwapServiceClient(conn)
 }
 
-func addPair(t *testing.T, pair swap.Pair) {
+func addMarket(t *testing.T, market swap.Market) {
 	t.Helper()
-	_, err := dialSwapClient(t).AddPair(t.Context(), &swapv1.AddPairRequest{
-		Pair: &swapv1.PairInfo{
-			Pair:        pair.Pair,
-			MinAmount:   pair.MinAmount,
-			MaxAmount:   pair.MaxAmount,
-			PriceFeed:   pair.PriceFeed,
-			InvertPrice: pair.InvertPrice,
+	_, err := dialSwapClient(t).AddMarket(t.Context(), &swapv1.AddMarketRequest{
+		Market: &swapv1.MarketInfo{
+			BaseAsset:      market.BaseAsset,
+			QuoteAsset:     market.QuoteAsset,
+			MinQuoteAmount: market.MinQuoteAmount,
+			MaxQuoteAmount: market.MaxQuoteAmount,
+			MinBaseAmount:  market.MinBaseAmount,
+			MaxBaseAmount:  market.MaxBaseAmount,
+			PriceFeed:      market.PriceFeed,
+			SlippageBps:    market.SlippageBps,
 		},
 	})
 	require.NoError(t, err)

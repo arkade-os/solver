@@ -7,7 +7,7 @@ import (
 
 type Trade struct {
 	ID            int64
-	Pair          string
+	Market        string
 	DepositAsset  string
 	DepositAmount uint64
 	WantAsset     string

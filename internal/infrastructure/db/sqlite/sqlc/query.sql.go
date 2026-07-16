@@ -9,52 +9,63 @@ import (
 	"context"
 )
 
-const deletePair = `-- name: DeletePair :exec
-DELETE FROM swap_pair WHERE pair = ?
+const deleteMarket = `-- name: DeleteMarket :exec
+DELETE FROM market WHERE base_asset = ? AND quote_asset = ?
 `
 
-func (q *Queries) DeletePair(ctx context.Context, pair string) error {
-	_, err := q.db.ExecContext(ctx, deletePair, pair)
+type DeleteMarketParams struct {
+	BaseAsset  string
+	QuoteAsset string
+}
+
+func (q *Queries) DeleteMarket(ctx context.Context, arg DeleteMarketParams) error {
+	_, err := q.db.ExecContext(ctx, deleteMarket, arg.BaseAsset, arg.QuoteAsset)
 	return err
 }
 
-const insertPair = `-- name: InsertPair :exec
-INSERT INTO swap_pair (pair, min_amount, max_amount, base_decimals, quote_decimals, price_feed, invert_price, slippage_bps)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+const insertMarket = `-- name: InsertMarket :exec
+INSERT INTO market (base_asset, quote_asset, base_decimals, quote_decimals, min_quote_amount, max_quote_amount, min_base_amount, max_base_amount, price_feed, slippage_bps, fee_bps)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
-type InsertPairParams struct {
-	Pair          string
-	MinAmount     int64
-	MaxAmount     int64
-	BaseDecimals  int64
-	QuoteDecimals int64
-	PriceFeed     string
-	InvertPrice   int64
-	SlippageBps   int64
+type InsertMarketParams struct {
+	BaseAsset      string
+	QuoteAsset     string
+	BaseDecimals   int64
+	QuoteDecimals  int64
+	MinQuoteAmount int64
+	MaxQuoteAmount int64
+	MinBaseAmount  int64
+	MaxBaseAmount  int64
+	PriceFeed      string
+	SlippageBps    int64
+	FeeBps         int64
 }
 
-func (q *Queries) InsertPair(ctx context.Context, arg InsertPairParams) error {
-	_, err := q.db.ExecContext(ctx, insertPair,
-		arg.Pair,
-		arg.MinAmount,
-		arg.MaxAmount,
+func (q *Queries) InsertMarket(ctx context.Context, arg InsertMarketParams) error {
+	_, err := q.db.ExecContext(ctx, insertMarket,
+		arg.BaseAsset,
+		arg.QuoteAsset,
 		arg.BaseDecimals,
 		arg.QuoteDecimals,
+		arg.MinQuoteAmount,
+		arg.MaxQuoteAmount,
+		arg.MinBaseAmount,
+		arg.MaxBaseAmount,
 		arg.PriceFeed,
-		arg.InvertPrice,
 		arg.SlippageBps,
+		arg.FeeBps,
 	)
 	return err
 }
 
 const insertTrade = `-- name: InsertTrade :exec
-INSERT INTO trade (pair, deposit_asset, deposit_amount, want_asset, want_amount, offer_txid, fulfill_txid, created_at)
+INSERT INTO trade (market, deposit_asset, deposit_amount, want_asset, want_amount, offer_txid, fulfill_txid, created_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type InsertTradeParams struct {
-	Pair          string
+	Market        string
 	DepositAsset  string
 	DepositAmount int64
 	WantAsset     string
@@ -66,7 +77,7 @@ type InsertTradeParams struct {
 
 func (q *Queries) InsertTrade(ctx context.Context, arg InsertTradeParams) error {
 	_, err := q.db.ExecContext(ctx, insertTrade,
-		arg.Pair,
+		arg.Market,
 		arg.DepositAsset,
 		arg.DepositAmount,
 		arg.WantAsset,
@@ -78,28 +89,31 @@ func (q *Queries) InsertTrade(ctx context.Context, arg InsertTradeParams) error 
 	return err
 }
 
-const listPairs = `-- name: ListPairs :many
-SELECT pair, min_amount, max_amount, base_decimals, quote_decimals, price_feed, invert_price, slippage_bps FROM swap_pair
+const listMarkets = `-- name: ListMarkets :many
+SELECT base_asset, quote_asset, base_decimals, quote_decimals, min_quote_amount, max_quote_amount, min_base_amount, max_base_amount, price_feed, slippage_bps, fee_bps FROM market
 `
 
-func (q *Queries) ListPairs(ctx context.Context) ([]SwapPair, error) {
-	rows, err := q.db.QueryContext(ctx, listPairs)
+func (q *Queries) ListMarkets(ctx context.Context) ([]Market, error) {
+	rows, err := q.db.QueryContext(ctx, listMarkets)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []SwapPair
+	var items []Market
 	for rows.Next() {
-		var i SwapPair
+		var i Market
 		if err := rows.Scan(
-			&i.Pair,
-			&i.MinAmount,
-			&i.MaxAmount,
+			&i.BaseAsset,
+			&i.QuoteAsset,
 			&i.BaseDecimals,
 			&i.QuoteDecimals,
+			&i.MinQuoteAmount,
+			&i.MaxQuoteAmount,
+			&i.MinBaseAmount,
+			&i.MaxBaseAmount,
 			&i.PriceFeed,
-			&i.InvertPrice,
 			&i.SlippageBps,
+			&i.FeeBps,
 		); err != nil {
 			return nil, err
 		}
@@ -115,7 +129,7 @@ func (q *Queries) ListPairs(ctx context.Context) ([]SwapPair, error) {
 }
 
 const listTrades = `-- name: ListTrades :many
-SELECT id, pair, deposit_asset, deposit_amount, want_asset, want_amount, offer_txid, fulfill_txid, created_at FROM trade ORDER BY created_at DESC, id DESC LIMIT ?
+SELECT id, market, deposit_asset, deposit_amount, want_asset, want_amount, offer_txid, fulfill_txid, created_at FROM trade ORDER BY created_at DESC, id DESC LIMIT ?
 `
 
 func (q *Queries) ListTrades(ctx context.Context, limit int64) ([]Trade, error) {
@@ -129,7 +143,7 @@ func (q *Queries) ListTrades(ctx context.Context, limit int64) ([]Trade, error) 
 		var i Trade
 		if err := rows.Scan(
 			&i.ID,
-			&i.Pair,
+			&i.Market,
 			&i.DepositAsset,
 			&i.DepositAmount,
 			&i.WantAsset,
@@ -151,33 +165,39 @@ func (q *Queries) ListTrades(ctx context.Context, limit int64) ([]Trade, error) 
 	return items, nil
 }
 
-const updatePair = `-- name: UpdatePair :execrows
-UPDATE swap_pair
-SET min_amount = ?, max_amount = ?, base_decimals = ?, quote_decimals = ?, price_feed = ?, invert_price = ?, slippage_bps = ?
-WHERE pair = ?
+const updateMarket = `-- name: UpdateMarket :execrows
+UPDATE market
+SET base_decimals = ?, quote_decimals = ?, min_quote_amount = ?, max_quote_amount = ?, min_base_amount = ?, max_base_amount = ?, price_feed = ?, slippage_bps = ?, fee_bps = ?
+WHERE base_asset = ? AND quote_asset = ?
 `
 
-type UpdatePairParams struct {
-	MinAmount     int64
-	MaxAmount     int64
-	BaseDecimals  int64
-	QuoteDecimals int64
-	PriceFeed     string
-	InvertPrice   int64
-	SlippageBps   int64
-	Pair          string
+type UpdateMarketParams struct {
+	BaseDecimals   int64
+	QuoteDecimals  int64
+	MinQuoteAmount int64
+	MaxQuoteAmount int64
+	MinBaseAmount  int64
+	MaxBaseAmount  int64
+	PriceFeed      string
+	SlippageBps    int64
+	FeeBps         int64
+	BaseAsset      string
+	QuoteAsset     string
 }
 
-func (q *Queries) UpdatePair(ctx context.Context, arg UpdatePairParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, updatePair,
-		arg.MinAmount,
-		arg.MaxAmount,
+func (q *Queries) UpdateMarket(ctx context.Context, arg UpdateMarketParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateMarket,
 		arg.BaseDecimals,
 		arg.QuoteDecimals,
+		arg.MinQuoteAmount,
+		arg.MaxQuoteAmount,
+		arg.MinBaseAmount,
+		arg.MaxBaseAmount,
 		arg.PriceFeed,
-		arg.InvertPrice,
 		arg.SlippageBps,
-		arg.Pair,
+		arg.FeeBps,
+		arg.BaseAsset,
+		arg.QuoteAsset,
 	)
 	if err != nil {
 		return 0, err

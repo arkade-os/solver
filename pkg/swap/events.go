@@ -8,7 +8,7 @@ import (
 // FulfillmentEvent describes a successful fulfillment of a swap offer.
 // Amounts are in raw base units (sats for BTC, or the asset's own base unit).
 type FulfillmentEvent struct {
-	Pair          string
+	Market        string
 	DepositAsset  string
 	DepositAmount uint64
 	WantAsset     string

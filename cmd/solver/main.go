@@ -53,7 +53,7 @@ func main() {
 			return nil
 		},
 		Commands: []*cli.Command{
-			pairCommand,
+			marketCommand,
 			balanceCommand,
 			addressCommand,
 			sendCommand,
@@ -70,88 +70,96 @@ func main() {
 	}
 }
 
-var pairCommand = &cli.Command{
-	Name:    "pair",
-	Aliases: []string{"market", "markets"},
+var marketCommand = &cli.Command{
+	Name:    "market",
+	Aliases: []string{"markets"},
 	Usage:   "manage trading markets",
 	Subcommands: []*cli.Command{
 		{
 			Name:   "add",
 			Usage:  "add a new market",
-			Flags:  pairFlags(true),
-			Action: pairAdd,
+			Flags:  marketFlags(true),
+			Action: marketAdd,
 		},
 		{
 			Name:   "update",
 			Usage:  "update a market (only the given flags change)",
-			Flags:  pairFlags(false),
-			Action: pairUpdate,
+			Flags:  marketFlags(false),
+			Action: marketUpdate,
 		},
 		{
-			Name:   "get",
-			Usage:  "show a single market",
-			Flags:  []cli.Flag{&cli.StringFlag{Name: "pair", Required: true, Usage: "market name (e.g. BTC/ASSET)"}},
-			Action: pairGet,
+			Name:  "get",
+			Usage: "show a single market",
+			Flags: []cli.Flag{
+				&cli.StringFlag{Name: "base", Required: true, Usage: "base asset id or BTC"},
+				&cli.StringFlag{Name: "quote", Required: true, Usage: "quote asset id or BTC"},
+			},
+			Action: marketGet,
 		},
 		{
-			Name:   "remove",
-			Usage:  "remove a market",
-			Flags:  []cli.Flag{&cli.StringFlag{Name: "pair", Required: true, Usage: "market name (e.g. BTC/ASSET)"}},
-			Action: pairRemove,
+			Name:  "remove",
+			Usage: "remove a market",
+			Flags: []cli.Flag{
+				&cli.StringFlag{Name: "base", Required: true, Usage: "base asset id or BTC"},
+				&cli.StringFlag{Name: "quote", Required: true, Usage: "quote asset id or BTC"},
+			},
+			Action: marketRemove,
 		},
 		{
 			Name:    "list",
 			Aliases: []string{"ls"},
 			Usage:   "list all markets",
-			Action:  pairList,
+			Action:  marketList,
 		},
 	},
 }
 
-func pairAdd(c *cli.Context) error {
-	name := c.String("pair")
-	return mutate(c, http.MethodPost, "/v1/pair",
-		map[string]any{"pair": pairOverrides(c)}, "Market "+name+" added")
+func marketAdd(c *cli.Context) error {
+	base, quote := c.String("base"), c.String("quote")
+	return mutate(c, http.MethodPost, "/v1/market",
+		map[string]any{"market": marketOverrides(c)}, "Market "+base+"/"+quote+" added")
 }
 
-func pairUpdate(c *cli.Context) error {
-	current, err := fetchPair(c, c.String("pair"))
+func marketUpdate(c *cli.Context) error {
+	base, quote := c.String("base"), c.String("quote")
+	current, err := fetchMarket(c, base, quote)
 	if err != nil {
 		return err
 	}
-	maps.Copy(current, pairOverrides(c))
-	return mutate(c, http.MethodPut, "/v1/pair",
-		map[string]any{"pair": current}, "Market "+c.String("pair")+" updated")
+	maps.Copy(current, marketOverrides(c))
+	return mutate(c, http.MethodPut, "/v1/market",
+		map[string]any{"market": current}, "Market "+base+"/"+quote+" updated")
 }
 
-func pairGet(c *cli.Context) error {
-	pairs, err := listPairs(c)
+func marketGet(c *cli.Context) error {
+	markets, err := listMarkets(c)
 	if err != nil {
 		return err
 	}
-	name := c.String("pair")
-	for _, p := range pairs {
-		if p.Pair == name {
+	base, quote := c.String("base"), c.String("quote")
+	for _, m := range markets {
+		if m.BaseAsset == base && m.QuoteAsset == quote {
 			if c.Bool("json") {
-				out, _ := json.MarshalIndent(p, "", "  ") //nolint:errcheck
+				out, _ := json.MarshalIndent(m, "", "  ") //nolint:errcheck
 				fmt.Println(string(out))
 				return nil
 			}
-			renderMarketDetail(p, loadAssets(c))
+			renderMarketDetail(m, loadAssets(c))
 			return nil
 		}
 	}
-	return fmt.Errorf("market %q not found", name)
+	return fmt.Errorf("market %s/%s not found", base, quote)
 }
 
-func pairRemove(c *cli.Context) error {
-	name := c.String("pair")
-	return mutate(c, http.MethodDelete, "/v1/pair/"+url.PathEscape(name), nil,
-		"Market "+name+" removed")
+func marketRemove(c *cli.Context) error {
+	base, quote := c.String("base"), c.String("quote")
+	return mutate(c, http.MethodDelete,
+		fmt.Sprintf("/v1/market/%s/%s", url.PathEscape(base), url.PathEscape(quote)), nil,
+		"Market "+base+"/"+quote+" removed")
 }
 
-func pairList(c *cli.Context) error {
-	data, err := request(c, http.MethodGet, "/v1/pairs", nil)
+func marketList(c *cli.Context) error {
+	data, err := request(c, http.MethodGet, "/v1/markets", nil)
 	if err != nil {
 		return err
 	}
@@ -159,72 +167,81 @@ func pairList(c *cli.Context) error {
 		return printRaw(data)
 	}
 	var resp struct {
-		Pairs []pairInfo `json:"pairs"`
+		Markets []marketInfo `json:"markets"`
 	}
 	if err := json.Unmarshal(data, &resp); err != nil {
 		return err
 	}
-	renderMarkets(resp.Pairs, loadAssets(c))
+	renderMarkets(resp.Markets, loadAssets(c))
 	return nil
 }
 
-// pairFlags: for add everything but slippage is required; for update only --pair
-// is, so unset flags keep their current value.
-func pairFlags(required bool) []cli.Flag {
+// marketFlags: base/quote always identify the market; for add, price-feed is
+// also required. min/max bounds are always optional (0 = disabled).
+func marketFlags(required bool) []cli.Flag {
 	return []cli.Flag{
-		&cli.StringFlag{Name: "pair", Required: true, Usage: "market name (e.g. BTC/ASSET)"},
-		&cli.Uint64Flag{Name: "min", Required: required, Usage: "minimum want amount (quote asset base units)"},
-		&cli.Uint64Flag{Name: "max", Required: required, Usage: "maximum want amount (quote asset base units)"},
-		&cli.StringFlag{Name: "price-feed", Required: required, Usage: "price feed URL"},
-		&cli.BoolFlag{Name: "invert-price", Usage: "invert the feed price"},
-		&cli.UintFlag{Name: "slippage-bps", Usage: "max price deviation in basis points (default 100 = 1%)"},
+		&cli.StringFlag{Name: "base", Required: true, Usage: "base asset id or BTC"},
+		&cli.StringFlag{Name: "quote", Required: true, Usage: "quote asset id or BTC"},
+		&cli.Uint64Flag{Name: "min-quote", Usage: "min want amount for sell-base (quote units); 0 = disabled"},
+		&cli.Uint64Flag{Name: "max-quote", Usage: "max want amount for sell-base (quote units); 0 = disabled"},
+		&cli.Uint64Flag{Name: "min-base", Usage: "min want amount for buy-base (base units); 0 = disabled"},
+		&cli.Uint64Flag{Name: "max-base", Usage: "max want amount for buy-base (base units); 0 = disabled"},
+		&cli.StringFlag{Name: "price-feed", Required: required, Usage: "price feed URL (quote-per-base)"},
+		&cli.Uint64Flag{Name: "slippage", Usage: "max deviation in bps (0 = server default)"},
+		&cli.Uint64Flag{Name: "fee", Usage: "solver margin in bps, shifted into the price (0 = none)"},
 	}
 }
 
-func pairOverrides(c *cli.Context) map[string]any {
-	out := map[string]any{"pair": c.String("pair")}
-	if c.IsSet("min") {
-		out["min_amount"] = c.Uint64("min")
+func marketOverrides(c *cli.Context) map[string]any {
+	out := map[string]any{"base_asset": c.String("base"), "quote_asset": c.String("quote")}
+	if c.IsSet("min-quote") {
+		out["min_quote_amount"] = c.Uint64("min-quote")
 	}
-	if c.IsSet("max") {
-		out["max_amount"] = c.Uint64("max")
+	if c.IsSet("max-quote") {
+		out["max_quote_amount"] = c.Uint64("max-quote")
+	}
+	if c.IsSet("min-base") {
+		out["min_base_amount"] = c.Uint64("min-base")
+	}
+	if c.IsSet("max-base") {
+		out["max_base_amount"] = c.Uint64("max-base")
 	}
 	if c.IsSet("price-feed") {
 		out["price_feed"] = c.String("price-feed")
 	}
-	if c.IsSet("invert-price") {
-		out["invert_price"] = c.Bool("invert-price")
+	if c.IsSet("slippage") {
+		out["slippage_bps"] = c.Uint64("slippage")
 	}
-	if c.IsSet("slippage-bps") {
-		out["slippage_bps"] = c.Uint("slippage-bps")
+	if c.IsSet("fee") {
+		out["fee_bps"] = c.Uint64("fee")
 	}
 	return out
 }
 
-// fetchPair returns the pair as raw fields so update can preserve unset ones.
-func fetchPair(c *cli.Context, name string) (map[string]any, error) {
+// fetchMarket returns the market as raw fields so update can preserve unset ones.
+func fetchMarket(c *cli.Context, base, quote string) (map[string]any, error) {
 	var resp struct {
-		Pairs []map[string]any `json:"pairs"`
+		Markets []map[string]any `json:"markets"`
 	}
-	if err := getJSON(c, "/v1/pairs", &resp); err != nil {
+	if err := getJSON(c, "/v1/markets", &resp); err != nil {
 		return nil, err
 	}
-	for _, p := range resp.Pairs {
-		if p["pair"] == name {
-			return p, nil
+	for _, m := range resp.Markets {
+		if m["base_asset"] == base && m["quote_asset"] == quote {
+			return m, nil
 		}
 	}
-	return nil, fmt.Errorf("pair %q not found", name)
+	return nil, fmt.Errorf("market %s/%s not found", base, quote)
 }
 
-func listPairs(c *cli.Context) ([]pairInfo, error) {
+func listMarkets(c *cli.Context) ([]marketInfo, error) {
 	var resp struct {
-		Pairs []pairInfo `json:"pairs"`
+		Markets []marketInfo `json:"markets"`
 	}
-	if err := getJSON(c, "/v1/pairs", &resp); err != nil {
+	if err := getJSON(c, "/v1/markets", &resp); err != nil {
 		return nil, err
 	}
-	return resp.Pairs, nil
+	return resp.Markets, nil
 }
 
 var balanceCommand = &cli.Command{
@@ -410,14 +427,18 @@ var statusCommand = &cli.Command{
 	},
 }
 
-type pairInfo struct {
-	Pair          string `json:"pair"`
-	MinAmount     uint64 `json:"min_amount"`
-	MaxAmount     uint64 `json:"max_amount"`
-	PriceFeed     string `json:"price_feed"`
-	InvertPrice   bool   `json:"invert_price"`
-	SlippageBps   uint32 `json:"slippage_bps"`
-	QuoteDecimals int32  `json:"quote_decimals"`
+type marketInfo struct {
+	BaseAsset      string `json:"base_asset"`
+	QuoteAsset     string `json:"quote_asset"`
+	BaseDecimals   int32  `json:"base_decimals"`
+	QuoteDecimals  int32  `json:"quote_decimals"`
+	MinQuoteAmount uint64 `json:"min_quote_amount"`
+	MaxQuoteAmount uint64 `json:"max_quote_amount"`
+	MinBaseAmount  uint64 `json:"min_base_amount"`
+	MaxBaseAmount  uint64 `json:"max_base_amount"`
+	PriceFeed      string `json:"price_feed"`
+	SlippageBps    uint32 `json:"slippage_bps"`
+	FeeBps         uint32 `json:"fee_bps"`
 }
 
 type assetInfo struct {
@@ -428,7 +449,7 @@ type assetInfo struct {
 }
 
 type tradeInfo struct {
-	Pair          string `json:"pair"`
+	Market        string `json:"market"`
 	DepositAsset  string `json:"deposit_asset"`
 	DepositAmount uint64 `json:"deposit_amount"`
 	WantAsset     string `json:"want_asset"`
@@ -462,40 +483,42 @@ func loadAssets(c *cli.Context) map[string]assetInfo {
 	return out
 }
 
-func renderMarkets(pairs []pairInfo, meta map[string]assetInfo) {
-	fmt.Println(bold(fmt.Sprintf("Markets (%d)", len(pairs))))
-	if len(pairs) == 0 {
-		fmt.Println(dim("  none yet — add one with: solver pair add --pair BTC/<asset> --min .. --max .. --price-feed .."))
+func renderMarkets(markets []marketInfo, meta map[string]assetInfo) {
+	fmt.Println(bold(fmt.Sprintf("Markets (%d)", len(markets))))
+	if len(markets) == 0 {
+		fmt.Println(dim("  none yet — add one with: solver market add --base BTC --quote <asset> --price-feed .."))
 		return
 	}
 	fmt.Println()
 	tw := newTable()
-	fmt.Fprintln(tw, "  MARKET\tMIN WANT\tMAX WANT\tTOLERANCE\tINVERT\tFEED") //nolint:errcheck
-	for _, p := range pairs {
-		base, quote, _ := splitPair(p.Pair)
-		market := unitLabel(base, meta) + " " + gArrow() + " " + unitLabel(quote, meta)
-		fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\t%s\n", //nolint:errcheck
+	fmt.Fprintln(tw, "  MARKET\tMIN QUOTE\tMAX QUOTE\tMIN BASE\tMAX BASE\tTOLERANCE\tFEE\tFEED") //nolint:errcheck
+	for _, m := range markets {
+		market := unitLabel(m.BaseAsset, meta) + " " + gArrowBoth() + " " + unitLabel(m.QuoteAsset, meta)
+		fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", //nolint:errcheck
 			market,
-			fmtBound(p.MinAmount, quote, p.QuoteDecimals, meta),
-			fmtBound(p.MaxAmount, quote, p.QuoteDecimals, meta),
-			fmtTolerance(p.SlippageBps), yesNo(p.InvertPrice), feedHost(p.PriceFeed))
+			fmtBound(m.MinQuoteAmount, m.QuoteAsset, m.QuoteDecimals, meta),
+			fmtBound(m.MaxQuoteAmount, m.QuoteAsset, m.QuoteDecimals, meta),
+			fmtBound(m.MinBaseAmount, m.BaseAsset, m.BaseDecimals, meta),
+			fmtBound(m.MaxBaseAmount, m.BaseAsset, m.BaseDecimals, meta),
+			fmtTolerance(m.SlippageBps), fmtBps(m.FeeBps), feedHost(m.PriceFeed))
 	}
 	tw.Flush() //nolint:errcheck
 }
 
-func renderMarketDetail(p pairInfo, meta map[string]assetInfo) {
-	base, quote, _ := splitPair(p.Pair)
-	fmt.Println(bold("Market " + p.Pair))
+func renderMarketDetail(m marketInfo, meta map[string]assetInfo) {
+	fmt.Println(bold("Market " + unitLabel(m.BaseAsset, meta) + " " + gArrowBoth() + " " + unitLabel(m.QuoteAsset, meta)))
 	fmt.Println()
 	tw := newTable()
 	row := func(k, v string) { fmt.Fprintf(tw, "  %s\t%s\n", dim(k), v) } //nolint:errcheck
-	row("Deposit", unitLabel(base, meta))
-	row("Want", unitLabel(quote, meta))
-	row("Min want", fmtBound(p.MinAmount, quote, p.QuoteDecimals, meta))
-	row("Max want", fmtBound(p.MaxAmount, quote, p.QuoteDecimals, meta))
-	row("Tolerance", fmtTolerance(p.SlippageBps))
-	row("Invert price", yesNo(p.InvertPrice))
-	row("Price feed", p.PriceFeed)
+	row("Base", unitLabel(m.BaseAsset, meta))
+	row("Quote", unitLabel(m.QuoteAsset, meta))
+	row("Min want (sell base)", fmtBound(m.MinQuoteAmount, m.QuoteAsset, m.QuoteDecimals, meta))
+	row("Max want (sell base)", fmtBound(m.MaxQuoteAmount, m.QuoteAsset, m.QuoteDecimals, meta))
+	row("Min want (buy base)", fmtBound(m.MinBaseAmount, m.BaseAsset, m.BaseDecimals, meta))
+	row("Max want (buy base)", fmtBound(m.MaxBaseAmount, m.BaseAsset, m.BaseDecimals, meta))
+	row("Tolerance", fmtTolerance(m.SlippageBps))
+	row("Fee", fmtBps(m.FeeBps))
+	row("Price feed", m.PriceFeed)
 	tw.Flush() //nolint:errcheck
 }
 
@@ -660,14 +683,6 @@ func newTable() *tabwriter.Writer {
 	return tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
 }
 
-func splitPair(name string) (base, quote string, ok bool) {
-	parts := strings.SplitN(name, "/", 2)
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return "", "", false
-	}
-	return parts[0], parts[1], true
-}
-
 func unitLabel(id string, meta map[string]assetInfo) string {
 	if id == "BTC" || id == "" {
 		return "BTC"
@@ -747,9 +762,17 @@ func group(s string) string {
 	return b.String()
 }
 
+// fmtBps renders basis points as a percentage; 0 reads as "none".
+func fmtBps(bps uint32) string {
+	if bps == 0 {
+		return "none"
+	}
+	return strconv.FormatFloat(float64(bps)/100, 'f', -1, 64) + "%"
+}
+
 func fmtTolerance(bps uint32) string {
 	if bps == 0 {
-		bps = 100
+		bps = 10 // server default (DefaultSlippageBps)
 	}
 	return glyph("±", "+/-") + strconv.FormatFloat(float64(bps)/100, 'f', -1, 64) + "%"
 }
@@ -787,13 +810,6 @@ func shortTxid(id string) string {
 		return id
 	}
 	return id[:6] + gEllipsis() + id[len(id)-6:]
-}
-
-func yesNo(b bool) string {
-	if b {
-		return "yes"
-	}
-	return "no"
 }
 
 func sortedKeys(m map[string]uint64) []string {
@@ -835,6 +851,7 @@ func glyph(unicode, ascii string) string {
 }
 
 func gArrow() string    { return glyph("→", "->") }
+func gArrowBoth() string { return glyph("⇄", "<>") }
 func gEllipsis() string { return glyph("…", "..") }
 func gDash() string     { return glyph("—", "-") }
 func gCheck() string    { return glyph("✓", "OK") }

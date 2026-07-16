@@ -554,18 +554,23 @@ tr:hover .row-actions {
 
 /* Min / max stats */
 .market-stats {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   padding: 12px 0;
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
 }
 .mstat {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
   min-width: 0;
+}
+.mstat-k {
+  flex: none;
 }
 .mstat-k {
   font-size: 10px;
@@ -579,9 +584,18 @@ tr:hover .row-actions {
   font-weight: 600;
   color: var(--text);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  text-align: right;
+}
+.mstat-v.off {
+  color: var(--text-dim);
+  font-weight: 500;
+  font-style: italic;
+}
+
+/* A direction section whose toggle is off dims its inputs + hint. */
+.form-section.direction.off .field-row,
+.form-section.direction.off > .muted {
+  opacity: 0.45;
 }
 
 /* Fill-tolerance band: symmetric ±slippage around the feed price */
@@ -941,7 +955,7 @@ tr:hover .row-actions {
 }
 
 .dialog-wide {
-  width: 760px;
+  width: 880px;
 }
 
 /* Two-column body for the wide market form; each column stacks its sections.

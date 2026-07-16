@@ -9,7 +9,6 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/wire"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/arkade-os/solver/pkg/swap/contract"
@@ -25,6 +24,19 @@ func testAssetId(t *testing.T) *asset.AssetId {
 	assetBytes[0] = 0xAB
 	for i := 1; i < 32; i++ {
 		assetBytes[i] = byte(i)
+	}
+	id, err := asset.NewAssetIdFromBytes(assetBytes)
+	require.NoError(t, err)
+	return id
+}
+
+// testOtherAssetId returns a second, distinct asset id from testAssetId.
+func testOtherAssetId(t *testing.T) *asset.AssetId {
+	t.Helper()
+	assetBytes := make([]byte, 34)
+	assetBytes[0] = 0xCD
+	for i := 1; i < 32; i++ {
+		assetBytes[i] = byte(32 - i)
 	}
 	id, err := asset.NewAssetIdFromBytes(assetBytes)
 	require.NoError(t, err)
@@ -97,12 +109,12 @@ func buildMinimalOffer(t *testing.T) *contract.Offer {
 func TestOffer_IsBTCDeposit(t *testing.T) {
 	t.Run("nil DepositAsset returns true", func(t *testing.T) {
 		o := &Offer{DepositAsset: nil}
-		assert.True(t, o.IsBTCDeposit())
+		require.True(t, o.IsBTCDeposit())
 	})
 
 	t.Run("non-nil DepositAsset returns false", func(t *testing.T) {
 		o := &Offer{DepositAsset: testAssetId(t)}
-		assert.False(t, o.IsBTCDeposit())
+		require.False(t, o.IsBTCDeposit())
 	})
 }
 
@@ -113,14 +125,14 @@ func TestOffer_IsBTCDeposit(t *testing.T) {
 func TestOffer_DepositAssetStr(t *testing.T) {
 	t.Run("nil DepositAsset returns BTC", func(t *testing.T) {
 		o := &Offer{DepositAsset: nil}
-		assert.Equal(t, "BTC", o.DepositAssetStr())
+		require.Equal(t, "BTC", o.DepositAssetStr())
 	})
 
 	t.Run("non-nil DepositAsset returns non-empty non-BTC string", func(t *testing.T) {
 		o := &Offer{DepositAsset: testAssetId(t)}
 		s := o.DepositAssetStr()
-		assert.NotEmpty(t, s)
-		assert.NotEqual(t, "BTC", s)
+		require.NotEmpty(t, s)
+		require.NotEqual(t, "BTC", s)
 	})
 }
 
@@ -132,55 +144,15 @@ func TestOffer_WantAssetStr(t *testing.T) {
 	t.Run("nil WantAsset returns BTC", func(t *testing.T) {
 		o := &Offer{}
 		// WantAsset lives on embedded contract.Offer; nil is the zero value
-		assert.Equal(t, "BTC", o.WantAssetStr())
+		require.Equal(t, "BTC", o.WantAssetStr())
 	})
 
 	t.Run("non-nil WantAsset returns asset id", func(t *testing.T) {
 		o := &Offer{}
 		o.WantAsset = testAssetId(t)
 		s := o.WantAssetStr()
-		assert.NotEmpty(t, s)
-		assert.NotEqual(t, "BTC", s)
-	})
-}
-
-// ---------------------------------------------------------------------------
-// ComputePrice tests
-// ---------------------------------------------------------------------------
-
-func TestOffer_ComputePrice(t *testing.T) {
-	t.Run("normal: deposit=200000 want=100000 both 8 decimals -> price=2.0", func(t *testing.T) {
-		o := &Offer{DepositAmount: 200000}
-		o.WantAmount = 100000
-		pair := &Pair{BaseDecimals: 8, QuoteDecimals: 8}
-		price, ok := o.ComputePrice(pair)
-		require.True(t, ok)
-		assert.InDelta(t, 2.0, price, 1e-9)
-	})
-
-	t.Run("different decimals: base=8 quote=2 deposit=100000000 want=100 -> price=1.0", func(t *testing.T) {
-		o := &Offer{DepositAmount: 100_000_000}
-		o.WantAmount = 100
-		pair := &Pair{BaseDecimals: 8, QuoteDecimals: 2}
-		price, ok := o.ComputePrice(pair)
-		require.True(t, ok)
-		assert.InDelta(t, 1.0, price, 1e-9)
-	})
-
-	t.Run("zero deposit returns false", func(t *testing.T) {
-		o := &Offer{DepositAmount: 0}
-		o.WantAmount = 100000
-		pair := &Pair{BaseDecimals: 8, QuoteDecimals: 8}
-		_, ok := o.ComputePrice(pair)
-		assert.False(t, ok)
-	})
-
-	t.Run("zero want returns false", func(t *testing.T) {
-		o := &Offer{DepositAmount: 200000}
-		o.WantAmount = 0
-		pair := &Pair{BaseDecimals: 8, QuoteDecimals: 8}
-		_, ok := o.ComputePrice(pair)
-		assert.False(t, ok)
+		require.NotEmpty(t, s)
+		require.NotEqual(t, "BTC", s)
 	})
 }
 
@@ -196,8 +168,8 @@ func TestNewOffer_ValidTx(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, offer, "expected non-nil Offer for a valid tx")
 
-	assert.Equal(t, uint64(100000), offer.DepositAmount)
-	assert.True(t, offer.IsBTCDeposit(), "should be BTC deposit (no asset packet)")
+	require.Equal(t, uint64(100000), offer.DepositAmount)
+	require.True(t, offer.IsBTCDeposit(), "should be BTC deposit (no asset packet)")
 }
 
 func TestNewOffer_NoExtensionOutput(t *testing.T) {
@@ -209,7 +181,7 @@ func TestNewOffer_NoExtensionOutput(t *testing.T) {
 
 	offer, err := NewOffer(tx)
 	require.NoError(t, err)
-	assert.Nil(t, offer, "tx without extension should return nil")
+	require.Nil(t, offer, "tx without extension should return nil")
 }
 
 func TestNewOffer_ExtensionButNoSwapOffer(t *testing.T) {
@@ -227,7 +199,7 @@ func TestNewOffer_ExtensionButNoSwapOffer(t *testing.T) {
 
 	offer, err := NewOffer(tx)
 	require.NoError(t, err)
-	assert.Nil(t, offer, "extension without swap packet should return nil")
+	require.Nil(t, offer, "extension without swap packet should return nil")
 }
 
 func TestNewOffer_OfferButNoMatchingSwapOutput(t *testing.T) {
@@ -249,5 +221,5 @@ func TestNewOffer_OfferButNoMatchingSwapOutput(t *testing.T) {
 
 	offer, err := NewOffer(tx)
 	require.NoError(t, err)
-	assert.Nil(t, offer, "offer with no matching swap output should return nil")
+	require.Nil(t, offer, "offer with no matching swap output should return nil")
 }

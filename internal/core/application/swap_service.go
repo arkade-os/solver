@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/arkade-os/solver/internal/core/ports"
 	"github.com/arkade-os/solver/pkg/swap"
@@ -14,43 +13,43 @@ func (svc *Service) ListTrades(ctx context.Context, limit int) ([]ports.Trade, e
 	return svc.tradeRepo.List(ctx, limit)
 }
 
-func (svc *Service) AddPair(ctx context.Context, pair swap.Pair) (swap.Pair, error) {
-	resolved, err := svc.resolveDecimals(ctx, pair)
+func (svc *Service) AddMarket(ctx context.Context, m swap.Market) (swap.Market, error) {
+	resolved, err := svc.resolveDecimals(ctx, m)
 	if err != nil {
-		return swap.Pair{}, err
+		return swap.Market{}, err
 	}
-	if err := validatePair(resolved); err != nil {
-		return swap.Pair{}, fmt.Errorf("invalid pair: %w", err)
+	if err := validateMarket(resolved); err != nil {
+		return swap.Market{}, fmt.Errorf("invalid market: %w", err)
 	}
-	if err := svc.pairRepo.Add(ctx, resolved); err != nil {
-		return swap.Pair{}, err
+	if err := svc.marketRepo.Add(ctx, resolved); err != nil {
+		return swap.Market{}, err
 	}
 	return resolved, nil
 }
 
-func (svc *Service) UpdatePair(ctx context.Context, pair swap.Pair) (swap.Pair, error) {
-	resolved, err := svc.resolveDecimals(ctx, pair)
+func (svc *Service) UpdateMarket(ctx context.Context, m swap.Market) (swap.Market, error) {
+	resolved, err := svc.resolveDecimals(ctx, m)
 	if err != nil {
-		return swap.Pair{}, err
+		return swap.Market{}, err
 	}
-	if err := validatePair(resolved); err != nil {
-		return swap.Pair{}, fmt.Errorf("invalid pair: %w", err)
+	if err := validateMarket(resolved); err != nil {
+		return swap.Market{}, fmt.Errorf("invalid market: %w", err)
 	}
-	if err := svc.pairRepo.Update(ctx, resolved); err != nil {
-		return swap.Pair{}, err
+	if err := svc.marketRepo.Update(ctx, resolved); err != nil {
+		return swap.Market{}, err
 	}
 	return resolved, nil
 }
 
-func (svc *Service) RemovePair(ctx context.Context, pairName string) error {
-	if pairName == "" {
-		return fmt.Errorf("pair name is required")
+func (svc *Service) RemoveMarket(ctx context.Context, base, quote string) error {
+	if base == "" || quote == "" {
+		return fmt.Errorf("base and quote assets are required")
 	}
-	return svc.pairRepo.Remove(ctx, pairName)
+	return svc.marketRepo.Remove(ctx, base, quote)
 }
 
-func (svc *Service) ListPairs(ctx context.Context) ([]swap.Pair, error) {
-	return svc.pairRepo.List(ctx)
+func (svc *Service) ListMarkets(ctx context.Context) ([]swap.Market, error) {
+	return svc.marketRepo.List(ctx)
 }
 
 // GetBalance returns the wallet balance from the ark client.
@@ -91,24 +90,21 @@ func (svc *Service) GetAddress(ctx context.Context) (*Address, error) {
 	}, nil
 }
 
-func (svc *Service) resolveDecimals(ctx context.Context, pair swap.Pair) (swap.Pair, error) {
-	base, quote, ok := splitPair(pair.Pair)
-	if !ok {
-		return pair, fmt.Errorf("pair must be in format 'base/quote'")
+func (svc *Service) resolveDecimals(ctx context.Context, m swap.Market) (swap.Market, error) {
+	if m.BaseAsset == "" || m.QuoteAsset == "" {
+		return m, fmt.Errorf("base and quote assets are required")
 	}
-
-	baseDec, err := svc.assetDecimals(ctx, base)
+	baseDec, err := svc.assetDecimals(ctx, m.BaseAsset)
 	if err != nil {
-		return pair, fmt.Errorf("resolve base decimals: %w", err)
+		return m, fmt.Errorf("resolve base decimals: %w", err)
 	}
-	quoteDec, err := svc.assetDecimals(ctx, quote)
+	quoteDec, err := svc.assetDecimals(ctx, m.QuoteAsset)
 	if err != nil {
-		return pair, fmt.Errorf("resolve quote decimals: %w", err)
+		return m, fmt.Errorf("resolve quote decimals: %w", err)
 	}
-
-	pair.BaseDecimals = baseDec
-	pair.QuoteDecimals = quoteDec
-	return pair, nil
+	m.BaseDecimals = baseDec
+	m.QuoteDecimals = quoteDec
+	return m, nil
 }
 
 func (svc *Service) assetDecimals(ctx context.Context, assetID string) (int, error) {
@@ -141,35 +137,32 @@ func (svc *Service) assetDecimals(ctx context.Context, assetID string) (int, err
 	return 0, fmt.Errorf("asset %s: no decimals metadata", assetID)
 }
 
-func splitPair(name string) (string, string, bool) {
-	parts := strings.SplitN(name, "/", 2)
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return "", "", false
+func validateMarket(m swap.Market) error {
+	if m.BaseAsset == "" || m.QuoteAsset == "" {
+		return fmt.Errorf("base and quote assets are required")
 	}
-	return parts[0], parts[1], true
-}
-
-func validatePair(pair swap.Pair) error {
-	if pair.Pair == "" {
-		return fmt.Errorf("pair name is required")
+	if m.BaseAsset == m.QuoteAsset {
+		return fmt.Errorf("base and quote assets must differ")
 	}
-	if _, _, ok := splitPair(pair.Pair); !ok {
-		return fmt.Errorf("pair must be in format 'base/quote'")
+	sellEnabled := m.MaxQuoteAmount != 0
+	buyEnabled := m.MaxBaseAmount != 0
+	if !sellEnabled && !buyEnabled {
+		return fmt.Errorf("at least one direction must be enabled (set a non-zero max)")
 	}
-	if pair.MinAmount == 0 {
-		return fmt.Errorf("min_amount must be greater than 0")
+	if sellEnabled && m.MinQuoteAmount > m.MaxQuoteAmount {
+		return fmt.Errorf("min_quote_amount must be <= max_quote_amount")
 	}
-	if pair.MaxAmount == 0 {
-		return fmt.Errorf("max_amount must be greater than 0")
+	if buyEnabled && m.MinBaseAmount > m.MaxBaseAmount {
+		return fmt.Errorf("min_base_amount must be <= max_base_amount")
 	}
-	if pair.MinAmount > pair.MaxAmount {
-		return fmt.Errorf("min_amount must be less than or equal to max_amount")
-	}
-	if pair.PriceFeed == "" {
+	if m.PriceFeed == "" {
 		return fmt.Errorf("price_feed is required")
 	}
-	if pair.SlippageBps > 5000 {
+	if m.SlippageBps > 5000 {
 		return fmt.Errorf("slippage_bps must be at most 5000 (50%%)")
+	}
+	if m.FeeBps > 5000 {
+		return fmt.Errorf("fee_bps must be at most 5000 (50%%)")
 	}
 	return nil
 }

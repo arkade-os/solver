@@ -19,7 +19,7 @@ func NewTradeRepository(db *sql.DB) *TradeRepository {
 
 func (r *TradeRepository) Add(ctx context.Context, t ports.Trade) error {
 	return r.queries.InsertTrade(ctx, sqlc.InsertTradeParams{
-		Pair:          t.Pair,
+		Market:        t.Market,
 		DepositAsset:  t.DepositAsset,
 		DepositAmount: int64(t.DepositAmount),
 		WantAsset:     t.WantAsset,
@@ -42,7 +42,7 @@ func (r *TradeRepository) List(ctx context.Context, limit int) ([]ports.Trade, e
 	for _, row := range rows {
 		out = append(out, ports.Trade{
 			ID:            row.ID,
-			Pair:          row.Pair,
+			Market:        row.Market,
 			DepositAsset:  row.DepositAsset,
 			DepositAmount: uint64(row.DepositAmount),
 			WantAsset:     row.WantAsset,

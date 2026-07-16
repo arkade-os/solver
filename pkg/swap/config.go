@@ -13,13 +13,13 @@ const (
 )
 
 type Config struct {
-	SolverClient    arksdk.Wallet
-	Emulator        emulatorclient.TransportClient
-	PairsRepository PairRepository
-	PriceFeed       PriceFeed
-	PriceCacheTTL   time.Duration
-	Listener        FulfillmentListener
-	Log             logrus.FieldLogger
+	SolverClient      arksdk.Wallet
+	Emulator          emulatorclient.TransportClient
+	MarketsRepository MarketRepository
+	PriceFeed         PriceFeed
+	PriceCacheTTL     time.Duration
+	Listener          FulfillmentListener
+	Log               logrus.FieldLogger
 }
 
 func (cfg Config) WithDefault() Config {
