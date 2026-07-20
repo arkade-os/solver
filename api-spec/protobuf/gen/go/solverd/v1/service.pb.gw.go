@@ -31,8 +31,8 @@ var _ = runtime.String
 var _ = utilities.NewDoubleArray
 var _ = metadata.Join
 
-func request_SwapService_AddPair_0(ctx context.Context, marshaler runtime.Marshaler, client SwapServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq AddPairRequest
+func request_SwapService_AddMarket_0(ctx context.Context, marshaler runtime.Marshaler, client SwapServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq AddMarketRequest
 	var metadata runtime.ServerMetadata
 
 	newReader, berr := utilities.IOReaderFactory(req.Body)
@@ -43,13 +43,13 @@ func request_SwapService_AddPair_0(ctx context.Context, marshaler runtime.Marsha
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
-	msg, err := client.AddPair(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	msg, err := client.AddMarket(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
 
 }
 
-func local_request_SwapService_AddPair_0(ctx context.Context, marshaler runtime.Marshaler, server SwapServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq AddPairRequest
+func local_request_SwapService_AddMarket_0(ctx context.Context, marshaler runtime.Marshaler, server SwapServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq AddMarketRequest
 	var metadata runtime.ServerMetadata
 
 	newReader, berr := utilities.IOReaderFactory(req.Body)
@@ -60,13 +60,13 @@ func local_request_SwapService_AddPair_0(ctx context.Context, marshaler runtime.
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
-	msg, err := server.AddPair(ctx, &protoReq)
+	msg, err := server.AddMarket(ctx, &protoReq)
 	return msg, metadata, err
 
 }
 
-func request_SwapService_UpdatePair_0(ctx context.Context, marshaler runtime.Marshaler, client SwapServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq UpdatePairRequest
+func request_SwapService_UpdateMarket_0(ctx context.Context, marshaler runtime.Marshaler, client SwapServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq UpdateMarketRequest
 	var metadata runtime.ServerMetadata
 
 	newReader, berr := utilities.IOReaderFactory(req.Body)
@@ -77,13 +77,13 @@ func request_SwapService_UpdatePair_0(ctx context.Context, marshaler runtime.Mar
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
-	msg, err := client.UpdatePair(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	msg, err := client.UpdateMarket(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
 
 }
 
-func local_request_SwapService_UpdatePair_0(ctx context.Context, marshaler runtime.Marshaler, server SwapServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq UpdatePairRequest
+func local_request_SwapService_UpdateMarket_0(ctx context.Context, marshaler runtime.Marshaler, server SwapServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq UpdateMarketRequest
 	var metadata runtime.ServerMetadata
 
 	newReader, berr := utilities.IOReaderFactory(req.Body)
@@ -94,13 +94,13 @@ func local_request_SwapService_UpdatePair_0(ctx context.Context, marshaler runti
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
-	msg, err := server.UpdatePair(ctx, &protoReq)
+	msg, err := server.UpdateMarket(ctx, &protoReq)
 	return msg, metadata, err
 
 }
 
-func request_SwapService_RemovePair_0(ctx context.Context, marshaler runtime.Marshaler, client SwapServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq RemovePairRequest
+func request_SwapService_RemoveMarket_0(ctx context.Context, marshaler runtime.Marshaler, client SwapServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq RemoveMarketRequest
 	var metadata runtime.ServerMetadata
 
 	var (
@@ -110,23 +110,33 @@ func request_SwapService_RemovePair_0(ctx context.Context, marshaler runtime.Mar
 		_   = err
 	)
 
-	val, ok = pathParams["pair"]
+	val, ok = pathParams["base_asset"]
 	if !ok {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "pair")
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "base_asset")
 	}
 
-	protoReq.Pair, err = runtime.String(val)
+	protoReq.BaseAsset, err = runtime.String(val)
 	if err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "pair", err)
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "base_asset", err)
 	}
 
-	msg, err := client.RemovePair(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	val, ok = pathParams["quote_asset"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "quote_asset")
+	}
+
+	protoReq.QuoteAsset, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "quote_asset", err)
+	}
+
+	msg, err := client.RemoveMarket(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
 
 }
 
-func local_request_SwapService_RemovePair_0(ctx context.Context, marshaler runtime.Marshaler, server SwapServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq RemovePairRequest
+func local_request_SwapService_RemoveMarket_0(ctx context.Context, marshaler runtime.Marshaler, server SwapServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq RemoveMarketRequest
 	var metadata runtime.ServerMetadata
 
 	var (
@@ -136,35 +146,45 @@ func local_request_SwapService_RemovePair_0(ctx context.Context, marshaler runti
 		_   = err
 	)
 
-	val, ok = pathParams["pair"]
+	val, ok = pathParams["base_asset"]
 	if !ok {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "pair")
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "base_asset")
 	}
 
-	protoReq.Pair, err = runtime.String(val)
+	protoReq.BaseAsset, err = runtime.String(val)
 	if err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "pair", err)
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "base_asset", err)
 	}
 
-	msg, err := server.RemovePair(ctx, &protoReq)
+	val, ok = pathParams["quote_asset"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "quote_asset")
+	}
+
+	protoReq.QuoteAsset, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "quote_asset", err)
+	}
+
+	msg, err := server.RemoveMarket(ctx, &protoReq)
 	return msg, metadata, err
 
 }
 
-func request_SwapService_ListPairs_0(ctx context.Context, marshaler runtime.Marshaler, client SwapServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq ListPairsRequest
+func request_SwapService_ListMarkets_0(ctx context.Context, marshaler runtime.Marshaler, client SwapServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq ListMarketsRequest
 	var metadata runtime.ServerMetadata
 
-	msg, err := client.ListPairs(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	msg, err := client.ListMarkets(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
 
 }
 
-func local_request_SwapService_ListPairs_0(ctx context.Context, marshaler runtime.Marshaler, server SwapServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq ListPairsRequest
+func local_request_SwapService_ListMarkets_0(ctx context.Context, marshaler runtime.Marshaler, server SwapServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq ListMarketsRequest
 	var metadata runtime.ServerMetadata
 
-	msg, err := server.ListPairs(ctx, &protoReq)
+	msg, err := server.ListMarkets(ctx, &protoReq)
 	return msg, metadata, err
 
 }
@@ -229,7 +249,7 @@ func local_request_SwapService_ListTrades_0(ctx context.Context, marshaler runti
 // Note that using this registration option will cause many gRPC library features to stop working. Consider using RegisterSwapServiceHandlerFromEndpoint instead.
 func RegisterSwapServiceHandlerServer(ctx context.Context, mux *runtime.ServeMux, server SwapServiceServer) error {
 
-	mux.Handle("POST", pattern_SwapService_AddPair_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("POST", pattern_SwapService_AddMarket_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		var stream runtime.ServerTransportStream
@@ -237,12 +257,12 @@ func RegisterSwapServiceHandlerServer(ctx context.Context, mux *runtime.ServeMux
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/solverd.v1.SwapService/AddPair", runtime.WithHTTPPathPattern("/v1/pair"))
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/solverd.v1.SwapService/AddMarket", runtime.WithHTTPPathPattern("/v1/market"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := local_request_SwapService_AddPair_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		resp, md, err := local_request_SwapService_AddMarket_0(annotatedContext, inboundMarshaler, server, req, pathParams)
 		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
 		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
 		if err != nil {
@@ -250,11 +270,11 @@ func RegisterSwapServiceHandlerServer(ctx context.Context, mux *runtime.ServeMux
 			return
 		}
 
-		forward_SwapService_AddPair_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_SwapService_AddMarket_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
-	mux.Handle("PUT", pattern_SwapService_UpdatePair_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("PUT", pattern_SwapService_UpdateMarket_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		var stream runtime.ServerTransportStream
@@ -262,12 +282,12 @@ func RegisterSwapServiceHandlerServer(ctx context.Context, mux *runtime.ServeMux
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/solverd.v1.SwapService/UpdatePair", runtime.WithHTTPPathPattern("/v1/pair"))
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/solverd.v1.SwapService/UpdateMarket", runtime.WithHTTPPathPattern("/v1/market"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := local_request_SwapService_UpdatePair_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		resp, md, err := local_request_SwapService_UpdateMarket_0(annotatedContext, inboundMarshaler, server, req, pathParams)
 		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
 		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
 		if err != nil {
@@ -275,11 +295,11 @@ func RegisterSwapServiceHandlerServer(ctx context.Context, mux *runtime.ServeMux
 			return
 		}
 
-		forward_SwapService_UpdatePair_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_SwapService_UpdateMarket_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
-	mux.Handle("DELETE", pattern_SwapService_RemovePair_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("DELETE", pattern_SwapService_RemoveMarket_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		var stream runtime.ServerTransportStream
@@ -287,12 +307,12 @@ func RegisterSwapServiceHandlerServer(ctx context.Context, mux *runtime.ServeMux
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/solverd.v1.SwapService/RemovePair", runtime.WithHTTPPathPattern("/v1/pair/{pair}"))
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/solverd.v1.SwapService/RemoveMarket", runtime.WithHTTPPathPattern("/v1/market/{base_asset}/{quote_asset}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := local_request_SwapService_RemovePair_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		resp, md, err := local_request_SwapService_RemoveMarket_0(annotatedContext, inboundMarshaler, server, req, pathParams)
 		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
 		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
 		if err != nil {
@@ -300,11 +320,11 @@ func RegisterSwapServiceHandlerServer(ctx context.Context, mux *runtime.ServeMux
 			return
 		}
 
-		forward_SwapService_RemovePair_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_SwapService_RemoveMarket_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
-	mux.Handle("GET", pattern_SwapService_ListPairs_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("GET", pattern_SwapService_ListMarkets_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		var stream runtime.ServerTransportStream
@@ -312,12 +332,12 @@ func RegisterSwapServiceHandlerServer(ctx context.Context, mux *runtime.ServeMux
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/solverd.v1.SwapService/ListPairs", runtime.WithHTTPPathPattern("/v1/pairs"))
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/solverd.v1.SwapService/ListMarkets", runtime.WithHTTPPathPattern("/v1/markets"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := local_request_SwapService_ListPairs_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		resp, md, err := local_request_SwapService_ListMarkets_0(annotatedContext, inboundMarshaler, server, req, pathParams)
 		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
 		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
 		if err != nil {
@@ -325,7 +345,7 @@ func RegisterSwapServiceHandlerServer(ctx context.Context, mux *runtime.ServeMux
 			return
 		}
 
-		forward_SwapService_ListPairs_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_SwapService_ListMarkets_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
@@ -420,91 +440,91 @@ func RegisterSwapServiceHandler(ctx context.Context, mux *runtime.ServeMux, conn
 // "SwapServiceClient" to call the correct interceptors.
 func RegisterSwapServiceHandlerClient(ctx context.Context, mux *runtime.ServeMux, client SwapServiceClient) error {
 
-	mux.Handle("POST", pattern_SwapService_AddPair_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("POST", pattern_SwapService_AddMarket_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/solverd.v1.SwapService/AddPair", runtime.WithHTTPPathPattern("/v1/pair"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/solverd.v1.SwapService/AddMarket", runtime.WithHTTPPathPattern("/v1/market"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := request_SwapService_AddPair_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		resp, md, err := request_SwapService_AddMarket_0(annotatedContext, inboundMarshaler, client, req, pathParams)
 		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
 		if err != nil {
 			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
 			return
 		}
 
-		forward_SwapService_AddPair_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_SwapService_AddMarket_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
-	mux.Handle("PUT", pattern_SwapService_UpdatePair_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("PUT", pattern_SwapService_UpdateMarket_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/solverd.v1.SwapService/UpdatePair", runtime.WithHTTPPathPattern("/v1/pair"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/solverd.v1.SwapService/UpdateMarket", runtime.WithHTTPPathPattern("/v1/market"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := request_SwapService_UpdatePair_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		resp, md, err := request_SwapService_UpdateMarket_0(annotatedContext, inboundMarshaler, client, req, pathParams)
 		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
 		if err != nil {
 			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
 			return
 		}
 
-		forward_SwapService_UpdatePair_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_SwapService_UpdateMarket_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
-	mux.Handle("DELETE", pattern_SwapService_RemovePair_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("DELETE", pattern_SwapService_RemoveMarket_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/solverd.v1.SwapService/RemovePair", runtime.WithHTTPPathPattern("/v1/pair/{pair}"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/solverd.v1.SwapService/RemoveMarket", runtime.WithHTTPPathPattern("/v1/market/{base_asset}/{quote_asset}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := request_SwapService_RemovePair_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		resp, md, err := request_SwapService_RemoveMarket_0(annotatedContext, inboundMarshaler, client, req, pathParams)
 		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
 		if err != nil {
 			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
 			return
 		}
 
-		forward_SwapService_RemovePair_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_SwapService_RemoveMarket_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
-	mux.Handle("GET", pattern_SwapService_ListPairs_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("GET", pattern_SwapService_ListMarkets_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/solverd.v1.SwapService/ListPairs", runtime.WithHTTPPathPattern("/v1/pairs"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/solverd.v1.SwapService/ListMarkets", runtime.WithHTTPPathPattern("/v1/markets"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := request_SwapService_ListPairs_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		resp, md, err := request_SwapService_ListMarkets_0(annotatedContext, inboundMarshaler, client, req, pathParams)
 		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
 		if err != nil {
 			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
 			return
 		}
 
-		forward_SwapService_ListPairs_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_SwapService_ListMarkets_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
@@ -556,13 +576,13 @@ func RegisterSwapServiceHandlerClient(ctx context.Context, mux *runtime.ServeMux
 }
 
 var (
-	pattern_SwapService_AddPair_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "pair"}, ""))
+	pattern_SwapService_AddMarket_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "market"}, ""))
 
-	pattern_SwapService_UpdatePair_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "pair"}, ""))
+	pattern_SwapService_UpdateMarket_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "market"}, ""))
 
-	pattern_SwapService_RemovePair_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 1}, []string{"v1", "pair"}, ""))
+	pattern_SwapService_RemoveMarket_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2, 1, 0, 4, 1, 5, 3}, []string{"v1", "market", "base_asset", "quote_asset"}, ""))
 
-	pattern_SwapService_ListPairs_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "pairs"}, ""))
+	pattern_SwapService_ListMarkets_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "markets"}, ""))
 
 	pattern_SwapService_GetStatus_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "status"}, ""))
 
@@ -570,13 +590,13 @@ var (
 )
 
 var (
-	forward_SwapService_AddPair_0 = runtime.ForwardResponseMessage
+	forward_SwapService_AddMarket_0 = runtime.ForwardResponseMessage
 
-	forward_SwapService_UpdatePair_0 = runtime.ForwardResponseMessage
+	forward_SwapService_UpdateMarket_0 = runtime.ForwardResponseMessage
 
-	forward_SwapService_RemovePair_0 = runtime.ForwardResponseMessage
+	forward_SwapService_RemoveMarket_0 = runtime.ForwardResponseMessage
 
-	forward_SwapService_ListPairs_0 = runtime.ForwardResponseMessage
+	forward_SwapService_ListMarkets_0 = runtime.ForwardResponseMessage
 
 	forward_SwapService_GetStatus_0 = runtime.ForwardResponseMessage
 

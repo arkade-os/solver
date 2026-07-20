@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -42,8 +41,8 @@ func TestPriceCache_CacheMiss(t *testing.T) {
 
 	price, err := cache.get(context.Background(), "http://price")
 	require.NoError(t, err)
-	assert.Equal(t, 42.0, price)
-	assert.Equal(t, 1, feed.calls, "should have called feed once on miss")
+	require.Equal(t, 42.0, price)
+	require.Equal(t, 1, feed.calls, "should have called feed once on miss")
 }
 
 func TestPriceCache_CacheHit(t *testing.T) {
@@ -57,8 +56,8 @@ func TestPriceCache_CacheHit(t *testing.T) {
 	// Second call — should be a hit
 	price, err := cache.get(context.Background(), "http://price")
 	require.NoError(t, err)
-	assert.Equal(t, 42.0, price)
-	assert.Equal(t, 1, feed.calls, "second call should use cache, not re-fetch")
+	require.Equal(t, 42.0, price)
+	require.Equal(t, 1, feed.calls, "second call should use cache, not re-fetch")
 }
 
 func TestPriceCache_Expired(t *testing.T) {
@@ -69,7 +68,7 @@ func TestPriceCache_Expired(t *testing.T) {
 	// Populate the cache
 	_, err := cache.get(context.Background(), "http://price")
 	require.NoError(t, err)
-	assert.Equal(t, 1, feed.calls)
+	require.Equal(t, 1, feed.calls)
 
 	// Wait for TTL to expire
 	time.Sleep(5 * time.Millisecond)
@@ -80,8 +79,8 @@ func TestPriceCache_Expired(t *testing.T) {
 	// Should re-fetch because entry is stale
 	price, err := cache.get(context.Background(), "http://price")
 	require.NoError(t, err)
-	assert.Equal(t, 99.0, price, "should return updated price after TTL expiry")
-	assert.Equal(t, 2, feed.calls, "should have re-fetched after expiry")
+	require.Equal(t, 99.0, price, "should return updated price after TTL expiry")
+	require.Equal(t, 2, feed.calls, "should have re-fetched after expiry")
 }
 
 func TestPriceCache_FetchErrorWithStaleCache(t *testing.T) {
@@ -101,8 +100,8 @@ func TestPriceCache_FetchErrorWithStaleCache(t *testing.T) {
 	// Should return stale price with a "using stale cache" error
 	price, err := cache.get(context.Background(), "http://price")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "using stale cache")
-	assert.Equal(t, 42.0, price, "should return stale price when feed fails")
+	require.Contains(t, err.Error(), "using stale cache")
+	require.Equal(t, 42.0, price, "should return stale price when feed fails")
 }
 
 func TestPriceCache_FetchErrorNoCache(t *testing.T) {
@@ -111,8 +110,8 @@ func TestPriceCache_FetchErrorNoCache(t *testing.T) {
 
 	price, err := cache.get(context.Background(), "http://price")
 	require.Error(t, err)
-	assert.Equal(t, 0.0, price)
-	assert.NotContains(t, err.Error(), "using stale cache", "should not mention stale cache when there is none")
+	require.Equal(t, 0.0, price)
+	require.NotContains(t, err.Error(), "using stale cache", "should not mention stale cache when there is none")
 }
 
 func TestPriceCache_WhitespaceTrimmedKey(t *testing.T) {
@@ -122,12 +121,12 @@ func TestPriceCache_WhitespaceTrimmedKey(t *testing.T) {
 	// First call with spaces
 	price1, err := cache.get(context.Background(), "  http://price  ")
 	require.NoError(t, err)
-	assert.Equal(t, 7.5, price1)
-	assert.Equal(t, 1, feed.calls)
+	require.Equal(t, 7.5, price1)
+	require.Equal(t, 1, feed.calls)
 
 	// Second call without spaces — should hit the same cache entry
 	price2, err := cache.get(context.Background(), "http://price")
 	require.NoError(t, err)
-	assert.Equal(t, 7.5, price2)
-	assert.Equal(t, 1, feed.calls, "trimmed URLs should share the same cache entry")
+	require.Equal(t, 7.5, price2)
+	require.Equal(t, 1, feed.calls, "trimmed URLs should share the same cache entry")
 }

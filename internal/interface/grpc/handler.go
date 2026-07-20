@@ -14,17 +14,19 @@ import (
 )
 
 type SwapService interface {
-	AddPair(ctx context.Context, pair swap.Pair) (swap.Pair, error)
-	UpdatePair(ctx context.Context, pair swap.Pair) (swap.Pair, error)
-	RemovePair(ctx context.Context, pairName string) error
-	ListPairs(ctx context.Context) ([]swap.Pair, error)
-	ListTrades(ctx context.Context, limit int) ([]ports.Trade, error)
+	AddMarket(ctx context.Context, m swap.Market) (swap.Market, error)
+	UpdateMarket(ctx context.Context, m swap.Market) (swap.Market, error)
+	RemoveMarket(ctx context.Context, base, quote string) error
+	ListMarkets(ctx context.Context) ([]swap.Market, error)
+	ListTrades(ctx context.Context, limit int, status string) ([]ports.Trade, error)
 	GetBalance(ctx context.Context) (*application.Balance, error)
 	GetAddress(ctx context.Context) (*application.Address, error)
 	ListAssets(ctx context.Context) ([]application.AssetInfo, error)
 	SendOffchain(ctx context.Context, password, address, assetID string, amount uint64) (string, error)
 	CollaborativeExit(ctx context.Context, password, address string, amount uint64) (string, error)
 	Settle(ctx context.Context, password string) (string, error)
+	GetConfig() application.OperatorConfig
+	DumpSeed(ctx context.Context, password string) (string, error)
 }
 
 type handler struct {
@@ -37,65 +39,63 @@ func newHandler(svc SwapService) *handler {
 	return &handler{svc: svc}
 }
 
-func (h *handler) AddPair(
-	ctx context.Context, req *swapv1.AddPairRequest,
-) (*swapv1.AddPairResponse, error) {
-	if req.Pair == nil {
-		return nil, status.Error(codes.InvalidArgument, "pair is required")
+func (h *handler) AddMarket(
+	ctx context.Context, req *swapv1.AddMarketRequest,
+) (*swapv1.AddMarketResponse, error) {
+	if req.Market == nil {
+		return nil, status.Error(codes.InvalidArgument, "market is required")
 	}
 
-	pair := protoToDomain(req.Pair)
-	stored, err := h.svc.AddPair(ctx, pair)
+	stored, err := h.svc.AddMarket(ctx, protoToDomain(req.Market))
 	if err != nil {
-		if errors.Is(err, ports.ErrPairExists) {
+		if errors.Is(err, ports.ErrMarketExists) {
 			return nil, status.Errorf(codes.AlreadyExists, "%s", err)
 		}
 		return nil, status.Errorf(codes.InvalidArgument, "%s", err)
 	}
-	return &swapv1.AddPairResponse{Pair: domainToProto(stored)}, nil
+	return &swapv1.AddMarketResponse{Market: domainToProto(stored)}, nil
 }
 
-func (h *handler) UpdatePair(
-	ctx context.Context, req *swapv1.UpdatePairRequest,
-) (*swapv1.UpdatePairResponse, error) {
-	if req.Pair == nil {
-		return nil, status.Error(codes.InvalidArgument, "pair is required")
+func (h *handler) UpdateMarket(
+	ctx context.Context, req *swapv1.UpdateMarketRequest,
+) (*swapv1.UpdateMarketResponse, error) {
+	if req.Market == nil {
+		return nil, status.Error(codes.InvalidArgument, "market is required")
 	}
 
-	pair := protoToDomain(req.Pair)
-	stored, err := h.svc.UpdatePair(ctx, pair)
+	stored, err := h.svc.UpdateMarket(ctx, protoToDomain(req.Market))
 	if err != nil {
-		if errors.Is(err, ports.ErrPairNotFound) {
+		if errors.Is(err, ports.ErrMarketNotFound) {
 			return nil, status.Errorf(codes.NotFound, "%s", err)
 		}
 		return nil, status.Errorf(codes.InvalidArgument, "%s", err)
 	}
-	return &swapv1.UpdatePairResponse{Pair: domainToProto(stored)}, nil
+	return &swapv1.UpdateMarketResponse{Market: domainToProto(stored)}, nil
 }
 
-func (h *handler) RemovePair(
-	ctx context.Context, req *swapv1.RemovePairRequest,
-) (*swapv1.RemovePairResponse, error) {
-	if err := h.svc.RemovePair(ctx, req.Pair); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "%s", err)
+func (h *handler) RemoveMarket(
+	ctx context.Context, req *swapv1.RemoveMarketRequest,
+) (*swapv1.RemoveMarketResponse, error) {
+	if err := h.svc.RemoveMarket(ctx, req.BaseAsset, req.QuoteAsset); err != nil {
+		return nil, status.Errorf(codes.Internal, "%s", err)
 	}
-	return &swapv1.RemovePairResponse{}, nil
+	return &swapv1.RemoveMarketResponse{}, nil
 }
 
-func (h *handler) ListPairs(
-	ctx context.Context, _ *swapv1.ListPairsRequest,
-) (*swapv1.ListPairsResponse, error) {
-	pairs, err := h.svc.ListPairs(ctx)
+func (h *handler) ListMarkets(
+	ctx context.Context, _ *swapv1.ListMarketsRequest,
+) (*swapv1.ListMarketsResponse, error) {
+	markets, err := h.svc.ListMarkets(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to list pairs: %s", err)
+		return nil, status.Errorf(codes.Internal, "failed to list markets: %s", err)
 	}
 
-	protoPairs := make([]*swapv1.PairInfo, 0, len(pairs))
-	for _, p := range pairs {
-		protoPairs = append(protoPairs, domainToProto(p))
+	protoMarkets := make([]*swapv1.MarketInfo, 0, len(markets))
+	for _, m := range markets {
+		protoMarkets = append(protoMarkets, domainToProto(m))
 	}
 
-	return &swapv1.ListPairsResponse{Pairs: protoPairs}, nil
+	return &swapv1.ListMarketsResponse{Markets: protoMarkets}, nil
 }
 
 func (h *handler) GetStatus(
@@ -183,6 +183,18 @@ func (h *handler) Settle(
 	return &swapv1.SettleResponse{Txid: txid}, nil
 }
 
+func (h *handler) GetConfig() application.OperatorConfig {
+	return h.svc.GetConfig()
+}
+
+func (h *handler) DumpSeed(ctx context.Context, password string) (string, error) {
+	seed, err := h.svc.DumpSeed(ctx, password)
+	if err != nil {
+		return "", walletOpError(err)
+	}
+	return seed, nil
+}
+
 // walletOpError maps wallet operation errors to gRPC status codes: a bad
 // password is Unauthenticated, everything else is treated as an invalid
 // argument so the operator sees the underlying message.
@@ -196,7 +208,7 @@ func walletOpError(err error) error {
 func (h *handler) ListTrades(
 	ctx context.Context, req *swapv1.ListTradesRequest,
 ) (*swapv1.ListTradesResponse, error) {
-	trades, err := h.svc.ListTrades(ctx, int(req.GetLimit()))
+	trades, err := h.svc.ListTrades(ctx, int(req.GetLimit()), req.GetStatus())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to list trades: %s", err)
 	}
@@ -204,39 +216,48 @@ func (h *handler) ListTrades(
 	for _, t := range trades {
 		out = append(out, &swapv1.TradeInfo{
 			Id:            t.ID,
-			Pair:          t.Pair,
+			Market:        t.Market,
 			DepositAsset:  t.DepositAsset,
 			DepositAmount: t.DepositAmount,
 			WantAsset:     t.WantAsset,
 			WantAmount:    t.WantAmount,
 			OfferTxid:     t.OfferTxid,
 			FulfillTxid:   t.FulfillTxid,
+			Error:         t.Error,
 			CreatedAt:     t.CreatedAt.Unix(),
 		})
 	}
 	return &swapv1.ListTradesResponse{Trades: out}, nil
 }
 
-func protoToDomain(p *swapv1.PairInfo) swap.Pair {
-	return swap.Pair{
-		Pair:        p.Pair,
-		MinAmount:   p.MinAmount,
-		MaxAmount:   p.MaxAmount,
-		PriceFeed:   p.PriceFeed,
-		InvertPrice: p.InvertPrice,
-		SlippageBps: p.SlippageBps,
+func protoToDomain(m *swapv1.MarketInfo) swap.Market {
+	return swap.Market{
+		BaseAsset:      m.BaseAsset,
+		QuoteAsset:     m.QuoteAsset,
+		BaseDecimals:   int(m.BaseDecimals),
+		QuoteDecimals:  int(m.QuoteDecimals),
+		MinQuoteAmount: m.MinQuoteAmount,
+		MaxQuoteAmount: m.MaxQuoteAmount,
+		MinBaseAmount:  m.MinBaseAmount,
+		MaxBaseAmount:  m.MaxBaseAmount,
+		PriceFeed:      m.PriceFeed,
+		SlippageBps:    m.SlippageBps,
+		FeeBps:         m.FeeBps,
 	}
 }
 
-func domainToProto(p swap.Pair) *swapv1.PairInfo {
-	return &swapv1.PairInfo{
-		Pair:          p.Pair,
-		MinAmount:     p.MinAmount,
-		MaxAmount:     p.MaxAmount,
-		PriceFeed:     p.PriceFeed,
-		InvertPrice:   p.InvertPrice,
-		SlippageBps:   p.SlippageBps,
-		BaseDecimals:  int32(p.BaseDecimals),  //nolint:gosec
-		QuoteDecimals: int32(p.QuoteDecimals), //nolint:gosec
+func domainToProto(m swap.Market) *swapv1.MarketInfo {
+	return &swapv1.MarketInfo{
+		BaseAsset:      m.BaseAsset,
+		QuoteAsset:     m.QuoteAsset,
+		BaseDecimals:   int32(m.BaseDecimals),  //nolint:gosec
+		QuoteDecimals:  int32(m.QuoteDecimals), //nolint:gosec
+		MinQuoteAmount: m.MinQuoteAmount,
+		MaxQuoteAmount: m.MaxQuoteAmount,
+		MinBaseAmount:  m.MinBaseAmount,
+		MaxBaseAmount:  m.MaxBaseAmount,
+		PriceFeed:      m.PriceFeed,
+		SlippageBps:    m.SlippageBps,
+		FeeBps:         m.FeeBps,
 	}
 }

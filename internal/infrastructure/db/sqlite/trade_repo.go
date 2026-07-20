@@ -19,22 +19,26 @@ func NewTradeRepository(db *sql.DB) *TradeRepository {
 
 func (r *TradeRepository) Add(ctx context.Context, t ports.Trade) error {
 	return r.queries.InsertTrade(ctx, sqlc.InsertTradeParams{
-		Pair:          t.Pair,
+		Market:        t.Market,
 		DepositAsset:  t.DepositAsset,
 		DepositAmount: int64(t.DepositAmount),
 		WantAsset:     t.WantAsset,
 		WantAmount:    int64(t.WantAmount),
 		OfferTxid:     t.OfferTxid,
 		FulfillTxid:   t.FulfillTxid,
+		Error:         t.Error,
 		CreatedAt:     t.CreatedAt.Unix(),
 	})
 }
 
-func (r *TradeRepository) List(ctx context.Context, limit int) ([]ports.Trade, error) {
+func (r *TradeRepository) List(ctx context.Context, limit int, status string) ([]ports.Trade, error) {
 	if limit <= 0 {
 		limit = 100
 	}
-	rows, err := r.queries.ListTrades(ctx, int64(limit))
+	rows, err := r.queries.ListTrades(ctx, sqlc.ListTradesParams{
+		Status: status,
+		Limit:  int64(limit),
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -42,13 +46,14 @@ func (r *TradeRepository) List(ctx context.Context, limit int) ([]ports.Trade, e
 	for _, row := range rows {
 		out = append(out, ports.Trade{
 			ID:            row.ID,
-			Pair:          row.Pair,
+			Market:        row.Market,
 			DepositAsset:  row.DepositAsset,
 			DepositAmount: uint64(row.DepositAmount),
 			WantAsset:     row.WantAsset,
 			WantAmount:    uint64(row.WantAmount),
 			OfferTxid:     row.OfferTxid,
 			FulfillTxid:   row.FulfillTxid,
+			Error:         row.Error,
 			CreatedAt:     time.Unix(row.CreatedAt, 0).UTC(),
 		})
 	}

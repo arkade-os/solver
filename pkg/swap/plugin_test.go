@@ -6,7 +6,6 @@ import (
 
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/btcsuite/btcd/wire"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -76,83 +75,39 @@ func TestValidatePrice(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			got := validatePrice(tc.offerPrice, tc.feedPrice, tc.slippageBps)
-			assert.Equal(t, tc.want, got)
+			require.Equal(t, tc.want, got)
 		})
 	}
 }
 
-func TestEffectiveSlippageBps(t *testing.T) {
-	assert.Equal(t, uint32(100), Pair{}.EffectiveSlippageBps())
-	assert.Equal(t, uint32(250), Pair{SlippageBps: 250}.EffectiveSlippageBps())
-}
-
 // ---------------------------------------------------------------------------
-// findMatchingPair-equivalent tests (via exported types)
+// findMatchingMarket tests
 // ---------------------------------------------------------------------------
 
-func TestFindMatchingPair_Match(t *testing.T) {
-	// BTC deposit, want = BTC -> pair "BTC/BTC"
-	offer := &Offer{DepositAsset: nil}
-	// offer.WantAsset is nil, so WantAssetStr() == "BTC"
-
-	pairs := []Pair{
-		{Pair: "BTC/BTC"}, // Base="BTC", Quote="BTC"
-		{Pair: "OTHER/X"}, // won't match
-	}
-
-	result := findMatchingPair(pairs, offer)
-	require.NotNil(t, result)
-	assert.Equal(t, "BTC/BTC", result.Pair)
-}
-
-func TestFindMatchingPair_NoMatchWrongBase(t *testing.T) {
-	assetId := testAssetId(t)
-	offer := &Offer{DepositAsset: assetId}
-
-	pairs := []Pair{
-		{Pair: "BTC/BTC"}, // Base="BTC", but offer deposits an asset
-	}
-
-	result := findMatchingPair(pairs, offer)
-	assert.Nil(t, result)
-}
-
-func TestFindMatchingPair_NoMatchWrongQuote(t *testing.T) {
-	assetId := testAssetId(t)
-	offer := &Offer{DepositAsset: nil} // BTC deposit
-	offer.WantAsset = assetId          // wants an asset, so WantAssetStr() != "BTC"
-
-	pairs := []Pair{
-		{Pair: "BTC/BTC"}, // Quote="BTC" but offer wants an asset
-	}
-
-	result := findMatchingPair(pairs, offer)
-	assert.Nil(t, result)
-}
-
-func TestFindMatchingPair_EmptyPairs(t *testing.T) {
-	offer := &Offer{DepositAsset: nil}
-	result := findMatchingPair([]Pair{}, offer)
-	assert.Nil(t, result)
-}
-
-func TestFindMatchingPair_AssetDepositAssetWant(t *testing.T) {
-	depositAsset := testAssetId(t)
+func TestFindMatchingMarket(t *testing.T) {
 	wantAsset := testAssetId(t)
 
-	offer := &Offer{DepositAsset: depositAsset}
-	offer.WantAsset = wantAsset
+	markets := []Market{{
+		BaseAsset: "BTC", QuoteAsset: wantAsset.String(),
+		MinQuoteAmount: 1, MaxQuoteAmount: 1_000_000,
+		MinBaseAmount: 1, MaxBaseAmount: 1_000_000,
+	}}
 
-	depositStr := offer.DepositAssetStr()
-	wantStr := offer.WantAssetStr()
+	// sell-base match: BTC deposit, wants the market's quote asset.
+	sell := &Offer{DepositAsset: nil}
+	sell.WantAsset = wantAsset
+	sell.WantAmount = 500
+	m, dir := findMatchingMarket(markets, sell)
+	require.NotNil(t, m)
+	require.Equal(t, Sell, dir)
 
-	pairs := []Pair{
-		{Pair: depositStr + "/" + wantStr},
-	}
-
-	result := findMatchingPair(pairs, offer)
-	require.NotNil(t, result)
-	assert.Equal(t, depositStr+"/"+wantStr, result.Pair)
+	// no-match asset: BTC deposit, wants an unrelated asset.
+	none := &Offer{DepositAsset: nil}
+	none.WantAsset = testOtherAssetId(t)
+	none.WantAmount = 500
+	m, dir = findMatchingMarket(markets, none)
+	require.Nil(t, m)
+	require.Equal(t, NoMatch, dir)
 }
 
 // ---------------------------------------------------------------------------
@@ -171,21 +126,21 @@ func emptyPSBT(t *testing.T) *psbt.Packet {
 
 func TestPlugin_Match_NonSwapTx(t *testing.T) {
 	p := NewPlugin(Config{
-		PairsRepository: &fakePairs{pairs: nil},
+		MarketsRepository: &fakeMarkets{markets: nil},
 	})
 	intent, ok := p.Match(context.Background(), emptyPSBT(t))
 	require.False(t, ok)
 	require.Nil(t, intent)
 }
 
-// fakePairs is a minimal PairRepository for testing.
-type fakePairs struct {
-	pairs []Pair
-	err   error
+// fakeMarkets is a minimal MarketRepository for testing.
+type fakeMarkets struct {
+	markets []Market
+	err     error
 }
 
-func (f *fakePairs) List(ctx context.Context) ([]Pair, error) {
-	return f.pairs, f.err
+func (f *fakeMarkets) List(ctx context.Context) ([]Market, error) {
+	return f.markets, f.err
 }
 
 func TestPlugin_Solve_NilMatchedOffer(t *testing.T) {
