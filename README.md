@@ -111,36 +111,46 @@ Wallet-spending commands ask for the password (or read `SOLVER_PASSWORD`).
 
 ## 6. Add a market
 
-A market tells the bot which swaps to fill and at what price. The bot only
+A market is a **base/quote** pair, traded in both directions. The bot only
 fills offers whose price is within your tolerance of the price feed.
 
 ```sh
-solver pair add \
-  --pair BTC/<asset id> \
-  --min 10000 \
-  --max 1000000 \
+solver market add \
+  --base BTC \
+  --quote <asset id> \
   --price-feed https://feed.example.com/btc-asset \
-  --slippage-bps 100        # ±1% (default)
+  --min-quote 10000 --max-quote 1000000 \
+  --min-base 1000   --max-base 100000 \
+  --slippage 100 \
+  --fee 20
 ```
 
-- `--min` / `--max` — bounds on the **want** amount, in the quote asset's base units.
-- `--price-feed` — URL the bot polls for the reference price.
-- `--invert-price` — set if your feed quotes the pair the other way round.
-- `--slippage-bps` — max deviation from the feed price, in basis points (100 = 1%).
+- `--price-feed` — URL the bot polls for the reference price, quoted as
+  **quote-per-base**. The response format is picked from the host: Binance
+  ticker (`*binance*`), CoinGecko `simple/price` otherwise.
+- `--min-quote` / `--max-quote` — bounds on the want amount when the offer
+  sells base for quote (quote units). `--max-quote 0` disables that direction.
+- `--min-base` / `--max-base` — same for the other direction (offer buys base).
+  `--max-base 0` disables it.
+- `--slippage` — max deviation from the feed price, in bps (0 = default, 10 = 0.1%).
+- `--fee` — solver margin in bps, folded into the price so an offer must beat
+  the feed by that much to clear (0 = none).
 
-That's it — with a funded wallet and at least one market, the bot is live and
-will fill matching offers as they appear.
+Asset decimals are resolved by the daemon, you don't pass them.
+
+That's it — with a funded wallet and at least one market with a direction
+enabled, the bot is live and will fill matching offers as they appear.
 
 ## 7. Operate it
 
 ```sh
-solver pair list                     # markets you've configured
-solver pair get    --pair BTC/<asset>
-solver pair update --pair BTC/<asset> --max 2000000   # only the given flags change
-solver pair remove --pair BTC/<asset>
+solver market list                   # markets you've configured
+solver market get    --base BTC --quote <asset>
+solver market update --base BTC --quote <asset> --max-quote 2000000  # only the given flags change
+solver market remove --base BTC --quote <asset>
 
 solver balance                       # funds by asset
-solver trades                        # fills, most recent first
+solver trades                        # attempted fills, most recent first (failed ones carry an error)
 solver trades --limit 20
 solver status
 ```
@@ -173,4 +183,5 @@ docker-stop` instead — they bring up the solverd-side stack without touching
 nigiri.
 
 The bot is plugin-based: each protocol it supports is a small `Plugin`. See
-[`pkg/executor/README.md`](pkg/executor/README.md) for the plugin authoring guide.
+[`pkg/swap/README.md`](pkg/swap/README.md) for the swap plugin, and
+[`wiki/Swap-Protocol.md`](wiki/Swap-Protocol.md) for the protocol itself.
