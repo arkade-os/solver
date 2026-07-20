@@ -52,6 +52,7 @@ func TestMarket_ComputePrice(t *testing.T) {
 	// sell: base=deposit, quote=want. 1 BTC (1e8) for 30000.00 usd (3_000_000).
 	p, ok := m.ComputePrice(100_000_000, 3_000_000, Sell)
 	require.True(t, ok)
+	require.InDelta(t, 30000.0, p, 1e-6)
 	// buy: base=want, quote=deposit. same price.
 	p, ok = m.ComputePrice(3_000_000, 100_000_000, Buy)
 	require.True(t, ok)
