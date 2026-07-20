@@ -20,7 +20,7 @@
 
       <nav class="nav" id="nav">
         <span class="nav-section-label">Banco solver</span>
-        <button class="nav-item" data-section="pairs" aria-current="page">
+        <button class="nav-item" data-section="markets" aria-current="page">
           <i data-icon="layers"></i> <span>Markets</span>
         </button>
         <button class="nav-item" data-section="wallet">
@@ -28,6 +28,9 @@
         </button>
         <button class="nav-item" data-section="history">
           <i data-icon="history"></i> <span>History</span>
+        </button>
+        <button class="nav-item" data-section="settings">
+          <i data-icon="settings"></i> <span>Settings</span>
         </button>
       </nav>
     </aside>
@@ -38,32 +41,32 @@
         <span>Disconnected from the solverd daemon. Retrying…</span>
       </div>
 
-      <!-- Trading pairs -->
-      <section class="view" id="view-pairs">
+      <!-- Markets -->
+      <section class="view" id="view-markets">
         <header class="view-head">
           <div>
             <h1>Markets</h1>
             <p class="muted">Offers the solver will fulfill, with their price-feed bounds.</p>
           </div>
           <div class="head-actions">
-            <span class="count-pill" id="pairs-count" hidden></span>
-            <button class="btn btn-primary" id="btn-add-pair">
+            <span class="count-pill" id="markets-count" hidden></span>
+            <button class="btn btn-primary" id="btn-add-market">
               <i data-icon="plus"></i> Add market
             </button>
           </div>
         </header>
 
-        <div class="market-grid" id="pairs-grid">
+        <div class="market-grid" id="markets-grid">
           <div class="market skeleton-card"><div class="skeleton"></div></div>
           <div class="market skeleton-card"><div class="skeleton"></div></div>
           <div class="market skeleton-card"><div class="skeleton"></div></div>
         </div>
 
-        <div class="empty" id="pairs-empty" hidden>
+        <div class="empty" id="markets-empty" hidden>
           <i data-icon="layers" class="empty-art"></i>
           <p>No markets configured.</p>
           <p class="muted">Add a market to tell the solver which deposits it should fill.</p>
-          <button class="btn btn-primary" id="btn-add-first-pair">
+          <button class="btn btn-primary" id="btn-add-first-market">
             <i data-icon="plus"></i> Add your first market
           </button>
         </div>
@@ -132,11 +135,20 @@
         <header class="view-head">
           <div>
             <h1>History</h1>
-            <p class="muted">Offers the solver has fulfilled.</p>
+            <p class="muted">Offers the solver has matched, filled or not.</p>
           </div>
-          <button class="btn" id="btn-refresh-trades">
-            <i data-icon="refresh"></i> Refresh
-          </button>
+          <div class="head-actions">
+            <div class="field filter-field">
+              <select id="trades-filter" aria-label="Filter attempts">
+                <option value="all">All attempts</option>
+                <option value="succeeded">Succeeded only</option>
+                <option value="failed">Failed only</option>
+              </select>
+            </div>
+            <button class="btn" id="btn-refresh-trades">
+              <i data-icon="refresh"></i> Refresh
+            </button>
+          </div>
         </header>
 
         <div class="card">
@@ -149,28 +161,60 @@
                   <th class="num">Deposited</th>
                   <th class="num">Filled</th>
                   <th>Transactions</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody id="trades-body">
-                <tr class="skeleton-row"><td colspan="5"><div class="skeleton"></div></td></tr>
-                <tr class="skeleton-row"><td colspan="5"><div class="skeleton"></div></td></tr>
-                <tr class="skeleton-row"><td colspan="5"><div class="skeleton"></div></td></tr>
+                <tr class="skeleton-row"><td colspan="6"><div class="skeleton"></div></td></tr>
+                <tr class="skeleton-row"><td colspan="6"><div class="skeleton"></div></td></tr>
+                <tr class="skeleton-row"><td colspan="6"><div class="skeleton"></div></td></tr>
               </tbody>
             </table>
           </div>
           <div class="empty" id="trades-empty" hidden>
             <i data-icon="history" class="empty-art"></i>
-            <p>No trades yet.</p>
-            <p class="muted">When the solver fulfills an offer it will appear here.</p>
+            <p id="trades-empty-title">No attempts yet.</p>
+            <p class="muted">When the solver matches an offer it will appear here.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Settings -->
+      <section class="view" id="view-settings" hidden>
+        <header class="view-head">
+          <div>
+            <h1>Settings</h1>
+            <p class="muted">Daemon configuration and wallet backup.</p>
+          </div>
+          <button class="btn btn-icon-only" id="btn-refresh-config" aria-label="Refresh">
+            <i data-icon="refresh"></i>
+          </button>
+        </header>
+
+        <div class="card">
+          <div class="card-label">Operator configuration</div>
+          <div class="config-list" id="config-list"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-label">Wallet backup</div>
+          <p class="muted">
+            Reveal the wallet seed to back it up. Anyone with this seed controls
+            the solver's funds — store it offline and never share it.
+          </p>
+          <div class="head-actions">
+            <button class="btn btn-primary" id="btn-reveal-seed">
+              <i data-icon="key"></i> Reveal wallet seed
+            </button>
           </div>
         </div>
       </section>
 
     </main>
 
-    <!-- Pair form dialog -->
-    <dialog id="pair-dialog" class="dialog dialog-wide">
-      <form method="dialog" id="pair-form" class="dialog-form">
+    <!-- Market form dialog -->
+    <dialog id="market-dialog" class="dialog dialog-wide">
+      <form method="dialog" id="market-form" class="dialog-form">
         <header class="dialog-head">
           <h2 id="dialog-title">Add market</h2>
           <button type="button" class="icon-btn" data-close aria-label="Close">
@@ -319,7 +363,7 @@
 
             <div class="preview">
               <span class="preview-head"><i data-icon="eye"></i> Preview</span>
-              <div class="preview-pair"><code id="preview-pair-str">—</code></div>
+              <div class="preview-market"><code id="preview-market-str">—</code></div>
               <div class="preview-band" aria-hidden="true">
                 <div class="band-head">
                   <span>Fill tolerance</span>
@@ -337,7 +381,7 @@
 
         <footer class="dialog-foot">
           <button type="button" class="btn" data-close>Cancel</button>
-          <button type="submit" class="btn btn-primary" id="pair-submit">Add market</button>
+          <button type="submit" class="btn btn-primary" id="market-submit">Add market</button>
         </footer>
       </form>
     </dialog>
@@ -432,6 +476,48 @@
         <footer class="dialog-foot">
           <button type="button" class="btn" data-close>Cancel</button>
           <button type="submit" class="btn btn-primary" id="settle-submit">Settle now</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <!-- Seed backup dialog -->
+    <dialog id="seed-dialog" class="dialog">
+      <form method="dialog" id="seed-form" class="dialog-form">
+        <header class="dialog-head">
+          <h2>Wallet backup</h2>
+          <button type="button" class="icon-btn" data-close aria-label="Close">
+            <i data-icon="x"></i>
+          </button>
+        </header>
+
+        <div class="dialog-body">
+          <div id="seed-prompt">
+            <p class="muted">
+              Enter the wallet password to reveal the seed. Make sure no one can
+              see your screen.
+            </p>
+            <label class="field">
+              <span>Wallet password</span>
+              <input name="password" type="password" autocomplete="off" required
+                placeholder="Authorize backup" />
+            </label>
+            <p class="field-error" id="seed-error"></p>
+          </div>
+
+          <div id="seed-reveal" hidden>
+            <p class="muted">Store this seed offline. It will not be shown again.</p>
+            <div class="card-row-value seed-value">
+              <code id="seed-text" class="mono seed"></code>
+              <button type="button" class="icon-btn" data-copy="#seed-text" aria-label="Copy seed">
+                <i data-icon="copy"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <footer class="dialog-foot">
+          <button type="button" class="btn" data-close>Close</button>
+          <button type="submit" class="btn btn-primary" id="seed-submit">Reveal seed</button>
         </footer>
       </form>
     </dialog>

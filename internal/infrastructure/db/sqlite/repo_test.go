@@ -3,11 +3,76 @@ package sqlitedb_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/arkade-os/solver/internal/core/ports"
 	sqlitedb "github.com/arkade-os/solver/internal/infrastructure/db/sqlite"
 	"github.com/arkade-os/solver/pkg/swap"
 )
+
+// Verifies a failed attempt round-trips with its reason, alongside a fulfilled
+// trade, so the operator can tell the two apart when listing.
+func TestTradeErrorRoundTrip(t *testing.T) {
+	db, err := sqlitedb.OpenDB(t.TempDir())
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	// nolint:errcheck
+	defer db.Close()
+
+	repo := sqlitedb.NewTradeRepository(db)
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Second)
+
+	failed := ports.Trade{
+		Market:    "BTC/aabbcc",
+		OfferTxid: "offer1",
+		Error:     "insufficient offchain balance: have 1 want 2",
+		CreatedAt: now,
+	}
+	fulfilled := ports.Trade{
+		Market:      "BTC/aabbcc",
+		OfferTxid:   "offer2",
+		FulfillTxid: "fill2",
+		CreatedAt:   now.Add(time.Second),
+	}
+	for _, trade := range []ports.Trade{failed, fulfilled} {
+		if err := repo.Add(ctx, trade); err != nil {
+			t.Fatalf("add: %v", err)
+		}
+	}
+
+	trades, err := repo.List(ctx, 10, "")
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(trades) != 2 {
+		t.Fatalf("expected 2 trades, got %+v", trades)
+	}
+	// newest first
+	if trades[0].Error != "" || trades[0].FulfillTxid != "fill2" {
+		t.Fatalf("fulfilled trade mismatch: %+v", trades[0])
+	}
+	if trades[1].Error != failed.Error || trades[1].FulfillTxid != "" {
+		t.Fatalf("failed attempt mismatch: %+v", trades[1])
+	}
+
+	onlyFailed, err := repo.List(ctx, 10, "failed")
+	if err != nil {
+		t.Fatalf("list failed only: %v", err)
+	}
+	if len(onlyFailed) != 1 || onlyFailed[0].OfferTxid != failed.OfferTxid {
+		t.Fatalf("failed filter mismatch: %+v", onlyFailed)
+	}
+
+	onlySucceeded, err := repo.List(ctx, 10, "succeeded")
+	if err != nil {
+		t.Fatalf("list succeeded only: %v", err)
+	}
+	if len(onlySucceeded) != 1 || onlySucceeded[0].OfferTxid != fulfilled.OfferTxid {
+		t.Fatalf("succeeded filter mismatch: %+v", onlySucceeded)
+	}
+}
 
 // Verifies migrations apply on a fresh DB and both direction bound sets
 // round-trip through the repository.

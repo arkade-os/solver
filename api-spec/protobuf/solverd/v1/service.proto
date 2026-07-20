@@ -64,10 +64,15 @@ message TradeInfo {
   string offer_txid = 7;
   string fulfill_txid = 8;
   int64 created_at = 9;
+  // empty on a fulfilled trade, otherwise the reason the offer was rejected
+  // or the fulfillment failed
+  string error = 10;
 }
 
 message ListTradesRequest {
   int32 limit = 1;
+  // filter by outcome: "" = all, "failed", or "succeeded"
+  string status = 2;
 }
 
 message ListTradesResponse {

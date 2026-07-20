@@ -60,8 +60,8 @@ func (q *Queries) InsertMarket(ctx context.Context, arg InsertMarketParams) erro
 }
 
 const insertTrade = `-- name: InsertTrade :exec
-INSERT INTO trade (market, deposit_asset, deposit_amount, want_asset, want_amount, offer_txid, fulfill_txid, created_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO trade (market, deposit_asset, deposit_amount, want_asset, want_amount, offer_txid, fulfill_txid, error, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type InsertTradeParams struct {
@@ -72,6 +72,7 @@ type InsertTradeParams struct {
 	WantAmount    int64
 	OfferTxid     string
 	FulfillTxid   string
+	Error         string
 	CreatedAt     int64
 }
 
@@ -84,6 +85,7 @@ func (q *Queries) InsertTrade(ctx context.Context, arg InsertTradeParams) error 
 		arg.WantAmount,
 		arg.OfferTxid,
 		arg.FulfillTxid,
+		arg.Error,
 		arg.CreatedAt,
 	)
 	return err
@@ -129,11 +131,23 @@ func (q *Queries) ListMarkets(ctx context.Context) ([]Market, error) {
 }
 
 const listTrades = `-- name: ListTrades :many
-SELECT id, market, deposit_asset, deposit_amount, want_asset, want_amount, offer_txid, fulfill_txid, created_at FROM trade ORDER BY created_at DESC, id DESC LIMIT ?
+SELECT id, market, deposit_asset, deposit_amount, want_asset, want_amount, offer_txid, fulfill_txid, created_at, error FROM trade
+WHERE (
+  CAST(?1 AS TEXT) = ''
+  OR (CAST(?1 AS TEXT) = 'failed' AND error != '')
+  OR (CAST(?1 AS TEXT) = 'succeeded' AND error = '')
+)
+ORDER BY created_at DESC, id DESC
+LIMIT ?2
 `
 
-func (q *Queries) ListTrades(ctx context.Context, limit int64) ([]Trade, error) {
-	rows, err := q.db.QueryContext(ctx, listTrades, limit)
+type ListTradesParams struct {
+	Status string
+	Limit  int64
+}
+
+func (q *Queries) ListTrades(ctx context.Context, arg ListTradesParams) ([]Trade, error) {
+	rows, err := q.db.QueryContext(ctx, listTrades, arg.Status, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -151,6 +165,7 @@ func (q *Queries) ListTrades(ctx context.Context, limit int64) ([]Trade, error) 
 			&i.OfferTxid,
 			&i.FulfillTxid,
 			&i.CreatedAt,
+			&i.Error,
 		); err != nil {
 			return nil, err
 		}

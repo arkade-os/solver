@@ -14,8 +14,15 @@ DELETE FROM market WHERE base_asset = ? AND quote_asset = ?;
 SELECT * FROM market;
 
 -- name: InsertTrade :exec
-INSERT INTO trade (market, deposit_asset, deposit_amount, want_asset, want_amount, offer_txid, fulfill_txid, created_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO trade (market, deposit_asset, deposit_amount, want_asset, want_amount, offer_txid, fulfill_txid, error, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: ListTrades :many
-SELECT * FROM trade ORDER BY created_at DESC, id DESC LIMIT ?;
+SELECT * FROM trade
+WHERE (
+  CAST(sqlc.arg(status) AS TEXT) = ''
+  OR (CAST(sqlc.arg(status) AS TEXT) = 'failed' AND error != '')
+  OR (CAST(sqlc.arg(status) AS TEXT) = 'succeeded' AND error = '')
+)
+ORDER BY created_at DESC, id DESC
+LIMIT sqlc.arg(limit);

@@ -106,6 +106,29 @@ func New(cfg *config.Config, wallet arksdk.Wallet) (*Service, error) {
 	return svc, nil
 }
 
+// OperatorConfig is the config shown in the dashboard, without wallet secrets.
+type OperatorConfig struct {
+	ArkURL      string `json:"ark_url"`
+	EmulatorURL string `json:"emulator_url"`
+	ExplorerURL string `json:"explorer_url"`
+	Datadir     string `json:"datadir"`
+	GRPCPort    int    `json:"grpc_port"`
+	HTTPPort    int    `json:"http_port"`
+	LogLevel    int    `json:"log_level"`
+}
+
+func (s *Service) GetConfig() OperatorConfig {
+	return OperatorConfig{
+		ArkURL:      s.cfg.ArkURL,
+		EmulatorURL: s.cfg.EmulatorURL,
+		ExplorerURL: s.cfg.ExplorerURL,
+		Datadir:     s.cfg.Datadir,
+		GRPCPort:    s.cfg.GRPCPort,
+		HTTPPort:    s.cfg.HTTPPort,
+		LogLevel:    s.cfg.LogLevel,
+	}
+}
+
 // Close releases the resources opened by New (database + emulator connection).
 func (s *Service) Close() {
 	if s.db != nil {
@@ -178,6 +201,12 @@ func SetupWallet(ctx context.Context, cfg *config.Config, extraOpts ...arksdk.Wa
 		return nil, fmt.Errorf("unlock ark client: %w", err)
 	}
 
+	// Unlock restores funds (contract scan) in the background; block until it
+	// finishes so we don't serve a half-restored wallet or hide a scan failure.
+	if synced := <-arkClient.IsSynced(ctx); synced.Err != nil {
+		return nil, fmt.Errorf("restore/sync wallet: %w", synced.Err)
+	}
+
 	return arkClient, nil
 }
 
@@ -202,7 +231,7 @@ type tradeListener struct {
 	repo ports.TradeRepository
 }
 
-func (l *tradeListener) OnFulfill(_ context.Context, evt swap.FulfillmentEvent) {
+func (l *tradeListener) OnAttempt(_ context.Context, evt swap.FulfillmentAttempt) {
 	trade := ports.Trade{
 		Market:        evt.Market,
 		DepositAsset:  evt.DepositAsset,
@@ -211,12 +240,13 @@ func (l *tradeListener) OnFulfill(_ context.Context, evt swap.FulfillmentEvent) 
 		WantAmount:    evt.WantAmount,
 		OfferTxid:     evt.OfferTxid,
 		FulfillTxid:   evt.FulfillTxid,
+		Error:         evt.Error,
 		CreatedAt:     evt.Timestamp,
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	if err := l.repo.Add(ctx, trade); err != nil {
-		logrus.WithError(err).WithField("fulfillTxid", evt.FulfillTxid).
+		logrus.WithError(err).WithField("offerTxid", evt.OfferTxid).
 			Error("failed to persist trade")
 	}
 }

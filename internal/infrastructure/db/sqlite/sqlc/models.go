@@ -28,4 +28,5 @@ type Trade struct {
 	OfferTxid     string
 	FulfillTxid   string
 	CreatedAt     int64
+	Error         string
 }

@@ -115,6 +115,17 @@ func (svc *Service) Settle(ctx context.Context, password string) (string, error)
 	return txid, nil
 }
 
+func (svc *Service) DumpSeed(ctx context.Context, password string) (string, error) {
+	if err := svc.verifyPassword(password); err != nil {
+		return "", err
+	}
+	seed, err := svc.arkClient.Dump(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to dump wallet seed: %w", err)
+	}
+	return seed, nil
+}
+
 func (svc *Service) verifyPassword(password string) error {
 	if svc.cfg == nil {
 		return fmt.Errorf("password verification unavailable")

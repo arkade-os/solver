@@ -252,6 +252,16 @@ p {
   margin-top: 5px;
 }
 
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.filter-field select {
+  width: auto;
+  padding: 9px 12px;
+}
+
 /* -------- Connection banner -------- */
 
 .banner {
@@ -440,6 +450,19 @@ tr:hover .row-actions {
   color: var(--success);
   border-color: rgba(52, 211, 153, 0.35);
   background: var(--success-soft);
+}
+.trade-failed td:first-child {
+  box-shadow: inset 2px 0 0 var(--danger);
+}
+.badge.err {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+  color: var(--danger);
+  border-color: rgba(248, 113, 113, 0.35);
+  background: var(--danger-soft);
 }
 
 /* -------- Markets grid -------- */
@@ -1249,10 +1272,10 @@ tr:hover .row-actions {
   text-transform: uppercase;
   color: var(--text-dim);
 }
-.preview-pair {
+.preview-market {
   font-size: 15px;
 }
-.preview-pair code {
+.preview-market code {
   color: var(--accent);
   font-size: 14px;
 }
@@ -1539,4 +1562,18 @@ tr:hover .row-actions {
 .detail-val {
   font-size: 13px;
   color: var(--text);
+}
+
+/* Settings */
+.config-list .card-row-value .mono {
+  word-break: break-all;
+  text-align: right;
+}
+.seed-value {
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.seed {
+  word-break: break-all;
+  line-height: 1.6;
 }

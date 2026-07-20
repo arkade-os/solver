@@ -32,7 +32,7 @@ type plugin struct {
 	emulator  emulatorclient.TransportClient
 	markets   MarketRepository
 	prices    *priceCache
-	listener  FulfillmentListener
+	listener  AttemptListener
 	log       logrus.FieldLogger
 }
 
@@ -55,8 +55,10 @@ func (p *plugin) Filter() string { return "" }
 
 // Match decodes the tx into a *MatchedOffer and runs the validation gates.
 // It returns (nil, false) for any tx that isn't a swap offer, doesn't match
-// a configured market, or fails a validation check. Errors are logged at Debug
-// and treated as a non-match so a single bad tx never stops the stream.
+// a configured market, or fails a validation check. A tx that matched a market
+// but was then rejected is reported to the AttemptListener; anything rejected
+// before that (not an offer, no matching market) is not, since there's no
+// market to record it against.
 func (p *plugin) Match(ctx context.Context, tx *psbt.Packet) (any, bool) {
 	m, err := p.decode(ctx, tx)
 	if err != nil {
@@ -67,29 +69,25 @@ func (p *plugin) Match(ctx context.Context, tx *psbt.Packet) (any, bool) {
 		return nil, false
 	}
 
-	ok, err := p.checkPriceTolerance(ctx, m)
-	if err != nil {
-		p.log.WithError(err).Debug("checkPriceTolerance validation unexpected fail")
-		return nil, false
+	checks := []func(context.Context, *MatchedOffer) (string, error){
+		p.checkPriceTolerance, p.checkBTCBalance,
 	}
-	if !ok {
-		return nil, false
-	}
-
-	ok, err = p.checkBTCBalance(ctx, m)
-	if err != nil {
-		p.log.WithError(err).Debug("checkBTCBalance validation unexpected fail")
-		return nil, false
-	}
-	if !ok {
-		return nil, false
+	for _, check := range checks {
+		reason, err := check(ctx, m)
+		if err != nil {
+			reason = err.Error()
+		}
+		if reason != "" {
+			p.notify(ctx, m, "", reason)
+			return nil, false
+		}
 	}
 
 	return m, true
 }
 
 // Solve atomically settles the matched offer and notifies the
-// FulfillmentListener if one is configured. It returns cleanly on a nil or
+// AttemptListener if one is configured. It returns cleanly on a nil or
 // wrong-typed intent.
 func (p *plugin) Solve(ctx context.Context, intent any) {
 	m, ok := intent.(*MatchedOffer)
@@ -136,63 +134,78 @@ func (p *plugin) decode(ctx context.Context, tx *psbt.Packet) (*MatchedOffer, er
 }
 
 // checkPriceTolerance rejects offers whose price deviates more than the
-// market's slippage from the feed. Logs (Warn) when the price feed is
-// unavailable or stale.
-func (p *plugin) checkPriceTolerance(ctx context.Context, m *MatchedOffer) (bool, error) {
+// market's slippage from the feed. It returns the rejection reason, or "" when
+// the offer passes. Logs (Warn) when the price feed is stale.
+func (p *plugin) checkPriceTolerance(ctx context.Context, m *MatchedOffer) (string, error) {
 	feedPrice, err := p.prices.get(ctx, m.Market.PriceFeed)
 	if err != nil && feedPrice == 0 {
-		p.log.WithError(err).Warn("price feed unavailable, skipping offer")
-		return false, nil
+		return fmt.Sprintf("price feed unavailable: %s", err), nil
 	}
 	if err != nil {
 		p.log.WithError(err).Warn("using stale price feed")
 	}
 	offerPrice, ok := m.Market.ComputePrice(m.Offer.DepositAmount, m.Offer.WantAmount, m.Direction)
 	if !ok {
-		return false, nil
+		return "offer price is not computable", nil
 	}
-	return validatePrice(offerPrice, feedPrice, m.Market.EffectiveSlippageBps()), nil
+	if !validatePrice(offerPrice, feedPrice, m.Market.EffectiveSlippageBps()) {
+		return fmt.Sprintf(
+			"offer price %g outside %d bps tolerance of feed price %g",
+			offerPrice, m.Market.EffectiveSlippageBps(), feedPrice,
+		), nil
+	}
+	return "", nil
 }
 
 // checkBTCBalance ensures we hold enough offchain BTC to honor a BTC-deposit
-// offer. Asset deposits skip this check.
-func (p *plugin) checkBTCBalance(ctx context.Context, m *MatchedOffer) (bool, error) {
+// offer. Asset deposits skip this check. It returns the rejection reason, or
+// "" when the offer passes.
+func (p *plugin) checkBTCBalance(ctx context.Context, m *MatchedOffer) (string, error) {
 	if m.Offer.WantAsset != nil {
-		return true, nil
+		return "", nil
 	}
 	bal, err := p.arkClient.Balance(ctx)
 	if err != nil {
-		return false, fmt.Errorf("get balance: %w", err)
+		return "", fmt.Errorf("get balance: %w", err)
 	}
 	if bal.OffchainBalance.Total < m.Offer.WantAmount {
-		p.log.Warnf(
+		return fmt.Sprintf(
 			"insufficient offchain balance: have %d want %d",
 			bal.OffchainBalance.Total, m.Offer.WantAmount,
-		)
-		return false, nil
+		), nil
 	}
-	return true, nil
+	return "", nil
 }
 
-// fulfill is the terminal action — atomically settles the matched offer and
-// notifies the FulfillmentListener if one is configured.
+// fulfill is the terminal action — atomically settles the matched offer.
 func (p *plugin) fulfill(ctx context.Context, m *MatchedOffer) {
 	result, err := contract.FulfillOffer(ctx, m.Offer.Offer, p.arkClient, p.emulator)
 	if err != nil {
-		p.log.WithError(err).Warn("fulfillment failed")
+		p.notify(ctx, m, "", fmt.Sprintf("fulfillment failed: %s", err))
 		return
+	}
+	p.notify(ctx, m, result.ArkTxid, "")
+}
+
+// notify reports the outcome of an attempt on a matched offer to the
+// AttemptListener if one is configured. reason is empty on success.
+func (p *plugin) notify(ctx context.Context, m *MatchedOffer, fulfillTxid, reason string) {
+	if reason != "" {
+		p.log.WithField("offerTxid", m.Offer.FundingTxid).
+			Warnf("offer not fulfilled: %s", reason)
 	}
 	if p.listener == nil {
 		return
 	}
-	p.listener.OnFulfill(ctx, FulfillmentEvent{
+	p.listener.OnAttempt(ctx, FulfillmentAttempt{
 		Market:        m.Market.ID(),
 		DepositAsset:  m.Offer.DepositAssetStr(),
 		DepositAmount: m.Offer.DepositAmount,
 		WantAsset:     m.Offer.WantAssetStr(),
 		WantAmount:    m.Offer.WantAmount,
 		OfferTxid:     m.Offer.FundingTxid,
-		FulfillTxid:   result.ArkTxid,
+		FulfillTxid:   fulfillTxid,
+		Error:         reason,
 		Timestamp:     time.Now().UTC(),
 	})
 }

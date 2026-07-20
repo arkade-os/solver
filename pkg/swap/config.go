@@ -18,7 +18,7 @@ type Config struct {
 	MarketsRepository MarketRepository
 	PriceFeed         PriceFeed
 	PriceCacheTTL     time.Duration
-	Listener          FulfillmentListener
+	Listener          AttemptListener
 	Log               logrus.FieldLogger
 }
 

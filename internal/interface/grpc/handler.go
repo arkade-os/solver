@@ -18,13 +18,15 @@ type SwapService interface {
 	UpdateMarket(ctx context.Context, m swap.Market) (swap.Market, error)
 	RemoveMarket(ctx context.Context, base, quote string) error
 	ListMarkets(ctx context.Context) ([]swap.Market, error)
-	ListTrades(ctx context.Context, limit int) ([]ports.Trade, error)
+	ListTrades(ctx context.Context, limit int, status string) ([]ports.Trade, error)
 	GetBalance(ctx context.Context) (*application.Balance, error)
 	GetAddress(ctx context.Context) (*application.Address, error)
 	ListAssets(ctx context.Context) ([]application.AssetInfo, error)
 	SendOffchain(ctx context.Context, password, address, assetID string, amount uint64) (string, error)
 	CollaborativeExit(ctx context.Context, password, address string, amount uint64) (string, error)
 	Settle(ctx context.Context, password string) (string, error)
+	GetConfig() application.OperatorConfig
+	DumpSeed(ctx context.Context, password string) (string, error)
 }
 
 type handler struct {
@@ -181,6 +183,18 @@ func (h *handler) Settle(
 	return &swapv1.SettleResponse{Txid: txid}, nil
 }
 
+func (h *handler) GetConfig() application.OperatorConfig {
+	return h.svc.GetConfig()
+}
+
+func (h *handler) DumpSeed(ctx context.Context, password string) (string, error) {
+	seed, err := h.svc.DumpSeed(ctx, password)
+	if err != nil {
+		return "", walletOpError(err)
+	}
+	return seed, nil
+}
+
 // walletOpError maps wallet operation errors to gRPC status codes: a bad
 // password is Unauthenticated, everything else is treated as an invalid
 // argument so the operator sees the underlying message.
@@ -194,7 +208,7 @@ func walletOpError(err error) error {
 func (h *handler) ListTrades(
 	ctx context.Context, req *swapv1.ListTradesRequest,
 ) (*swapv1.ListTradesResponse, error) {
-	trades, err := h.svc.ListTrades(ctx, int(req.GetLimit()))
+	trades, err := h.svc.ListTrades(ctx, int(req.GetLimit()), req.GetStatus())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to list trades: %s", err)
 	}
@@ -209,6 +223,7 @@ func (h *handler) ListTrades(
 			WantAmount:    t.WantAmount,
 			OfferTxid:     t.OfferTxid,
 			FulfillTxid:   t.FulfillTxid,
+			Error:         t.Error,
 			CreatedAt:     t.CreatedAt.Unix(),
 		})
 	}

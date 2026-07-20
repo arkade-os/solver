@@ -191,7 +191,14 @@ func registerSwapRoutes(mux *http.ServeMux, svc *handler) {
 				limit = int32(n) //nolint:gosec
 			}
 		}
-		resp, err := svc.ListTrades(r.Context(), &swapv1.ListTradesRequest{Limit: limit})
+		status := r.URL.Query().Get("status")
+		if status != "failed" && status != "succeeded" {
+			status = ""
+		}
+		resp, err := svc.ListTrades(r.Context(), &swapv1.ListTradesRequest{
+			Limit:  limit,
+			Status: status,
+		})
 		if err != nil {
 			httpGRPCError(w, err)
 			return
@@ -236,6 +243,27 @@ func registerSwapRoutes(mux *http.ServeMux, svc *handler) {
 			return
 		}
 		jsonResponse(w, resp)
+	})
+
+	mux.HandleFunc("GET /v1/config", func(w http.ResponseWriter, r *http.Request) {
+		jsonResponse(w, svc.GetConfig())
+	})
+
+	mux.HandleFunc("POST /v1/wallet/dump", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Password string `json:"password"`
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpError(w, fmt.Errorf("invalid request body: %w", err), http.StatusBadRequest)
+			return
+		}
+		seed, err := svc.DumpSeed(r.Context(), req.Password)
+		if err != nil {
+			httpGRPCError(w, err)
+			return
+		}
+		jsonResponse(w, map[string]string{"seed": seed})
 	})
 
 	mux.HandleFunc("POST /v1/wallet/settle", func(w http.ResponseWriter, r *http.Request) {

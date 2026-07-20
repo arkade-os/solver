@@ -40,6 +40,10 @@ const ICONS = {
   anchor:
     '<path d="M12 22V8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/><circle cx="12" cy="5" r="3"/>',
   "chevron-down": '<path d="m6 9 6 6 6-6"/>',
+  settings:
+    '<path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/>',
+  key:
+    '<path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/>',
 };
 
 function icon(name, cls = "") {
@@ -94,8 +98,10 @@ const api = {
   sendOffchain: (body) => api._req("POST", "/v1/wallet/send", body),
   collaborativeExit: (body) => api._req("POST", "/v1/wallet/exit", body),
   settle: (body) => api._req("POST", "/v1/wallet/settle", body),
-  listTrades: (limit = 100) =>
-    api._req("GET", `/v1/trades?limit=${encodeURIComponent(limit)}`),
+  listTrades: (limit = 100, status = "") =>
+    api._req("GET", `/v1/trades?${new URLSearchParams({ limit, status })}`),
+  config: () => api._req("GET", "/v1/config"),
+  dumpSeed: (password) => api._req("POST", "/v1/wallet/dump", { password }),
 };
 
 // -------- toast --------
@@ -197,8 +203,9 @@ function setSection(name) {
   if (target) target.hidden = false;
 
   if (name === "wallet") loadWallet();
-  if (name === "pairs") loadMarkets();
+  if (name === "markets") loadMarkets();
   if (name === "history") loadTrades();
+  if (name === "settings") loadConfig();
 }
 
 $("#nav").addEventListener("click", (e) => {
@@ -248,8 +255,8 @@ function amountParts(raw, meta) {
 }
 
 async function loadMarkets() {
-  const grid = $("#pairs-grid");
-  const empty = $("#pairs-empty");
+  const grid = $("#markets-grid");
+  const empty = $("#markets-empty");
   try {
     const [data, assetsResp] = await Promise.all([
       api.listMarkets(),
@@ -263,7 +270,7 @@ async function loadMarkets() {
     grid.innerHTML = "";
     grid.hidden = true;
     empty.hidden = false;
-    $("#pairs-count").hidden = true;
+    $("#markets-count").hidden = true;
   }
 }
 
@@ -310,9 +317,9 @@ function dirStat(label, enabled, minRaw, maxRaw, meta) {
 }
 
 function renderMarkets(markets) {
-  const grid = $("#pairs-grid");
-  const empty = $("#pairs-empty");
-  const count = $("#pairs-count");
+  const grid = $("#markets-grid");
+  const empty = $("#markets-empty");
+  const count = $("#markets-count");
   if (!markets.length) {
     grid.innerHTML = "";
     grid.hidden = true;
@@ -432,8 +439,8 @@ function fmtSlippage(bps) {
 
 // -------- market dialog --------
 
-const dialog = $("#pair-dialog");
-const form = $("#pair-form");
+const dialog = $("#market-dialog");
+const form = $("#market-form");
 
 // sideValue resolves a base/quote side to "BTC" or a normalized hex asset id.
 function sideValue(side) {
@@ -495,7 +502,7 @@ function updateForm() {
   )}.`;
 
   // live preview.
-  $("#preview-pair-str").textContent = `${
+  $("#preview-market-str").textContent = `${
     base ? assetDisplay(base) : "?"
   } / ${quote ? assetDisplay(quote) : "?"}`;
   const flows = [];
@@ -579,7 +586,7 @@ function openAdd() {
   form.elements.buy_enabled.checked = true;
   clearFormErrors();
   $("#dialog-title").textContent = "Add market";
-  $("#pair-submit").textContent = "Add market";
+  $("#market-submit").textContent = "Add market";
   updateForm();
   dialog.showModal();
 }
@@ -610,7 +617,7 @@ function openEdit(m) {
   setAssetsLocked(true); // identity can't change on edit
   clearFormErrors();
   $("#dialog-title").textContent = "Edit market";
-  $("#pair-submit").textContent = "Save changes";
+  $("#market-submit").textContent = "Save changes";
   updateForm();
   dialog.showModal();
 }
@@ -673,9 +680,9 @@ function validateForm(base, quote) {
 form.addEventListener("input", updateForm);
 form.addEventListener("change", updateForm);
 
-$("#btn-add-pair").addEventListener("click", openAdd);
-$("#btn-add-first-pair").addEventListener("click", openAdd);
-$$("#pair-dialog [data-close]").forEach((b) =>
+$("#btn-add-market").addEventListener("click", openAdd);
+$("#btn-add-first-market").addEventListener("click", openAdd);
+$$("#market-dialog [data-close]").forEach((b) =>
   b.addEventListener("click", () => dialog.close())
 );
 
@@ -701,7 +708,7 @@ form.addEventListener("submit", async (e) => {
     fee_bps: Number(form.elements.fee_bps.value) || 0,
   };
   const mode = form.dataset.mode;
-  const submit = $("#pair-submit");
+  const submit = $("#market-submit");
   submit.disabled = true;
   try {
     if (mode === "edit") {
@@ -1115,15 +1122,22 @@ function txChip(label, txid) {
 async function loadTrades() {
   const body = $("#trades-body");
   const empty = $("#trades-empty");
+  const status = $("#trades-filter").value;
   try {
     const [data, assetsResp] = await Promise.all([
-      api.listTrades(100),
+      api.listTrades(100, status),
       api.listAssets().catch(() => ({ assets: [] })),
     ]);
     assetMeta = new Map((assetsResp.assets || []).map((a) => [a.asset_id, a]));
     const trades = data.trades || [];
     if (!trades.length) {
       body.innerHTML = "";
+      $("#trades-empty-title").textContent =
+        status === "failed"
+          ? "No failed attempts."
+          : status === "succeeded"
+          ? "No successful attempts."
+          : "No attempts yet.";
       empty.hidden = false;
       return;
     }
@@ -1133,6 +1147,7 @@ async function loadTrades() {
       const dep = t.deposit_asset || marketBase(t.market);
       const want = t.want_asset || marketQuote(t.market);
       const tr = document.createElement("tr");
+      if (t.error) tr.className = "trade-failed";
       tr.innerHTML = `
         <td class="trade-time" title="${escapeAttr(
           new Date(t.created_at * 1000).toISOString()
@@ -1152,7 +1167,14 @@ async function loadTrades() {
           <div class="tx-chips">
             ${txChip("Offer", t.offer_txid)}${txChip("Fill", t.fulfill_txid)}
           </div>
-        </td>`;
+        </td>
+        <td>${
+          t.error
+            ? `<span class="badge err" title="${escapeAttr(
+                t.error
+              )}">${escapeHTML(t.error)}</span>`
+            : `<span class="badge on">Filled</span>`
+        }</td>`;
       body.appendChild(tr);
     }
   } catch (err) {
@@ -1175,7 +1197,7 @@ function fmtTime(unixSec) {
 function fmtAmount(raw, asset) {
   if (raw == null) return "—";
   if (asset === "BTC" || !asset) {
-    return `${(Number(raw) / 1e8).toFixed(8)} BTC`;
+    return fmtAssetAmount(raw, 8, "BTC");
   }
   // Scale by decimals and show the ticker when the asset is known; otherwise
   // fall back to a raw count + truncated id.
@@ -1187,6 +1209,7 @@ function fmtAmount(raw, asset) {
 }
 
 $("#btn-refresh-trades").addEventListener("click", loadTrades);
+$("#trades-filter").addEventListener("change", loadTrades);
 
 // delegate copy buttons: [data-copy] copies a target element's text,
 // [data-copy-text] copies its own attribute value (for dynamic rows).
@@ -1200,6 +1223,84 @@ document.addEventListener("click", (e) => {
   if (!b) return;
   const el = $(b.getAttribute("data-copy"));
   if (el) copy(el.textContent.trim());
+});
+
+// -------- settings --------
+
+const CONFIG_FIELDS = [
+  ["ark_url", "Ark URL"],
+  ["emulator_url", "Emulator URL"],
+  ["explorer_url", "Explorer URL"],
+  ["datadir", "Data directory"],
+  ["grpc_port", "gRPC port"],
+  ["http_port", "HTTP port"],
+  ["log_level", "Log level"],
+];
+
+async function loadConfig() {
+  const list = $("#config-list");
+  try {
+    const cfg = await api.config();
+    list.innerHTML = CONFIG_FIELDS.map(([k, label]) => {
+      const val = cfg[k] === "" || cfg[k] == null ? "—" : String(cfg[k]);
+      return `<div class="card-row">
+        <div class="card-row-label">${escapeHTML(label)}</div>
+        <div class="card-row-value"><code class="mono">${escapeHTML(
+          val
+        )}</code></div>
+      </div>`;
+    }).join("");
+  } catch (err) {
+    toast(err.message, "error");
+    list.innerHTML = "";
+  }
+}
+
+$("#btn-refresh-config").addEventListener("click", loadConfig);
+
+// -------- seed backup dialog --------
+
+const seedDialog = $("#seed-dialog");
+const seedForm = $("#seed-form");
+
+function resetSeedDialog() {
+  seedForm.reset();
+  $("#seed-error").textContent = "";
+  $("#seed-text").textContent = "";
+  $("#seed-prompt").hidden = false;
+  $("#seed-reveal").hidden = true;
+  const submit = $("#seed-submit");
+  submit.hidden = false;
+  submit.disabled = false;
+  submit.textContent = "Reveal seed";
+}
+
+$("#btn-reveal-seed").addEventListener("click", () => {
+  resetSeedDialog();
+  seedDialog.showModal();
+});
+$$("#seed-dialog [data-close]").forEach((b) =>
+  b.addEventListener("click", () => seedDialog.close())
+);
+seedDialog.addEventListener("close", () => {
+  $("#seed-text").textContent = "";
+});
+
+seedForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("#seed-error").textContent = "";
+  const submit = $("#seed-submit");
+  submit.disabled = true;
+  try {
+    const res = await api.dumpSeed(seedForm.elements.password.value);
+    $("#seed-text").textContent = res.seed || "";
+    $("#seed-prompt").hidden = true;
+    $("#seed-reveal").hidden = false;
+    submit.hidden = true;
+  } catch (err) {
+    $("#seed-error").textContent = err.message;
+    submit.disabled = false;
+  }
 });
 
 // -------- utils --------
@@ -1235,6 +1336,8 @@ function safeHref(s) {
 hydrateIcons(document);
 (async () => {
   await refreshStatus();
-  setSection("pairs");
+  setSection("markets");
 })();
-setInterval(refreshStatus, 5000);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) refreshStatus();
+});

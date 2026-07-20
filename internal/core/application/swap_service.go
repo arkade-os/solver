@@ -9,8 +9,8 @@ import (
 	"github.com/arkade-os/solver/pkg/swap"
 )
 
-func (svc *Service) ListTrades(ctx context.Context, limit int) ([]ports.Trade, error) {
-	return svc.tradeRepo.List(ctx, limit)
+func (svc *Service) ListTrades(ctx context.Context, limit int, status string) ([]ports.Trade, error) {
+	return svc.tradeRepo.List(ctx, limit, status)
 }
 
 func (svc *Service) AddMarket(ctx context.Context, m swap.Market) (swap.Market, error) {
