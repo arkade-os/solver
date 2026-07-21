@@ -34,9 +34,9 @@ const DefaultSlippageBps uint32 = 10
 type Direction int
 
 const (
-	NoMatch  Direction = iota // offer does not match this market
-	Sell                  // deposit base, want quote
-	Buy                   // deposit quote, want base
+	NoMatch Direction = iota // offer does not match this market
+	Sell                     // deposit base, want quote
+	Buy                      // deposit quote, want base
 )
 
 // ID is the canonical "base/quote" identifier.

@@ -15,10 +15,10 @@ func TestMarketMatch(t *testing.T) {
 	// sell match
 	require.Equal(t, Sell, m.Match("BTC", "usd", 50))
 	// sell but wantAmount < MinQuoteAmount
-	require.Equal(t, NoMatch, m.Match("BTC", "usd", 5))  
+	require.Equal(t, NoMatch, m.Match("BTC", "usd", 5))
 	// sell but wantAmount > MaxQuoteAmount
-	require.Equal(t, NoMatch, m.Match("BTC", "usd", 500)) 
-	
+	require.Equal(t, NoMatch, m.Match("BTC", "usd", 500))
+
 	// buy match
 	require.Equal(t, Buy, m.Match("usd", "BTC", 3))
 	// buy but wantAmount < MinBaseAmount

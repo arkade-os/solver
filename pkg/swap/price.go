@@ -61,8 +61,18 @@ func (c *priceCache) get(ctx context.Context, feedURL string) (float64, error) {
 	return price, nil
 }
 
-// validatePrice ensures the offer price is within slippageBps of the feed price.
-func validatePrice(offerPrice, feedPrice float64, slippageBps uint32) bool {
+// sanityFactor caps how far in our favor an offer may be before we treat it as
+// a broken feed or a misconfigured market rather than a gift.
+const sanityFactor = 2
+
+func validatePrice(offerPrice, feedPrice float64, slippageBps uint32, dir Direction) bool {
 	margin := feedPrice * float64(slippageBps) / 10000
-	return offerPrice >= feedPrice-margin && offerPrice <= feedPrice+margin
+	switch dir {
+	case Sell:
+		return offerPrice <= feedPrice+margin && offerPrice >= feedPrice/sanityFactor
+	case Buy:
+		return offerPrice >= feedPrice-margin && offerPrice <= feedPrice*sanityFactor
+	default:
+		return false
+	}
 }

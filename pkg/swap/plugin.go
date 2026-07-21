@@ -148,7 +148,7 @@ func (p *plugin) checkPriceTolerance(ctx context.Context, m *MatchedOffer) (stri
 	if !ok {
 		return "offer price is not computable", nil
 	}
-	if !validatePrice(offerPrice, feedPrice, m.Market.EffectiveSlippageBps()) {
+	if !validatePrice(offerPrice, feedPrice, m.Market.EffectiveSlippageBps(), m.Direction) {
 		return fmt.Sprintf(
 			"offer price %g outside %d bps tolerance of feed price %g",
 			offerPrice, m.Market.EffectiveSlippageBps(), feedPrice,

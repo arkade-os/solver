@@ -23,7 +23,7 @@ import (
 )
 
 var (
-	Version string
+	Version    string
 	httpClient = &http.Client{Timeout: 5 * time.Minute} // settlement may take time
 	useColor   bool
 	unicodeOK  bool
@@ -850,10 +850,10 @@ func glyph(unicode, ascii string) string {
 	return ascii
 }
 
-func gArrow() string    { return glyph("→", "->") }
+func gArrow() string     { return glyph("→", "->") }
 func gArrowBoth() string { return glyph("⇄", "<>") }
-func gEllipsis() string { return glyph("…", "..") }
-func gDash() string     { return glyph("—", "-") }
-func gCheck() string    { return glyph("✓", "OK") }
-func gBullet() string   { return glyph("●", "*") }
-func gCircle() string   { return glyph("○", "-") }
+func gEllipsis() string  { return glyph("…", "..") }
+func gDash() string      { return glyph("—", "-") }
+func gCheck() string     { return glyph("✓", "OK") }
+func gBullet() string    { return glyph("●", "*") }
+func gCircle() string    { return glyph("○", "-") }

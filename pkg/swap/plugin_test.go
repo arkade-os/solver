@@ -19,62 +19,94 @@ func TestValidatePrice(t *testing.T) {
 		offerPrice  float64
 		feedPrice   float64
 		slippageBps uint32
+		dir         Direction
 		want        bool
 	}{
 		{
-			name:        "exact match within 1% margin",
+			name:        "sell: exact match",
 			offerPrice:  100.0,
 			feedPrice:   100.0,
 			slippageBps: 100,
+			dir:         Sell,
 			want:        true,
 		},
 		{
-			name:        "at lower bound (99% of feed)",
-			offerPrice:  99.0,
-			feedPrice:   100.0,
-			slippageBps: 100,
-			want:        true,
-		},
-		{
-			name:        "at upper bound (101% of feed)",
+			name:        "sell: at upper bound (101% of feed)",
 			offerPrice:  101.0,
 			feedPrice:   100.0,
 			slippageBps: 100,
+			dir:         Sell,
 			want:        true,
 		},
 		{
-			name:        "below lower bound",
-			offerPrice:  98.9,
-			feedPrice:   100.0,
-			slippageBps: 100,
-			want:        false,
-		},
-		{
-			name:        "above upper bound",
+			name:        "sell: above upper bound",
 			offerPrice:  101.1,
 			feedPrice:   100.0,
 			slippageBps: 100,
+			dir:         Sell,
 			want:        false,
 		},
 		{
-			name:        "wider slippage accepts larger deviation",
-			offerPrice:  95.0,
+			name:        "sell: far below feed is in our favor",
+			offerPrice:  50.0,
 			feedPrice:   100.0,
-			slippageBps: 500,
+			slippageBps: 10,
+			dir:         Sell,
 			want:        true,
 		},
 		{
-			name:        "tighter slippage rejects deviation 1% would allow",
-			offerPrice:  99.5,
+			name:        "sell: absurdly below feed hits the sanity floor",
+			offerPrice:  49.0,
 			feedPrice:   100.0,
 			slippageBps: 10,
+			dir:         Sell,
+			want:        false,
+		},
+		{
+			name:        "buy: at lower bound (99% of feed)",
+			offerPrice:  99.0,
+			feedPrice:   100.0,
+			slippageBps: 100,
+			dir:         Buy,
+			want:        true,
+		},
+		{
+			name:        "buy: below lower bound",
+			offerPrice:  98.9,
+			feedPrice:   100.0,
+			slippageBps: 100,
+			dir:         Buy,
+			want:        false,
+		},
+		{
+			name:        "buy: far above feed is in our favor",
+			offerPrice:  200.0,
+			feedPrice:   100.0,
+			slippageBps: 10,
+			dir:         Buy,
+			want:        true,
+		},
+		{
+			name:        "buy: absurdly above feed hits the sanity ceiling",
+			offerPrice:  201.0,
+			feedPrice:   100.0,
+			slippageBps: 10,
+			dir:         Buy,
+			want:        false,
+		},
+		{
+			name:        "no match never validates",
+			offerPrice:  100.0,
+			feedPrice:   100.0,
+			slippageBps: 100,
+			dir:         NoMatch,
 			want:        false,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := validatePrice(tc.offerPrice, tc.feedPrice, tc.slippageBps)
+			got := validatePrice(tc.offerPrice, tc.feedPrice, tc.slippageBps, tc.dir)
 			require.Equal(t, tc.want, got)
 		})
 	}
