@@ -119,6 +119,7 @@ solver market add \
   --base BTC \
   --quote <asset id> \
   --price-feed https://feed.example.com/btc-asset \
+  --price-path /data/price \
   --min-quote 10000 --max-quote 1000000 \
   --min-base 1000   --max-base 100000 \
   --slippage 100 \
@@ -126,8 +127,12 @@ solver market add \
 ```
 
 - `--price-feed` — URL the bot polls for the reference price, quoted as
-  **quote-per-base**. The response format is picked from the host: Binance
-  ticker (`*binance*`), CoinGecko `simple/price` otherwise.
+  **quote-per-base**. Any feed returning JSON works.
+- `--price-path` — [JSON pointer](https://datatracker.ietf.org/doc/html/rfc6901)
+  to the price in that response, e.g. `/bitcoin/usd`. Both JSON numbers and
+  numeric strings are accepted. Leave it empty for Binance
+  (`*binance*` → `/price`) or CoinGecko `simple/price` URLs, where the pointer
+  is derived from the query parameters; any other feed requires it.
 - `--min-quote` / `--max-quote` — bounds on the want amount when the offer
   sells base for quote (quote units). `--max-quote 0` disables that direction.
 - `--min-base` / `--max-base` — same for the other direction (offer buys base).

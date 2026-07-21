@@ -19,7 +19,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"time"
@@ -33,6 +32,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	swapv1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/solverd/v1"
+	"github.com/arkade-os/solver/pkg/swap/pricefeed"
 )
 
 // log is a dedicated logger instance: go-sdk's wallet.Unlock forces the global
@@ -153,8 +153,9 @@ func run() error {
 
 	// 3. Read the price from the solver-pricefeed mock and register the market.
 	assetBtcFeed := cfg.pricefeedURL + "/asset-btc"
+	const assetBtcPath = "/asset/btc"
 
-	price, err := fetchPrice(ctx, assetBtcFeed)
+	price, err := pricefeed.New().Fetch(ctx, assetBtcFeed, assetBtcPath)
 	if err != nil {
 		return fmt.Errorf("read pricefeed %s: %w", assetBtcFeed, err)
 	}
@@ -168,6 +169,7 @@ func run() error {
 		MinBaseAmount:  1,
 		MaxBaseAmount:  100_000_000,
 		PriceFeed:      assetBtcFeed,
+		PricePath:      assetBtcPath,
 	}
 	if _, err := swap.AddMarket(ctx, &swapv1.AddMarketRequest{Market: market}); err != nil {
 		return fmt.Errorf("add market %s/%s: %w", market.BaseAsset, market.QuoteAsset, err)
@@ -359,37 +361,4 @@ func issueAsset(ctx context.Context, w arksdk.Wallet, supply uint64) (string, er
 		return "", fmt.Errorf("no asset id returned")
 	}
 	return assetIds[0].String(), nil
-}
-
-// fetchPrice reads the CoinGecko-style mock feed ({"a":{"b": price}}) and
-// returns the first nested value, matching the solver's own price parsing.
-func fetchPrice(ctx context.Context, feedURL string) (float64, error) {
-	httpClient := &http.Client{Timeout: 10 * time.Second}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, feedURL, nil)
-	if err != nil {
-		return 0, err
-	}
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return 0, err
-	}
-	// nolint:errcheck
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("unexpected status %d", resp.StatusCode)
-	}
-	raw, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return 0, err
-	}
-	var parsed map[string]map[string]float64
-	if err := json.Unmarshal(raw, &parsed); err != nil {
-		return 0, fmt.Errorf("parse feed: %w", err)
-	}
-	for _, nested := range parsed {
-		for _, price := range nested {
-			return price, nil
-		}
-	}
-	return 0, fmt.Errorf("no price found in feed response")
 }

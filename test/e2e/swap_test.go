@@ -19,8 +19,11 @@ import (
 
 const (
 	mockAssetBTCPriceFeed   = "http://solverd-pricefeed/asset-btc"
+	mockAssetBTCPricePath   = "/asset/btc"
 	mockBTCAssetPriceFeed   = "http://solverd-pricefeed/btc-asset"
+	mockBTCAssetPricePath   = "/btc/asset"
 	mockAssetAssetPriceFeed = "http://solverd-pricefeed/asset-asset"
+	mockAssetAssetPricePath = "/asset/asset"
 )
 
 // TestSwapAssetToBTC: maker deposits asset, wants BTC.
@@ -40,6 +43,7 @@ func TestSwapAssetToBTC(t *testing.T) {
 		MinBaseAmount:  1,
 		MaxBaseAmount:  100000000,
 		PriceFeed:      mockAssetBTCPriceFeed,
+		PricePath:      mockAssetBTCPricePath,
 	}
 	addMarket(t, market)
 
@@ -90,6 +94,7 @@ func TestSwapBTCToAsset(t *testing.T) {
 		MinBaseAmount:  1,
 		MaxBaseAmount:  100000000,
 		PriceFeed:      mockBTCAssetPriceFeed,
+		PricePath:      mockBTCAssetPricePath,
 	}
 	addMarket(t, market)
 
@@ -143,6 +148,7 @@ func TestSwapAssetToAsset(t *testing.T) {
 		MinBaseAmount:  1,
 		MaxBaseAmount:  100000000,
 		PriceFeed:      mockAssetAssetPriceFeed,
+		PricePath:      mockAssetAssetPricePath,
 	}
 	addMarket(t, market)
 
@@ -189,6 +195,7 @@ func TestSwapSingleMarketBothDirections(t *testing.T) {
 		MinBaseAmount:  1,
 		MaxBaseAmount:  100000000,
 		PriceFeed:      mockAssetBTCPriceFeed,
+		PricePath:      mockAssetBTCPricePath,
 	})
 
 	// Direction 1 — sell-base: issuer deposits 500 asset, wants 500 sats BTC.
@@ -248,6 +255,7 @@ func TestSwapMarketDisabledDirection(t *testing.T) {
 		MinBaseAmount:  0,
 		MaxBaseAmount:  0,
 		PriceFeed:      mockAssetBTCPriceFeed,
+		PricePath:      mockAssetBTCPricePath,
 	})
 
 	// Buy-base offer (deposit BTC, want asset) — the disabled direction.
@@ -327,6 +335,7 @@ func addMarket(t *testing.T, market swap.Market) {
 			MinBaseAmount:  market.MinBaseAmount,
 			MaxBaseAmount:  market.MaxBaseAmount,
 			PriceFeed:      market.PriceFeed,
+			PricePath:      market.PricePath,
 			SlippageBps:    market.SlippageBps,
 		},
 	})

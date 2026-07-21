@@ -284,10 +284,7 @@ function feedHost(url) {
   }
 }
 
-// autoPricePath mirrors pricefeed.DefaultPricePath in
-// pkg/swap/pricefeed/pricefeed.go: the pointer the solver derives when the
-// operator leaves the price path empty, or null when it cannot derive one.
-// Keep the two in sync — the server rejects a market it can't resolve a path for.
+// autoPricePath mirrors pricefeed.DefaultPricePath in pkg/swap/pricefeed.
 function autoPricePath(feed) {
   const raw = String(feed || "").trim();
   if (!raw) return null;
@@ -524,7 +521,6 @@ function updateForm() {
     form.elements.slippage_bps.value
   )}.`;
 
-  // the price path is only needed for feeds the solver can't read on its own.
   const auto = autoPricePath(form.elements.price_feed.value);
   const pathField = form.elements.price_path;
   pathField.required = !auto;
