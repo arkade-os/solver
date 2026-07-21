@@ -16,6 +16,7 @@ type Market struct {
 	PriceFeed      string
 	SlippageBps    int64
 	FeeBps         int64
+	PricePath      string
 }
 
 type Trade struct {

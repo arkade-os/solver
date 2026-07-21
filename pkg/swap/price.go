@@ -6,16 +6,16 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/arkade-os/solver/pkg/swap/pricefeed"
 )
 
-// PriceFeed fetches asset prices from an external source.
-type PriceFeed interface {
-	Fetch(ctx context.Context, feedURL string) (float64, error)
-}
+// TODO make it configurable
+const priceCacheTTL = time.Minute
 
 type priceCache struct {
+	client  *pricefeed.Client
 	mu      sync.RWMutex
-	feed    PriceFeed
 	ttl     time.Duration
 	entries map[string]cachedEntry
 }
@@ -25,17 +25,18 @@ type cachedEntry struct {
 	fetchedAt time.Time
 }
 
-func newPriceCache(feed PriceFeed, ttl time.Duration) *priceCache {
+func newPriceCache() *priceCache {
 	return &priceCache{
-		feed:    feed,
-		ttl:     ttl,
+		client:  pricefeed.New(),
+		ttl:     priceCacheTTL,
 		entries: make(map[string]cachedEntry),
 	}
 }
 
 // get returns the price for the given feed URL, using the cache when fresh.
-func (c *priceCache) get(ctx context.Context, feedURL string) (float64, error) {
-	key := strings.TrimSpace(feedURL)
+func (c *priceCache) get(ctx context.Context, feedURL, pricePath string) (float64, error) {
+	url := strings.TrimSpace(feedURL)
+	key := url + pricePath
 	now := time.Now()
 
 	c.mu.RLock()
@@ -46,7 +47,7 @@ func (c *priceCache) get(ctx context.Context, feedURL string) (float64, error) {
 		return cached.price, nil
 	}
 
-	price, err := c.feed.Fetch(ctx, key)
+	price, err := c.client.Fetch(ctx, url, pricePath)
 	if err != nil {
 		if ok {
 			return cached.price, fmt.Errorf("using stale cache: %w", err)
@@ -61,17 +62,13 @@ func (c *priceCache) get(ctx context.Context, feedURL string) (float64, error) {
 	return price, nil
 }
 
-// sanityFactor caps how far in our favor an offer may be before we treat it as
-// a broken feed or a misconfigured market rather than a gift.
-const sanityFactor = 2
-
 func validatePrice(offerPrice, feedPrice float64, slippageBps uint32, dir Direction) bool {
 	margin := feedPrice * float64(slippageBps) / 10000
 	switch dir {
 	case Sell:
-		return offerPrice <= feedPrice+margin && offerPrice >= feedPrice/sanityFactor
+		return offerPrice <= feedPrice+margin
 	case Buy:
-		return offerPrice >= feedPrice-margin && offerPrice <= feedPrice*sanityFactor
+		return offerPrice >= feedPrice-margin
 	default:
 		return false
 	}

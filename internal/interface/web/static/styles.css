@@ -1055,6 +1055,15 @@ tr:hover .row-actions {
   color: var(--text-dim);
   font-weight: 400;
 }
+/* "optional" tag shows only while the field really is optional. */
+.opt-tag {
+  display: none;
+  color: var(--text-dim);
+  font-weight: 400;
+}
+.field.optional .opt-tag {
+  display: inline;
+}
 
 .field input,
 .field textarea,

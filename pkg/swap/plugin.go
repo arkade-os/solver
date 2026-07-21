@@ -43,15 +43,17 @@ func NewPlugin(cfg Config) executor.Plugin {
 		arkClient: cfg.SolverClient,
 		emulator:  cfg.Emulator,
 		markets:   cfg.MarketsRepository,
-		prices:    newPriceCache(cfg.PriceFeed, cfg.PriceCacheTTL),
+		prices:    newPriceCache(),
 		listener:  cfg.Listener,
 		log:       cfg.Log,
 	}
 }
 
-// Filter applies no server-side CEL filter: swap inspects every tx for an
-// ark extension OP_RETURN in Match.
-func (p *plugin) Filter() string { return "" }
+// Filter narrows the subscription server-side to txs carrying a swap offer
+// packet; Match still re-parses and validates.
+func (p *plugin) Filter() string {
+	return fmt.Sprintf("has(tx.extension) && hasPacket(tx.extension, %d)", contract.PacketType)
+}
 
 // Match decodes the tx into a *MatchedOffer and runs the validation gates.
 // It returns (nil, false) for any tx that isn't a swap offer, doesn't match
@@ -137,7 +139,7 @@ func (p *plugin) decode(ctx context.Context, tx *psbt.Packet) (*MatchedOffer, er
 // market's slippage from the feed. It returns the rejection reason, or "" when
 // the offer passes. Logs (Warn) when the price feed is stale.
 func (p *plugin) checkPriceTolerance(ctx context.Context, m *MatchedOffer) (string, error) {
-	feedPrice, err := p.prices.get(ctx, m.Market.PriceFeed)
+	feedPrice, err := p.prices.get(ctx, m.Market.PriceFeed, m.Market.PricePath)
 	if err != nil && feedPrice == 0 {
 		return fmt.Sprintf("price feed unavailable: %s", err), nil
 	}

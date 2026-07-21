@@ -41,6 +41,9 @@ message MarketInfo {
   uint32 slippage_bps = 10;
   // Solver margin in basis points, shifted into the accepted price. 0 = no fee.
   uint32 fee_bps = 11;
+  // JSON pointer to the price in the feed response, e.g. "/bitcoin/usd".
+  // Empty = guess from the feed host (Binance / CoinGecko).
+  string price_path = 12;
 }
 
 message AddMarketRequest { MarketInfo market = 1; }

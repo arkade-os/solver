@@ -2,131 +2,144 @@ package swap
 
 import (
 	"context"
-	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
-// ---------------------------------------------------------------------------
-// Mock PriceFeed
-// ---------------------------------------------------------------------------
+func TestPriceCacheGet(t *testing.T) {
+	ctx := context.Background()
 
-type mockPriceFeed struct {
-	prices map[string]float64
-	calls  int
-	err    error
+	t.Run("miss then hit", func(t *testing.T) {
+		url, hits := feedServer(t, func() (string, int) { return `{"price":42}`, http.StatusOK })
+		cache := newPriceCache()
+
+		for range 2 {
+			price, err := cache.get(ctx, url, "/price")
+			require.NoError(t, err)
+			require.Equal(t, 42.0, price)
+		}
+		require.EqualValues(t, 1, *hits, "second call must be served from cache")
+	})
+
+	t.Run("refetch after ttl", func(t *testing.T) {
+		body := `{"price":42}`
+		url, hits := feedServer(t, func() (string, int) { return body, http.StatusOK })
+		cache := newPriceCache()
+		cache.ttl = time.Millisecond
+
+		_, err := cache.get(ctx, url, "/price")
+		require.NoError(t, err)
+
+		time.Sleep(5 * time.Millisecond)
+		body = `{"price":99}`
+
+		price, err := cache.get(ctx, url, "/price")
+		require.NoError(t, err)
+		require.Equal(t, 99.0, price)
+		require.EqualValues(t, 2, *hits)
+	})
+
+	t.Run("stale cache on fetch error", func(t *testing.T) {
+		ok := true
+		url, _ := feedServer(t, func() (string, int) {
+			if ok {
+				return `{"price":42}`, http.StatusOK
+			}
+			return "boom", http.StatusInternalServerError
+		})
+		cache := newPriceCache()
+		cache.ttl = time.Millisecond
+
+		_, err := cache.get(ctx, url, "/price")
+		require.NoError(t, err)
+
+		time.Sleep(5 * time.Millisecond)
+		ok = false
+
+		price, err := cache.get(ctx, url, "/price")
+		require.ErrorContains(t, err, "using stale cache")
+		require.Equal(t, 42.0, price)
+	})
+
+	t.Run("fetch error without cache", func(t *testing.T) {
+		url, _ := feedServer(t, func() (string, int) { return "boom", http.StatusInternalServerError })
+		cache := newPriceCache()
+
+		price, err := cache.get(ctx, url, "/price")
+		require.Error(t, err)
+		require.NotContains(t, err.Error(), "using stale cache")
+		require.Zero(t, price)
+	})
+
+	t.Run("url whitespace is trimmed", func(t *testing.T) {
+		url, hits := feedServer(t, func() (string, int) { return `{"price":7.5}`, http.StatusOK })
+		cache := newPriceCache()
+
+		for _, u := range []string{"  " + url + "  ", url} {
+			price, err := cache.get(ctx, u, "/price")
+			require.NoError(t, err)
+			require.Equal(t, 7.5, price)
+		}
+		require.EqualValues(t, 1, *hits, "trimmed URLs share one cache entry")
+	})
+
+	t.Run("price path is part of the key", func(t *testing.T) {
+		url, hits := feedServer(t, func() (string, int) { return `{"a":1,"b":2}`, http.StatusOK })
+		cache := newPriceCache()
+
+		a, err := cache.get(ctx, url, "/a")
+		require.NoError(t, err)
+		require.Equal(t, 1.0, a)
+
+		b, err := cache.get(ctx, url, "/b")
+		require.NoError(t, err)
+		require.Equal(t, 2.0, b)
+		require.EqualValues(t, 2, *hits)
+	})
 }
 
-func (m *mockPriceFeed) Fetch(ctx context.Context, feedURL string) (float64, error) {
-	m.calls++
-	if m.err != nil {
-		return 0, m.err
+func TestValidatePrice(t *testing.T) {
+	tests := []struct {
+		name        string
+		offerPrice  float64
+		feedPrice   float64
+		slippageBps uint32
+		dir         Direction
+		want        bool
+	}{
+		{name: "sell exact match", offerPrice: 100, feedPrice: 100, slippageBps: 100, dir: Sell, want: true},
+		{name: "sell at upper bound", offerPrice: 101, feedPrice: 100, slippageBps: 100, dir: Sell, want: true},
+		{name: "sell above upper bound", offerPrice: 101.1, feedPrice: 100, slippageBps: 100, dir: Sell, want: false},
+		{name: "sell far below feed is a gift", offerPrice: 1, feedPrice: 100, slippageBps: 10, dir: Sell, want: true},
+		{name: "buy at lower bound", offerPrice: 99, feedPrice: 100, slippageBps: 100, dir: Buy, want: true},
+		{name: "buy below lower bound", offerPrice: 98.9, feedPrice: 100, slippageBps: 100, dir: Buy, want: false},
+		{name: "buy far above feed is a gift", offerPrice: 10_000, feedPrice: 100, slippageBps: 10, dir: Buy, want: true},
+		{name: "no match never validates", offerPrice: 100, feedPrice: 100, slippageBps: 100, dir: NoMatch, want: false},
 	}
-	price, ok := m.prices[feedURL]
-	if !ok {
-		return 0, fmt.Errorf("unknown feed: %s", feedURL)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := validatePrice(tt.offerPrice, tt.feedPrice, tt.slippageBps, tt.dir)
+			require.Equal(t, tt.want, got)
+		})
 	}
-	return price, nil
 }
 
-// ---------------------------------------------------------------------------
-// priceCache.get tests
-// ---------------------------------------------------------------------------
-
-func TestPriceCache_CacheMiss(t *testing.T) {
-	feed := &mockPriceFeed{prices: map[string]float64{"http://price": 42.0}}
-	cache := newPriceCache(feed, 5*time.Minute)
-
-	price, err := cache.get(context.Background(), "http://price")
-	require.NoError(t, err)
-	require.Equal(t, 42.0, price)
-	require.Equal(t, 1, feed.calls, "should have called feed once on miss")
-}
-
-func TestPriceCache_CacheHit(t *testing.T) {
-	feed := &mockPriceFeed{prices: map[string]float64{"http://price": 42.0}}
-	cache := newPriceCache(feed, 5*time.Minute)
-
-	// First call — miss
-	_, err := cache.get(context.Background(), "http://price")
-	require.NoError(t, err)
-
-	// Second call — should be a hit
-	price, err := cache.get(context.Background(), "http://price")
-	require.NoError(t, err)
-	require.Equal(t, 42.0, price)
-	require.Equal(t, 1, feed.calls, "second call should use cache, not re-fetch")
-}
-
-func TestPriceCache_Expired(t *testing.T) {
-	feed := &mockPriceFeed{prices: map[string]float64{"http://price": 42.0}}
-	// Very short TTL so the entry expires quickly
-	cache := newPriceCache(feed, 1*time.Millisecond)
-
-	// Populate the cache
-	_, err := cache.get(context.Background(), "http://price")
-	require.NoError(t, err)
-	require.Equal(t, 1, feed.calls)
-
-	// Wait for TTL to expire
-	time.Sleep(5 * time.Millisecond)
-
-	// Update the feed price
-	feed.prices["http://price"] = 99.0
-
-	// Should re-fetch because entry is stale
-	price, err := cache.get(context.Background(), "http://price")
-	require.NoError(t, err)
-	require.Equal(t, 99.0, price, "should return updated price after TTL expiry")
-	require.Equal(t, 2, feed.calls, "should have re-fetched after expiry")
-}
-
-func TestPriceCache_FetchErrorWithStaleCache(t *testing.T) {
-	feed := &mockPriceFeed{prices: map[string]float64{"http://price": 42.0}}
-	cache := newPriceCache(feed, 1*time.Millisecond)
-
-	// Populate the cache with a good price
-	_, err := cache.get(context.Background(), "http://price")
-	require.NoError(t, err)
-
-	// Wait for TTL to expire
-	time.Sleep(5 * time.Millisecond)
-
-	// Make the feed fail
-	feed.err = fmt.Errorf("upstream error")
-
-	// Should return stale price with a "using stale cache" error
-	price, err := cache.get(context.Background(), "http://price")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "using stale cache")
-	require.Equal(t, 42.0, price, "should return stale price when feed fails")
-}
-
-func TestPriceCache_FetchErrorNoCache(t *testing.T) {
-	feed := &mockPriceFeed{err: fmt.Errorf("upstream unavailable")}
-	cache := newPriceCache(feed, 5*time.Minute)
-
-	price, err := cache.get(context.Background(), "http://price")
-	require.Error(t, err)
-	require.Equal(t, 0.0, price)
-	require.NotContains(t, err.Error(), "using stale cache", "should not mention stale cache when there is none")
-}
-
-func TestPriceCache_WhitespaceTrimmedKey(t *testing.T) {
-	feed := &mockPriceFeed{prices: map[string]float64{"http://price": 7.5}}
-	cache := newPriceCache(feed, 5*time.Minute)
-
-	// First call with spaces
-	price1, err := cache.get(context.Background(), "  http://price  ")
-	require.NoError(t, err)
-	require.Equal(t, 7.5, price1)
-	require.Equal(t, 1, feed.calls)
-
-	// Second call without spaces — should hit the same cache entry
-	price2, err := cache.get(context.Background(), "http://price")
-	require.NoError(t, err)
-	require.Equal(t, 7.5, price2)
-	require.Equal(t, 1, feed.calls, "trimmed URLs should share the same cache entry")
+// feedServer serves the body returned by next and counts the requests it gets.
+func feedServer(t *testing.T, next func() (string, int)) (url string, hits *int32) {
+	hits = new(int32)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(hits, 1)
+		body, code := next()
+		w.WriteHeader(code)
+		// nolint:errcheck
+		w.Write([]byte(body))
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL, hits
 }

@@ -95,6 +95,7 @@ func TestMarketSlippageRoundTrip(t *testing.T) {
 		MinBaseAmount:  500,
 		MaxBaseAmount:  50000,
 		PriceFeed:      "https://example.com/price",
+		PricePath:      "/bitcoin/usd",
 		SlippageBps:    250,
 		FeeBps:         300,
 	}

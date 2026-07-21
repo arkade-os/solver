@@ -1,0 +1,1 @@
+ALTER TABLE market ADD COLUMN price_path TEXT NOT NULL DEFAULT '';

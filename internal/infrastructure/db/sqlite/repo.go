@@ -45,6 +45,7 @@ func (r *MarketRepository) Add(ctx context.Context, m swap.Market) error {
 		MinBaseAmount:  int64(m.MinBaseAmount),
 		MaxBaseAmount:  int64(m.MaxBaseAmount),
 		PriceFeed:      m.PriceFeed,
+		PricePath:      m.PricePath,
 		SlippageBps:    int64(m.SlippageBps),
 		FeeBps:         int64(m.FeeBps),
 	}))
@@ -59,6 +60,7 @@ func (r *MarketRepository) Update(ctx context.Context, m swap.Market) error {
 		MinBaseAmount:  int64(m.MinBaseAmount),
 		MaxBaseAmount:  int64(m.MaxBaseAmount),
 		PriceFeed:      m.PriceFeed,
+		PricePath:      m.PricePath,
 		SlippageBps:    int64(m.SlippageBps),
 		FeeBps:         int64(m.FeeBps),
 		BaseAsset:      m.BaseAsset,
@@ -91,6 +93,7 @@ func toDomainMarket(row sqlc.Market) swap.Market {
 		MinBaseAmount:  uint64(row.MinBaseAmount),
 		MaxBaseAmount:  uint64(row.MaxBaseAmount),
 		PriceFeed:      row.PriceFeed,
+		PricePath:      row.PricePath,
 		SlippageBps:    uint32(row.SlippageBps),
 		FeeBps:         uint32(row.FeeBps),
 	}

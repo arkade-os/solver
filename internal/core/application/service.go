@@ -23,7 +23,6 @@ import (
 	"github.com/arkade-os/solver/internal/config"
 	"github.com/arkade-os/solver/internal/core/ports"
 	sqlitedb "github.com/arkade-os/solver/internal/infrastructure/db/sqlite"
-	"github.com/arkade-os/solver/internal/infrastructure/pricefeed"
 	"github.com/arkade-os/solver/pkg/executor"
 	"github.com/arkade-os/solver/pkg/executor/arkdsource"
 	"github.com/arkade-os/solver/pkg/swap"
@@ -79,13 +78,10 @@ func New(cfg *config.Config, wallet arksdk.Wallet) (*Service, error) {
 	marketRepo := sqlitedb.NewMarketRepository(db)
 	tradeRepo := sqlitedb.NewTradeRepository(db)
 
-	feed := pricefeed.New()
-
 	plugin := swap.NewPlugin(swap.Config{
 		SolverClient:      wallet,
 		Emulator:          emulator,
 		MarketsRepository: marketRepo,
-		PriceFeed:         feed,
 		Listener:          &tradeListener{tradeRepo},
 		Log:               log,
 	})

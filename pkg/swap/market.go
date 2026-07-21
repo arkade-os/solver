@@ -23,7 +23,10 @@ type Market struct {
 	MinBaseAmount uint64 `json:"minBaseAmount"`
 	MaxBaseAmount uint64 `json:"maxBaseAmount"`
 
-	PriceFeed   string `json:"priceFeed"`   // returns quote-per-base
+	PriceFeed string `json:"priceFeed"` // returns quote-per-base
+	// JSON pointer to the price in the feed response, e.g. "/bitcoin/usd".
+	// Empty = guess from the feed host (Binance / CoinGecko).
+	PricePath   string `json:"pricePath"`
 	SlippageBps uint32 `json:"slippageBps"` // 0 = DefaultSlippageBps
 	FeeBps      uint32 `json:"feeBps"`      // solver margin, shifted into the price; 0 = no fee
 }

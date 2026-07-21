@@ -340,6 +340,13 @@
                 <small class="muted" id="feed-hint">The solver polls this URL for the quote-per-base price and fulfills offers within 0.1%.</small>
               </label>
 
+              <label class="field" id="path-field">
+                <span>Price path <small class="opt-tag">optional</small></span>
+                <input name="price_path" type="text" placeholder="/bitcoin/usd" pattern="/.*"
+                  title="A JSON pointer must start with /" />
+                <small class="muted" id="path-hint">JSON pointer to the price in the feed response.</small>
+              </label>
+
               <label class="field">
                 <span>Slippage</span>
                 <div class="input-suffix">

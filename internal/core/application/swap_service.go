@@ -7,6 +7,7 @@ import (
 
 	"github.com/arkade-os/solver/internal/core/ports"
 	"github.com/arkade-os/solver/pkg/swap"
+	"github.com/arkade-os/solver/pkg/swap/pricefeed"
 )
 
 func (svc *Service) ListTrades(ctx context.Context, limit int, status string) ([]ports.Trade, error) {
@@ -157,6 +158,9 @@ func validateMarket(m swap.Market) error {
 	}
 	if m.PriceFeed == "" {
 		return fmt.Errorf("price_feed is required")
+	}
+	if err := pricefeed.ValidatePricePath(m.PricePath); err != nil {
+		return err
 	}
 	if m.SlippageBps > 5000 {
 		return fmt.Errorf("slippage_bps must be at most 5000 (50%%)")

@@ -26,8 +26,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/arkade-os/solver/internal/infrastructure/pricefeed"
 	"github.com/arkade-os/solver/pkg/swap/contract"
+	"github.com/arkade-os/solver/pkg/swap/pricefeed"
 )
 
 var Version string
@@ -45,6 +45,10 @@ func main() {
 			&cli.StringFlag{
 				Name: "price-feed", Required: true,
 				Usage: "price feed URL (same format as a solverd pair)",
+			},
+			&cli.StringFlag{
+				Name:  "price-path",
+				Usage: "JSON pointer to the price in the feed response, e.g. /bitcoin/usd (empty = guess from the feed host)",
 			},
 			&cli.BoolFlag{
 				Name:  "invert-price",
@@ -140,7 +144,7 @@ func run(c *cli.Context) error {
 		return err
 	}
 
-	price, err := pricefeed.New().Fetch(ctx, c.String("price-feed"))
+	price, err := pricefeed.New().Fetch(ctx, c.String("price-feed"), c.String("price-path"))
 	if err != nil {
 		return fmt.Errorf("failed to fetch price: %w", err)
 	}

@@ -284,6 +284,25 @@ function feedHost(url) {
   }
 }
 
+// autoPricePath mirrors pricefeed.DefaultPricePath in
+// pkg/swap/pricefeed/pricefeed.go: the pointer the solver derives when the
+// operator leaves the price path empty, or null when it cannot derive one.
+// Keep the two in sync — the server rejects a market it can't resolve a path for.
+function autoPricePath(feed) {
+  const raw = String(feed || "").trim();
+  if (!raw) return null;
+  if (/binance/i.test(raw)) return "/price";
+  try {
+    const q = new URL(raw).searchParams;
+    const ids = q.get("ids");
+    const currencies = q.get("vs_currencies");
+    if (!ids || !currencies) return null;
+    return `/${ids.split(",")[0]}/${currencies.split(",")[0]}`;
+  } catch (_) {
+    return null;
+  }
+}
+
 // bandGeom maps a slippage in basis points to a symmetric band centered on the
 // feed marker. 500 bps (5%) or wider spans the whole track; a floor keeps tiny
 // tolerances visible. Returns percentages of the track width.
@@ -409,7 +428,11 @@ function renderMarkets(markets) {
       <div class="market-foot">
         <a class="feed-link" href="${escapeAttr(safeHref(m.price_feed))}"
           target="_blank" rel="noreferrer noopener" title="${escapeAttr(
-            m.price_feed
+            `${m.price_feed}\n${
+              m.price_path
+                ? `price at ${m.price_path}`
+                : `price at ${autoPricePath(m.price_feed) || "?"} (auto)`
+            }`
           )}">${icon("external")}<span>${escapeHTML(feedHost(m.price_feed))}</span></a>
         ${
           Number(m.fee_bps) > 0
@@ -500,6 +523,16 @@ function updateForm() {
   $("#feed-hint").textContent = `The solver polls this URL for the quote-per-base price and fulfills offers within ${fmtSlippage(
     form.elements.slippage_bps.value
   )}.`;
+
+  // the price path is only needed for feeds the solver can't read on its own.
+  const auto = autoPricePath(form.elements.price_feed.value);
+  const pathField = form.elements.price_path;
+  pathField.required = !auto;
+  pathField.placeholder = auto || "/bitcoin/usd";
+  $("#path-hint").textContent = auto
+    ? `Not needed — the solver reads ${auto} from this feed. Set a pointer to override.`
+    : "JSON pointer to the price in the feed response.";
+  $("#path-field").classList.toggle("optional", Boolean(auto));
 
   // live preview.
   $("#preview-market-str").textContent = `${
@@ -612,6 +645,7 @@ function openEdit(m) {
   form.elements.max_base_amount.value = buyOn ? m.max_base_amount : "";
 
   form.elements.price_feed.value = m.price_feed;
+  form.elements.price_path.value = m.price_path || "";
   form.elements.slippage_bps.value = m.slippage_bps || "";
   form.elements.fee_bps.value = m.fee_bps || "";
   setAssetsLocked(true); // identity can't change on edit
@@ -704,6 +738,7 @@ form.addEventListener("submit", async (e) => {
     min_base_amount: buyOn ? num("min_base_amount") : 0,
     max_base_amount: buyOn ? num("max_base_amount") : 0,
     price_feed: String(form.elements.price_feed.value).trim(),
+    price_path: String(form.elements.price_path.value).trim(),
     slippage_bps: Number(form.elements.slippage_bps.value) || 0,
     fee_bps: Number(form.elements.fee_bps.value) || 0,
   };

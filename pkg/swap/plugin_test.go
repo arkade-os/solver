@@ -10,109 +10,6 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// validatePrice tests
-// ---------------------------------------------------------------------------
-
-func TestValidatePrice(t *testing.T) {
-	tests := []struct {
-		name        string
-		offerPrice  float64
-		feedPrice   float64
-		slippageBps uint32
-		dir         Direction
-		want        bool
-	}{
-		{
-			name:        "sell: exact match",
-			offerPrice:  100.0,
-			feedPrice:   100.0,
-			slippageBps: 100,
-			dir:         Sell,
-			want:        true,
-		},
-		{
-			name:        "sell: at upper bound (101% of feed)",
-			offerPrice:  101.0,
-			feedPrice:   100.0,
-			slippageBps: 100,
-			dir:         Sell,
-			want:        true,
-		},
-		{
-			name:        "sell: above upper bound",
-			offerPrice:  101.1,
-			feedPrice:   100.0,
-			slippageBps: 100,
-			dir:         Sell,
-			want:        false,
-		},
-		{
-			name:        "sell: far below feed is in our favor",
-			offerPrice:  50.0,
-			feedPrice:   100.0,
-			slippageBps: 10,
-			dir:         Sell,
-			want:        true,
-		},
-		{
-			name:        "sell: absurdly below feed hits the sanity floor",
-			offerPrice:  49.0,
-			feedPrice:   100.0,
-			slippageBps: 10,
-			dir:         Sell,
-			want:        false,
-		},
-		{
-			name:        "buy: at lower bound (99% of feed)",
-			offerPrice:  99.0,
-			feedPrice:   100.0,
-			slippageBps: 100,
-			dir:         Buy,
-			want:        true,
-		},
-		{
-			name:        "buy: below lower bound",
-			offerPrice:  98.9,
-			feedPrice:   100.0,
-			slippageBps: 100,
-			dir:         Buy,
-			want:        false,
-		},
-		{
-			name:        "buy: far above feed is in our favor",
-			offerPrice:  200.0,
-			feedPrice:   100.0,
-			slippageBps: 10,
-			dir:         Buy,
-			want:        true,
-		},
-		{
-			name:        "buy: absurdly above feed hits the sanity ceiling",
-			offerPrice:  201.0,
-			feedPrice:   100.0,
-			slippageBps: 10,
-			dir:         Buy,
-			want:        false,
-		},
-		{
-			name:        "no match never validates",
-			offerPrice:  100.0,
-			feedPrice:   100.0,
-			slippageBps: 100,
-			dir:         NoMatch,
-			want:        false,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got := validatePrice(tc.offerPrice, tc.feedPrice, tc.slippageBps, tc.dir)
-			require.Equal(t, tc.want, got)
-		})
-	}
-}
-
-// ---------------------------------------------------------------------------
 // findMatchingMarket tests
 // ---------------------------------------------------------------------------
 
@@ -146,6 +43,23 @@ func TestFindMatchingMarket(t *testing.T) {
 // Plugin tests
 // ---------------------------------------------------------------------------
 
+func TestPlugin_Match_NonSwapTx(t *testing.T) {
+	p := NewPlugin(Config{
+		MarketsRepository: &fakeMarkets{markets: nil},
+	})
+	intent, ok := p.Match(context.Background(), emptyPSBT(t))
+	require.False(t, ok)
+	require.Nil(t, intent)
+}
+
+func TestPlugin_Solve_NilMatchedOffer(t *testing.T) {
+	p := NewPlugin(Config{})
+	// Solve should return cleanly on nil/wrong-type intent without panicking.
+	require.NotPanics(t, func() {
+		p.Solve(context.Background(), nil)
+	})
+}
+
 // emptyPSBT returns a *psbt.Packet wrapping an empty MsgTx — has no extension,
 // so Match should return (nil, false, nil).
 func emptyPSBT(t *testing.T) *psbt.Packet {
@@ -156,15 +70,6 @@ func emptyPSBT(t *testing.T) *psbt.Packet {
 	return pkt
 }
 
-func TestPlugin_Match_NonSwapTx(t *testing.T) {
-	p := NewPlugin(Config{
-		MarketsRepository: &fakeMarkets{markets: nil},
-	})
-	intent, ok := p.Match(context.Background(), emptyPSBT(t))
-	require.False(t, ok)
-	require.Nil(t, intent)
-}
-
 // fakeMarkets is a minimal MarketRepository for testing.
 type fakeMarkets struct {
 	markets []Market
@@ -173,12 +78,4 @@ type fakeMarkets struct {
 
 func (f *fakeMarkets) List(ctx context.Context) ([]Market, error) {
 	return f.markets, f.err
-}
-
-func TestPlugin_Solve_NilMatchedOffer(t *testing.T) {
-	p := NewPlugin(Config{})
-	// Solve should return cleanly on nil/wrong-type intent without panicking.
-	require.NotPanics(t, func() {
-		p.Solve(context.Background(), nil)
-	})
 }

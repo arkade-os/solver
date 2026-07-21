@@ -17,6 +17,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/arkade-os/solver/pkg/swap/pricefeed"
 	"github.com/mdp/qrterminal/v3"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/term"
@@ -187,6 +188,7 @@ func marketFlags(required bool) []cli.Flag {
 		&cli.Uint64Flag{Name: "min-base", Usage: "min want amount for buy-base (base units); 0 = disabled"},
 		&cli.Uint64Flag{Name: "max-base", Usage: "max want amount for buy-base (base units); 0 = disabled"},
 		&cli.StringFlag{Name: "price-feed", Required: required, Usage: "price feed URL (quote-per-base)"},
+		&cli.StringFlag{Name: "price-path", Usage: "JSON pointer to the price in the feed response, e.g. /bitcoin/usd; leave empty for a Binance or CoinGecko URL"},
 		&cli.Uint64Flag{Name: "slippage", Usage: "max deviation in bps (0 = server default)"},
 		&cli.Uint64Flag{Name: "fee", Usage: "solver margin in bps, shifted into the price (0 = none)"},
 	}
@@ -208,6 +210,9 @@ func marketOverrides(c *cli.Context) map[string]any {
 	}
 	if c.IsSet("price-feed") {
 		out["price_feed"] = c.String("price-feed")
+	}
+	if c.IsSet("price-path") {
+		out["price_path"] = c.String("price-path")
 	}
 	if c.IsSet("slippage") {
 		out["slippage_bps"] = c.Uint64("slippage")
@@ -437,6 +442,7 @@ type marketInfo struct {
 	MinBaseAmount  uint64 `json:"min_base_amount"`
 	MaxBaseAmount  uint64 `json:"max_base_amount"`
 	PriceFeed      string `json:"price_feed"`
+	PricePath      string `json:"price_path"`
 	SlippageBps    uint32 `json:"slippage_bps"`
 	FeeBps         uint32 `json:"fee_bps"`
 }
@@ -519,6 +525,7 @@ func renderMarketDetail(m marketInfo, meta map[string]assetInfo) {
 	row("Tolerance", fmtTolerance(m.SlippageBps))
 	row("Fee", fmtBps(m.FeeBps))
 	row("Price feed", m.PriceFeed)
+	row("Price path", fmtPricePath(m.PricePath, m.PriceFeed))
 	tw.Flush() //nolint:errcheck
 }
 
@@ -775,6 +782,19 @@ func fmtTolerance(bps uint32) string {
 		bps = 10 // server default (DefaultSlippageBps)
 	}
 	return glyph("±", "+/-") + strconv.FormatFloat(float64(bps)/100, 'f', -1, 64) + "%"
+}
+
+// fmtPricePath shows the operator's JSON pointer, or the one derived from the
+// feed URL when they left it empty.
+func fmtPricePath(path, feedURL string) string {
+	if path != "" {
+		return path
+	}
+	derived, err := pricefeed.DefaultPricePath(feedURL)
+	if err != nil {
+		return dim("auto — unknown feed format")
+	}
+	return dim("auto — " + derived)
 }
 
 func feedHost(raw string) string {
