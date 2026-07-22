@@ -158,6 +158,8 @@ solver balance                       # funds by asset
 solver trades                        # attempted fills, most recent first (failed ones carry an error)
 solver trades --limit 20
 solver status
+
+solver card --name <name>            # registry listing for your markets
 ```
 
 Add `--json` (`-j`) to any command for raw output you can pipe into scripts.

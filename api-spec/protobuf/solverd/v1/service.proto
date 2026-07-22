@@ -23,6 +23,9 @@ service SwapService {
   rpc ListTrades(ListTradesRequest) returns (ListTradesResponse) {
     option (google.api.http) = { get: "/v1/trades" };
   }
+  rpc GetRegistryCard(GetRegistryCardRequest) returns (RegistryCard) {
+    option (google.api.http) = { get: "/v1/card" };
+  }
 }
 
 message MarketInfo {
@@ -80,4 +83,41 @@ message ListTradesRequest {
 
 message ListTradesResponse {
   repeated TradeInfo trades = 1;
+}
+
+message GetRegistryCardRequest { string name = 1; }
+
+// RegistryCard mirrors the solver-registry card.schema.json. Every field
+// carries an explicit json_name so protojson emits the exact registry keys,
+// and numeric fields are int32/uint32 so they serialize as JSON numbers.
+message RegistryCard {
+  int32 version = 1 [json_name = "version"];
+  string name = 2 [json_name = "name"];
+  repeated RegistryMarket markets = 3 [json_name = "markets"];
+}
+
+message RegistryMarket {
+  string pair = 1 [json_name = "pair"];
+  RegistryAsset base_asset = 2 [json_name = "base_asset"];
+  RegistryAsset quote_asset = 3 [json_name = "quote_asset"];
+  string price_feed = 4 [json_name = "price_feed"];
+  RegistryPriceFeedSchema price_feed_schema = 5 [json_name = "price_feed_schema"];
+  int32 price_decimals = 6 [json_name = "price_decimals"];
+  uint32 fee_bps = 7 [json_name = "fee_bps"];
+  string min_base_amount = 8 [json_name = "min_base_amount"];
+  string max_base_amount = 9 [json_name = "max_base_amount"];
+  string min_quote_amount = 10 [json_name = "min_quote_amount"];
+  string max_quote_amount = 11 [json_name = "max_quote_amount"];
+}
+
+message RegistryAsset {
+  string id = 1 [json_name = "id"];
+  string name = 2 [json_name = "name"];
+  string ticker = 3 [json_name = "ticker"];
+  int32 decimals = 4 [json_name = "decimals"];
+}
+
+message RegistryPriceFeedSchema {
+  string type = 1 [json_name = "type"];
+  string price_path = 2 [json_name = "price_path"];
 }

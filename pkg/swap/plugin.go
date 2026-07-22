@@ -72,7 +72,7 @@ func (p *plugin) Match(ctx context.Context, tx *psbt.Packet) (any, bool) {
 	}
 
 	checks := []func(context.Context, *MatchedOffer) (string, error){
-		p.checkPriceTolerance, p.checkBTCBalance,
+		p.checkPriceTolerance, p.checkBalance,
 	}
 	for _, check := range checks {
 		reason, err := check(ctx, m)
@@ -159,21 +159,31 @@ func (p *plugin) checkPriceTolerance(ctx context.Context, m *MatchedOffer) (stri
 	return "", nil
 }
 
-// checkBTCBalance ensures we hold enough offchain BTC to honor a BTC-deposit
-// offer. Asset deposits skip this check. It returns the rejection reason, or
-// "" when the offer passes.
-func (p *plugin) checkBTCBalance(ctx context.Context, m *MatchedOffer) (string, error) {
-	if m.Offer.WantAsset != nil {
-		return "", nil
-	}
+// checkBalance ensures we hold enough of the wanted asset offchain to honor the
+// offer — BTC from OffchainBalance, any other asset from AssetBalances. It
+// returns the rejection reason, or "" when the offer passes.
+func (p *plugin) checkBalance(ctx context.Context, m *MatchedOffer) (string, error) {
 	bal, err := p.arkClient.Balance(ctx)
 	if err != nil {
 		return "", fmt.Errorf("get balance: %w", err)
 	}
-	if bal.OffchainBalance.Total < m.Offer.WantAmount {
+	want := m.Offer.WantAmount
+
+	if m.Offer.WantAsset == nil {
+		if bal.OffchainBalance.Total < want {
+			return fmt.Sprintf(
+				"insufficient offchain BTC balance: have %d want %d",
+				bal.OffchainBalance.Total, want,
+			), nil
+		}
+		return "", nil
+	}
+
+	assetID := m.Offer.WantAssetStr()
+	have := bal.AssetBalances[assetID]
+	if have < want {
 		return fmt.Sprintf(
-			"insufficient offchain balance: have %d want %d",
-			bal.OffchainBalance.Total, m.Offer.WantAmount,
+			"insufficient %s balance: have %d want %d", assetID, have, want,
 		), nil
 	}
 	return "", nil

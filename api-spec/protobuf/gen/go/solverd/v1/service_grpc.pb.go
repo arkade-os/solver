@@ -19,12 +19,13 @@ import (
 const _ = grpc.SupportPackageIsVersion8
 
 const (
-	SwapService_AddMarket_FullMethodName    = "/solverd.v1.SwapService/AddMarket"
-	SwapService_UpdateMarket_FullMethodName = "/solverd.v1.SwapService/UpdateMarket"
-	SwapService_RemoveMarket_FullMethodName = "/solverd.v1.SwapService/RemoveMarket"
-	SwapService_ListMarkets_FullMethodName  = "/solverd.v1.SwapService/ListMarkets"
-	SwapService_GetStatus_FullMethodName    = "/solverd.v1.SwapService/GetStatus"
-	SwapService_ListTrades_FullMethodName   = "/solverd.v1.SwapService/ListTrades"
+	SwapService_AddMarket_FullMethodName       = "/solverd.v1.SwapService/AddMarket"
+	SwapService_UpdateMarket_FullMethodName    = "/solverd.v1.SwapService/UpdateMarket"
+	SwapService_RemoveMarket_FullMethodName    = "/solverd.v1.SwapService/RemoveMarket"
+	SwapService_ListMarkets_FullMethodName     = "/solverd.v1.SwapService/ListMarkets"
+	SwapService_GetStatus_FullMethodName       = "/solverd.v1.SwapService/GetStatus"
+	SwapService_ListTrades_FullMethodName      = "/solverd.v1.SwapService/ListTrades"
+	SwapService_GetRegistryCard_FullMethodName = "/solverd.v1.SwapService/GetRegistryCard"
 )
 
 // SwapServiceClient is the client API for SwapService service.
@@ -37,6 +38,7 @@ type SwapServiceClient interface {
 	ListMarkets(ctx context.Context, in *ListMarketsRequest, opts ...grpc.CallOption) (*ListMarketsResponse, error)
 	GetStatus(ctx context.Context, in *GetStatusRequest, opts ...grpc.CallOption) (*GetStatusResponse, error)
 	ListTrades(ctx context.Context, in *ListTradesRequest, opts ...grpc.CallOption) (*ListTradesResponse, error)
+	GetRegistryCard(ctx context.Context, in *GetRegistryCardRequest, opts ...grpc.CallOption) (*RegistryCard, error)
 }
 
 type swapServiceClient struct {
@@ -107,6 +109,16 @@ func (c *swapServiceClient) ListTrades(ctx context.Context, in *ListTradesReques
 	return out, nil
 }
 
+func (c *swapServiceClient) GetRegistryCard(ctx context.Context, in *GetRegistryCardRequest, opts ...grpc.CallOption) (*RegistryCard, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RegistryCard)
+	err := c.cc.Invoke(ctx, SwapService_GetRegistryCard_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SwapServiceServer is the server API for SwapService service.
 // All implementations should embed UnimplementedSwapServiceServer
 // for forward compatibility
@@ -117,6 +129,7 @@ type SwapServiceServer interface {
 	ListMarkets(context.Context, *ListMarketsRequest) (*ListMarketsResponse, error)
 	GetStatus(context.Context, *GetStatusRequest) (*GetStatusResponse, error)
 	ListTrades(context.Context, *ListTradesRequest) (*ListTradesResponse, error)
+	GetRegistryCard(context.Context, *GetRegistryCardRequest) (*RegistryCard, error)
 }
 
 // UnimplementedSwapServiceServer should be embedded to have forward compatible implementations.
@@ -140,6 +153,9 @@ func (UnimplementedSwapServiceServer) GetStatus(context.Context, *GetStatusReque
 }
 func (UnimplementedSwapServiceServer) ListTrades(context.Context, *ListTradesRequest) (*ListTradesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListTrades not implemented")
+}
+func (UnimplementedSwapServiceServer) GetRegistryCard(context.Context, *GetRegistryCardRequest) (*RegistryCard, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetRegistryCard not implemented")
 }
 
 // UnsafeSwapServiceServer may be embedded to opt out of forward compatibility for this service.
@@ -261,6 +277,24 @@ func _SwapService_ListTrades_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SwapService_GetRegistryCard_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRegistryCardRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SwapServiceServer).GetRegistryCard(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SwapService_GetRegistryCard_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SwapServiceServer).GetRegistryCard(ctx, req.(*GetRegistryCardRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SwapService_ServiceDesc is the grpc.ServiceDesc for SwapService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -291,6 +325,10 @@ var SwapService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListTrades",
 			Handler:    _SwapService_ListTrades_Handler,
+		},
+		{
+			MethodName: "GetRegistryCard",
+			Handler:    _SwapService_GetRegistryCard_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -3,6 +3,7 @@ package grpcservice
 import (
 	"context"
 	"errors"
+	"strconv"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -22,6 +23,7 @@ type SwapService interface {
 	GetBalance(ctx context.Context) (*application.Balance, error)
 	GetAddress(ctx context.Context) (*application.Address, error)
 	ListAssets(ctx context.Context) ([]application.AssetInfo, error)
+	RegistryCard(ctx context.Context, name string) (*application.Card, error)
 	SendOffchain(ctx context.Context, password, address, assetID string, amount uint64) (string, error)
 	CollaborativeExit(ctx context.Context, password, address string, amount uint64) (string, error)
 	Settle(ctx context.Context, password string) (string, error)
@@ -151,6 +153,45 @@ func (h *handler) ListAssets(
 		})
 	}
 	return &swapv1.ListAssetsResponse{Assets: out}, nil
+}
+
+func (h *handler) GetRegistryCard(
+	ctx context.Context, req *swapv1.GetRegistryCardRequest,
+) (*swapv1.RegistryCard, error) {
+	card, err := h.svc.RegistryCard(ctx, req.GetName())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%s", err)
+	}
+	return cardToProto(card), nil
+}
+
+func cardToProto(c *application.Card) *swapv1.RegistryCard {
+	markets := make([]*swapv1.RegistryMarket, 0, len(c.Markets))
+	for _, m := range c.Markets {
+		markets = append(markets, &swapv1.RegistryMarket{
+			Pair:            m.Pair,
+			BaseAsset:       cardAssetToProto(m.BaseAsset),
+			QuoteAsset:      cardAssetToProto(m.QuoteAsset),
+			PriceFeed:       m.PriceFeed,
+			PriceFeedSchema: &swapv1.RegistryPriceFeedSchema{Type: "json", PricePath: m.PricePath},
+			PriceDecimals:   int32(m.PriceDecimals), //nolint:gosec
+			FeeBps:          m.FeeBps,
+			MinBaseAmount:   strconv.FormatUint(m.MinBaseAmount, 10),
+			MaxBaseAmount:   strconv.FormatUint(m.MaxBaseAmount, 10),
+			MinQuoteAmount:  strconv.FormatUint(m.MinQuoteAmount, 10),
+			MaxQuoteAmount:  strconv.FormatUint(m.MaxQuoteAmount, 10),
+		})
+	}
+	return &swapv1.RegistryCard{Version: c.Version, Name: c.Name, Markets: markets}
+}
+
+func cardAssetToProto(a application.CardAsset) *swapv1.RegistryAsset {
+	return &swapv1.RegistryAsset{
+		Id:       a.ID,
+		Name:     a.Name,
+		Ticker:   a.Ticker,
+		Decimals: int32(a.Decimals), //nolint:gosec
+	}
 }
 
 func (h *handler) SendOffchain(

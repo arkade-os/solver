@@ -12,6 +12,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 
 	swapv1 "github.com/arkade-os/solver/api-spec/protobuf/gen/go/solverd/v1"
 	"github.com/arkade-os/solver/internal/interface/web"
@@ -206,6 +208,17 @@ func registerSwapRoutes(mux *http.ServeMux, svc *handler) {
 		jsonResponse(w, resp)
 	})
 
+	mux.HandleFunc("GET /v1/card", func(w http.ResponseWriter, r *http.Request) {
+		card, err := svc.GetRegistryCard(r.Context(), &swapv1.GetRegistryCardRequest{
+			Name: r.URL.Query().Get("name"),
+		})
+		if err != nil {
+			httpGRPCError(w, err)
+			return
+		}
+		protoJSONResponse(w, card)
+	})
+
 	mux.HandleFunc("GET /v1/assets", func(w http.ResponseWriter, r *http.Request) {
 		resp, err := svc.ListAssets(r.Context(), &swapv1.ListAssetsRequest{})
 		if err != nil {
@@ -287,6 +300,20 @@ func jsonResponse(w http.ResponseWriter, v interface{}) {
 	if err := json.NewEncoder(w).Encode(v); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+// protoJSONResponse marshals a proto message with the json_name field names and
+// keeps zero-valued fields, so payloads bound to an external schema stay exact.
+var registryCardJSON = protojson.MarshalOptions{EmitDefaultValues: true}
+
+func protoJSONResponse(w http.ResponseWriter, m proto.Message) {
+	b, err := registryCardJSON.Marshal(m)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(b) //nolint:errcheck
 }
 
 func httpError(w http.ResponseWriter, err error, code int) {

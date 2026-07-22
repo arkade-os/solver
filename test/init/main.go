@@ -152,24 +152,24 @@ func run() error {
 	}
 
 	// 3. Read the price from the solver-pricefeed mock and register the market.
-	assetBtcFeed := cfg.pricefeedURL + "/asset-btc"
-	const assetBtcPath = "/asset/btc"
+	btcAssetFeed := cfg.pricefeedURL + "/btc-asset"
+	const btcAssetPath = "/btc/asset"
 
-	price, err := pricefeed.New().Fetch(ctx, assetBtcFeed, assetBtcPath)
+	price, err := pricefeed.New().Fetch(ctx, btcAssetFeed, btcAssetPath)
 	if err != nil {
-		return fmt.Errorf("read pricefeed %s: %w", assetBtcFeed, err)
+		return fmt.Errorf("read pricefeed %s: %w", btcAssetFeed, err)
 	}
-	log.Infof("pricefeed %s => %s/BTC price %v", assetBtcFeed, assetID, price)
+	log.Infof("pricefeed %s => BTC/%s price %v", btcAssetFeed, assetID, price)
 
 	market := &swapv1.MarketInfo{
-		BaseAsset:      assetID,
-		QuoteAsset:     "BTC",
+		BaseAsset:      "BTC",
+		QuoteAsset:     assetID,
 		MinQuoteAmount: 1,
 		MaxQuoteAmount: 100_000_000,
 		MinBaseAmount:  1,
 		MaxBaseAmount:  100_000_000,
-		PriceFeed:      assetBtcFeed,
-		PricePath:      assetBtcPath,
+		PriceFeed:      btcAssetFeed,
+		PricePath:      btcAssetPath,
 	}
 	if _, err := swap.AddMarket(ctx, &swapv1.AddMarketRequest{Market: market}); err != nil {
 		return fmt.Errorf("add market %s/%s: %w", market.BaseAsset, market.QuoteAsset, err)

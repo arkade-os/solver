@@ -1066,6 +1066,7 @@ tr:hover .row-actions {
 
 .field input,
 .field textarea,
+.composer-input,
 .asset-hex {
   background: var(--bg);
   color: var(--text);
@@ -1084,6 +1085,7 @@ tr:hover .row-actions {
 }
 .field input:focus,
 .field textarea:focus,
+.composer-input:focus,
 .asset-hex:focus {
   outline: 0;
   border-color: var(--accent);
@@ -1584,4 +1586,117 @@ tr:hover .row-actions {
 .seed {
   word-break: break-all;
   line-height: 1.6;
+}
+
+.setting {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px;
+  box-shadow: var(--shadow-sm);
+}
+.setting-head {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+.setting-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  color: var(--text-muted);
+}
+.setting-icon .icon {
+  width: 18px;
+  height: 18px;
+}
+.setting-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+.setting-desc {
+  margin: 3px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  max-width: 62ch;
+}
+.setting-desc a {
+  color: var(--accent);
+}
+
+.setting-danger {
+  border-color: rgba(248, 113, 113, 0.28);
+}
+.setting-danger .setting-icon {
+  background: var(--danger-soft);
+  border-color: rgba(248, 113, 113, 0.32);
+  color: var(--danger);
+}
+
+.card-composer {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.card-composer .composer-input {
+  flex: 1;
+  min-width: 0;
+}
+.card-composer .btn {
+  flex: none;
+}
+.setting .field-error {
+  margin: 8px 0 0;
+}
+
+.code-panel {
+  margin-top: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-soft);
+}
+.code-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 8px 7px 14px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+.code-panel-name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Cascadia Mono",
+    monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.code-panel-body {
+  margin: 0;
+  padding: 14px;
+  max-height: 420px;
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Cascadia Mono",
+    monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.btn-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-color: rgba(248, 113, 113, 0.32);
+}
+.btn-danger:hover {
+  background: rgba(248, 113, 113, 0.16);
+  border-color: rgba(248, 113, 113, 0.45);
 }

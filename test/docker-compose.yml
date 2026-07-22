@@ -41,7 +41,7 @@ services:
 
   arkd-wallet:
     restart: unless-stopped
-    image: ghcr.io/arkade-os/arkd-wallet:v0.9.9
+    image: ghcr.io/arkade-os/arkd-wallet:v0.9.15
     container_name: solverd-arkd-wallet
     depends_on:
       - nbxplorer
@@ -57,7 +57,7 @@ services:
         target: /app/data
 
   arkd:
-    image: ghcr.io/arkade-os/arkd:v0.9.9
+    image: ghcr.io/arkade-os/arkd:v0.9.15
     container_name: solverd-arkd
     restart: unless-stopped
     depends_on:

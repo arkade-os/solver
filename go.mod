@@ -1,13 +1,13 @@
 module github.com/arkade-os/solver
 
-go 1.26.4
+go 1.26.5
 
 require (
-	github.com/arkade-os/arkd/pkg/ark-lib v0.8.1-0.20260708124145-5c56d54c98e8
-	github.com/arkade-os/arkd/pkg/client-lib v0.0.0-20260708124145-5c56d54c98e8
+	github.com/arkade-os/arkd/pkg/ark-lib v0.8.1-0.20260720133940-f444de6c336c
+	github.com/arkade-os/arkd/pkg/client-lib v0.0.0-20260707112601-db93f3d63dab
 	github.com/arkade-os/emulator/pkg/arkade v0.0.0-20260616144513-96f9b06a5380
 	github.com/arkade-os/emulator/pkg/client v0.0.0-20260526192649-eac4fbc07c4c
-	github.com/arkade-os/go-sdk v0.10.2-0.20260709155027-fea19d43db9d
+	github.com/arkade-os/go-sdk v0.10.2-0.20260721082911-079c1ad43657
 	github.com/btcsuite/btcd v0.24.3-0.20250318170759-4f4ea81776d6
 	github.com/btcsuite/btcd/btcec/v2 v2.3.6
 	github.com/btcsuite/btcd/btcutil/psbt v1.1.9
@@ -74,6 +74,7 @@ require (
 	github.com/lightningnetwork/lnd/tlv v1.3.1 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/meshapi/grpc-api-gateway v0.1.0 // indirect
+	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect

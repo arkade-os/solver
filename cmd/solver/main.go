@@ -62,6 +62,7 @@ func main() {
 			settleCommand,
 			tradesCommand,
 			statusCommand,
+			cardCommand,
 		},
 	}
 
@@ -402,6 +403,33 @@ var tradesCommand = &cli.Command{
 			return err
 		}
 		renderTrades(resp.Trades, loadAssets(c))
+		return nil
+	},
+}
+
+var cardCommand = &cli.Command{
+	Name:  "card",
+	Usage: "print the solver-registry card for the configured markets",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:  "name",
+			Usage: "registry name, must equal the card filename (lowercase, digits, dashes); random if unset",
+		},
+	},
+	Action: func(c *cli.Context) error {
+		data, err := request(c, http.MethodGet, "/v1/card?name="+url.QueryEscape(c.String("name")), nil)
+		if err != nil {
+			return err
+		}
+		var card any
+		if err := json.Unmarshal(data, &card); err != nil {
+			return err
+		}
+		out, err := json.MarshalIndent(card, "", "  ")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(out))
 		return nil
 	},
 }

@@ -184,30 +184,73 @@
         <header class="view-head">
           <div>
             <h1>Settings</h1>
-            <p class="muted">Daemon configuration and wallet backup.</p>
+            <p class="muted">Daemon identity, registry listing, and wallet backup.</p>
           </div>
-          <button class="btn btn-icon-only" id="btn-refresh-config" aria-label="Refresh">
+          <button class="btn btn-icon-only" id="btn-refresh-config" aria-label="Refresh configuration">
             <i data-icon="refresh"></i>
           </button>
         </header>
 
-        <div class="card">
-          <div class="card-label">Operator configuration</div>
+        <section class="setting">
+          <div class="setting-head">
+            <span class="setting-icon"><i data-icon="settings"></i></span>
+            <div>
+              <h2 class="setting-title">Daemon configuration</h2>
+              <p class="setting-desc">Read-only — set through environment variables at startup.</p>
+            </div>
+          </div>
           <div class="config-list" id="config-list"></div>
-        </div>
+        </section>
 
-        <div class="card">
-          <div class="card-label">Wallet backup</div>
-          <p class="muted">
-            Reveal the wallet seed to back it up. Anyone with this seed controls
-            the solver's funds — store it offline and never share it.
-          </p>
-          <div class="head-actions">
-            <button class="btn btn-primary" id="btn-reveal-seed">
-              <i data-icon="key"></i> Reveal wallet seed
+        <section class="setting">
+          <div class="setting-head">
+            <span class="setting-icon"><i data-icon="layers"></i></span>
+            <div>
+              <h2 class="setting-title">Registry card</h2>
+              <p class="setting-desc">
+                The listing for the
+                <a href="https://github.com/arkade-os/solver-registry" target="_blank"
+                  rel="noreferrer noopener">solver registry</a>, built from your markets.
+                Name it to match the file you'll submit.
+              </p>
+            </div>
+          </div>
+
+          <div class="card-composer">
+            <input id="card-name" class="composer-input" type="text" placeholder="my-solver"
+              pattern="[a-z0-9-]+" title="Lowercase letters, digits and dashes only" />
+            <button class="btn btn-primary" id="btn-gen-card">
+              <i data-icon="layers"></i> Generate
             </button>
           </div>
-        </div>
+          <p class="field-error" id="card-error"></p>
+
+          <div class="code-panel" id="card-output" hidden>
+            <div class="code-panel-head">
+              <span class="code-panel-name">card.json</span>
+              <button class="btn btn-ghost" id="btn-copy-card" aria-label="Copy card JSON">
+                <i data-icon="copy"></i> Copy
+              </button>
+            </div>
+            <pre class="code-panel-body" id="card-json"></pre>
+          </div>
+        </section>
+
+        <section class="setting setting-danger">
+          <div class="setting-head">
+            <span class="setting-icon"><i data-icon="key"></i></span>
+            <div>
+              <h2 class="setting-title">Wallet seed</h2>
+              <p class="setting-desc">
+                Whoever holds the seed controls the solver's funds. Reveal it only
+                to back it up offline, and never share it.
+              </p>
+            </div>
+          </div>
+          <button class="btn btn-danger" id="btn-reveal-seed">
+            <i data-icon="key"></i> Reveal wallet seed
+          </button>
+        </section>
       </section>
 
     </main>

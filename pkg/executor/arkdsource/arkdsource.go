@@ -40,7 +40,7 @@ func New(c client.Client, log logrus.FieldLogger) *Source {
 //
 // Decoding errors on individual events are logged and skipped — the
 // consumer receives only successfully-parsed packets.
-func (s *Source) Subscribe(ctx context.Context, _ string) (<-chan *psbt.Packet, error) {
+func (s *Source) Subscribe(ctx context.Context, filter string) (<-chan *psbt.Packet, error) {
 	eventsCh, stop, err := s.c.GetTransactionsStream(ctx)
 	if err != nil {
 		return nil, err

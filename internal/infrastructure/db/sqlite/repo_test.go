@@ -74,8 +74,6 @@ func TestTradeErrorRoundTrip(t *testing.T) {
 	}
 }
 
-// Verifies migrations apply on a fresh DB and both direction bound sets
-// round-trip through the repository.
 func TestMarketSlippageRoundTrip(t *testing.T) {
 	db, err := sqlitedb.OpenDB(t.TempDir())
 	if err != nil {

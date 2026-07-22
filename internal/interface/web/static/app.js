@@ -102,6 +102,7 @@ const api = {
     api._req("GET", `/v1/trades?${new URLSearchParams({ limit, status })}`),
   config: () => api._req("GET", "/v1/config"),
   dumpSeed: (password) => api._req("POST", "/v1/wallet/dump", { password }),
+  card: (name) => api._req("GET", `/v1/card?name=${encodeURIComponent(name)}`),
 };
 
 // -------- toast --------
@@ -1285,9 +1286,34 @@ async function loadConfig() {
     toast(err.message, "error");
     list.innerHTML = "";
   }
+  if (!$("#card-output").hidden) await generateCard();
 }
 
 $("#btn-refresh-config").addEventListener("click", loadConfig);
+
+// -------- registry card --------
+
+let cardJSON = "";
+
+async function generateCard() {
+  const output = $("#card-output");
+  const err = $("#card-error");
+  try {
+    const card = await api.card($("#card-name").value.trim());
+    $("#card-name").value = card.name;
+    cardJSON = JSON.stringify(card, null, 2);
+    $("#card-json").textContent = cardJSON;
+    output.hidden = false;
+    err.textContent = "";
+  } catch (e) {
+    cardJSON = "";
+    output.hidden = true;
+    err.textContent = e.message;
+  }
+}
+
+$("#btn-gen-card").addEventListener("click", generateCard);
+$("#btn-copy-card").addEventListener("click", () => copy(cardJSON));
 
 // -------- seed backup dialog --------
 
