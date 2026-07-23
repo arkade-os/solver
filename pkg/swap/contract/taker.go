@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"maps"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -34,9 +35,12 @@ type FulfillResult struct {
 }
 
 // FulfillOffer constructs and submits the fulfillment transaction for a swap offer.
+// takerAddr receives the taker's side of the swap (swap assets + BTC change).
+// we know the address must receive fund so we use it as watchAddr in the wallet.CustomSpend.
 func FulfillOffer(
 	ctx context.Context,
 	offer Offer,
+	takerAddr string,
 	arkClient arksdk.Wallet,
 	emulatorClient emulatorclient.TransportClient,
 ) (*FulfillResult, error) {
@@ -115,11 +119,7 @@ func FulfillOffer(
 	}
 
 	takerVtxos := make([]clientTypes.VtxoWithTapTree, 0, len(eligibleVtxos))
-	// signingKeys maps every script the taker may need to sign (both the
-	// VTXO's original script AND its derived checkpoint script) to the
-	// owner keyId. offchain.BuildTxs spends a synthetic checkpoint VTXO,
-	// so the ark tx's input pkScripts are checkpoint scripts — they must
-	// be in this map for identity.SignTransaction to sign them.
+
 	signingKeys := make(map[string]string)
 	for _, v := range eligibleVtxos {
 		c, ok := contractsByScript[v.Script]
@@ -138,9 +138,7 @@ func FulfillOffer(
 		if err != nil {
 			return nil, fmt.Errorf("failed to get key refs for %s: %w", c.Script, err)
 		}
-		for k, kid := range keyRefs {
-			signingKeys[k] = kid
-		}
+		maps.Copy(signingKeys, keyRefs)
 		takerVtxos = append(takerVtxos, clientTypes.VtxoWithTapTree{
 			Vtxo:       v,
 			Tapscripts: tapscripts,
@@ -150,10 +148,6 @@ func FulfillOffer(
 		return nil, fmt.Errorf("no taker VTXOs matched to offchain addresses")
 	}
 
-	takerAddr, err := arkClient.NewOffchainAddress(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get taker address: %w", err)
-	}
 	takerDecodedAddr, err := arklib.DecodeAddressV0(takerAddr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode taker address: %w", err)

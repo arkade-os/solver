@@ -1,4 +1,4 @@
-.PHONY: build build-all clean cov docker docker-run docker-stop format help init-solverd integrationtest lint proto run setup-test-env sqlc teardown-test-env test vet
+.PHONY: build build-all clean cov docker docker-run docker-stop format help init-solverd integrationtest lint proto run setup-test-env sqlc stresstest teardown-test-env test vet
 
 VERSION ?= dev
 LDFLAGS := -s -w -X main.Version=$(VERSION)
@@ -130,6 +130,12 @@ teardown-test-env:
 integrationtest:
 	@echo "Running integration tests..."
 	@go test -v -count=1 -timeout=10m -race -p=1 ./test/e2e/...
+
+## stresstest: run the smoke stress test (requires setup-test-env). Never runs in CI.
+stresstest:
+	@echo "Running stress test (burst=$${STRESS_BURST:-100} sustained=$${STRESS_SUSTAINED:-30})..."
+	@go test -v -count=1 -timeout=$${STRESS_TIMEOUT:-45m} -tags stress \
+		-run TestStressSwaps ./test/e2e/...
 
 ## vet: code analysis
 vet:

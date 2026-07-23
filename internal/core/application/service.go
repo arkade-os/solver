@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	arkdclient "github.com/arkade-os/arkd/pkg/client-lib"
@@ -82,7 +83,7 @@ func New(cfg *config.Config, wallet arksdk.Wallet) (*Service, error) {
 		SolverClient:      wallet,
 		Emulator:          emulator,
 		MarketsRepository: marketRepo,
-		Listener:          &tradeListener{tradeRepo},
+		Listener:          &tradeListener{tradeRepo, sync.Mutex{}},
 		Log:               log,
 	})
 
@@ -225,6 +226,7 @@ func dialTarget(serverURL string) (string, credentials.TransportCredentials) {
 
 type tradeListener struct {
 	repo ports.TradeRepository
+	mtx sync.Mutex
 }
 
 func (l *tradeListener) OnAttempt(_ context.Context, evt swap.FulfillmentAttempt) {
@@ -241,6 +243,8 @@ func (l *tradeListener) OnAttempt(_ context.Context, evt swap.FulfillmentAttempt
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+	l.mtx.Lock()
+	defer l.mtx.Unlock()
 	if err := l.repo.Add(ctx, trade); err != nil {
 		logrus.WithError(err).WithField("offerTxid", evt.OfferTxid).
 			Error("failed to persist trade")

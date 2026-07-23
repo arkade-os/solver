@@ -2,6 +2,8 @@ module github.com/arkade-os/solver
 
 go 1.26.5
 
+replace github.com/arkade-os/go-sdk => /Users/louis/Code/go-sdk
+
 require (
 	github.com/arkade-os/arkd/pkg/ark-lib v0.8.1-0.20260720133940-f444de6c336c
 	github.com/arkade-os/arkd/pkg/client-lib v0.0.0-20260707112601-db93f3d63dab
@@ -20,6 +22,7 @@ require (
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli/v2 v2.27.7
+	golang.org/x/sync v0.20.0
 	golang.org/x/term v0.43.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260209200024-4cfbd4190f57
 	google.golang.org/grpc v1.79.3
@@ -74,7 +77,6 @@ require (
 	github.com/lightningnetwork/lnd/tlv v1.3.1 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/meshapi/grpc-api-gateway v0.1.0 // indirect
-	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
@@ -96,7 +98,6 @@ require (
 	golang.org/x/crypto v0.52.0 // indirect
 	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8 // indirect
 	golang.org/x/net v0.55.0 // indirect
-	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
 	google.golang.org/genproto v0.0.0-20241118233622-e639e219e697 // indirect

@@ -189,14 +189,53 @@ func (p *plugin) checkBalance(ctx context.Context, m *MatchedOffer) (string, err
 	return "", nil
 }
 
-// fulfill is the terminal action — atomically settles the matched offer.
 func (p *plugin) fulfill(ctx context.Context, m *MatchedOffer) {
-	result, err := contract.FulfillOffer(ctx, m.Offer.Offer, p.arkClient, p.emulator)
+	takerAddr, err := p.arkClient.NewOffchainAddress(ctx)
+	if err != nil {
+		p.notify(ctx, m, "", fmt.Sprintf("fulfillment failed: get taker address: %s", err))
+		return
+	}
+
+	res, err := p.arkClient.TxHandler().HandleTx(func() (any, error) {
+		subCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		tracked := make(chan error, 1)
+		go func() {
+			_, err := p.arkClient.NotifyIncomingFunds(subCtx, takerAddr)
+			if err == nil {
+				time.Sleep(20 * time.Millisecond) // give time for go-sdk db to update
+			}
+			tracked <- err
+		}()
+
+		res, err := contract.FulfillOffer(
+			ctx, m.Offer.Offer, takerAddr, p.arkClient, p.emulator,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		select {
+		case err := <-tracked:
+			if err != nil {
+				return nil, err
+			}
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+		return res, nil
+	})
 	if err != nil {
 		p.notify(ctx, m, "", fmt.Sprintf("fulfillment failed: %s", err))
 		return
 	}
-	p.notify(ctx, m, result.ArkTxid, "")
+
+	if r, ok := res.(*contract.FulfillResult); ok {
+		p.notify(ctx, m, r.ArkTxid, "")
+		return
+	}
+
+	p.log.Warnf("unexpected fullfilment return type %T: skip notification", res)
 }
 
 // notify reports the outcome of an attempt on a matched offer to the
