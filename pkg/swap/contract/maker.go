@@ -27,6 +27,8 @@ type CreateOfferResult struct {
 	OfferHex    string
 	Packet      extension.Packet
 	SwapAddress string
+	// MakerPkScript is where the swap fullfilment should go to
+	MakerPkScript []byte
 }
 
 // OfferStatus represents the status of a VTXO at a swap address.
@@ -139,9 +141,10 @@ func CreateOffer(
 	}
 
 	return &CreateOfferResult{
-		OfferHex:    hex.EncodeToString(encodedOffer),
-		Packet:      packet,
-		SwapAddress: swapAddress,
+		OfferHex:      hex.EncodeToString(encodedOffer),
+		Packet:        packet,
+		SwapAddress:   swapAddress,
+		MakerPkScript: makerPkScript,
 	}, nil
 }
 
