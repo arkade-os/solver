@@ -226,7 +226,7 @@ func dialTarget(serverURL string) (string, credentials.TransportCredentials) {
 
 type tradeListener struct {
 	repo ports.TradeRepository
-	mtx sync.Mutex
+	mtx  sync.Mutex
 }
 
 func (l *tradeListener) OnAttempt(_ context.Context, evt swap.FulfillmentAttempt) {

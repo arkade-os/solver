@@ -52,7 +52,6 @@ type submission struct {
 
 // TestStressSwaps drives a burst of simultaneous offers followed by a
 // sustained drip, then reports how the solver coped.
-//
 func TestStressSwaps(t *testing.T) {
 	ctx := t.Context()
 
