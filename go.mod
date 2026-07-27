@@ -2,14 +2,12 @@ module github.com/arkade-os/solver
 
 go 1.26.5
 
-replace github.com/arkade-os/go-sdk => /Users/louis/Code/go-sdk
-
 require (
 	github.com/arkade-os/arkd/pkg/ark-lib v0.8.1-0.20260720133940-f444de6c336c
 	github.com/arkade-os/arkd/pkg/client-lib v0.0.0-20260707112601-db93f3d63dab
 	github.com/arkade-os/emulator/pkg/arkade v0.0.0-20260616144513-96f9b06a5380
 	github.com/arkade-os/emulator/pkg/client v0.0.0-20260526192649-eac4fbc07c4c
-	github.com/arkade-os/go-sdk v0.10.2-0.20260721082911-079c1ad43657
+	github.com/arkade-os/go-sdk v0.10.2-0.20260723143851-75cd6ad8a427
 	github.com/btcsuite/btcd v0.24.3-0.20250318170759-4f4ea81776d6
 	github.com/btcsuite/btcd/btcec/v2 v2.3.6
 	github.com/btcsuite/btcd/btcutil/psbt v1.1.9
