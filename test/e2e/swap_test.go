@@ -2,12 +2,17 @@ package e2e_test
 
 import (
 	"context"
+	"encoding/hex"
 	"testing"
 	"time"
 
 	"github.com/arkade-os/arkd/pkg/ark-lib/asset"
+	"github.com/arkade-os/arkd/pkg/ark-lib/script"
 	clientTypes "github.com/arkade-os/arkd/pkg/client-lib/types"
+	arksdk "github.com/arkade-os/go-sdk"
 	sdktypes "github.com/arkade-os/go-sdk/types"
+	"github.com/btcsuite/btcd/btcec/v2"
+	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -75,16 +80,20 @@ func TestSwapAssetToBTC(t *testing.T) {
 }
 
 // TestSwapBTCToAsset: maker deposits BTC, wants asset.
+// Runs both offer flavours: with the maker's unilateral exit leaf in the swap
+// script and without it. No exit is performed (that needs an unroll plus the
+// CSV delay) -- the subtests assert the funded address really commits to the
+// expected exit leaf, then let the swap complete through the happy path.
 func TestSwapBTCToAsset(t *testing.T) {
 	ctx := t.Context()
 
 	// Issue asset on a temp wallet and send it to the taker bot, so the
-	// taker has asset balance to fulfill the maker's offer.
+	// taker has asset balance to fulfill both makers' offers.
 	tempClient := setupArkClient(t)
 	faucetOffchain(t, tempClient, 0.001)
-	assetID := issueAsset(t, tempClient, 1000)
+	assetID := issueAsset(t, tempClient, 2000)
 
-	fundSolverAsset(t, ctx, tempClient, assetID, 1000)
+	fundSolverAsset(t, ctx, tempClient, assetID, 2000)
 
 	market := swap.Market{
 		BaseAsset:      "BTC",
@@ -98,31 +107,47 @@ func TestSwapBTCToAsset(t *testing.T) {
 	}
 	addMarket(t, market)
 
-	// Maker creates offer: deposit BTC, want 500 units of asset.
-	maker := setupArkClient(t)
-	faucetOffchain(t, maker, 0.0005)
-
-	emulator := newEmulatorClient(t)
 	wantAssetID, err := asset.NewAssetIdFromString(assetID)
 	require.NoError(t, err)
-	offerResult, err := contract.CreateOffer(ctx, contract.CreateOfferParams{
-		WantAmount: 500,
-		WantAsset:  wantAssetID,
-	}, maker, emulator)
-	require.NoError(t, err)
 
-	// Subscribe to maker vtxo events before funding the swap.
-	makerVtxoCh := maker.GetVtxoEventChannel(ctx)
+	for _, tc := range []struct {
+		name   string
+		noExit bool
+	}{
+		{"with exit", false},
+		{"without exit", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
 
-	// Fund swap address with 500 sats BTC + offer packet.
-	sendOffChainWithExtension(t, maker, clientTypes.Receiver{
-		To:     offerResult.SwapAddress,
-		Amount: 500,
-	}, offerResult.Packet)
+			// Maker creates offer: deposit BTC, want 500 units of asset.
+			maker := setupArkClient(t)
+			faucetOffchain(t, maker, 0.0005)
 
-	// Wait for the taker's fulfill: the maker should observe an asset
-	// VTXO landing at their address.
-	requireAssetFulfillment(t, ctx, makerVtxoCh, assetID, 60*time.Second)
+			emulator := newEmulatorClient(t)
+			offerResult, err := contract.CreateOffer(ctx, contract.CreateOfferParams{
+				WantAmount: 500,
+				WantAsset:  wantAssetID,
+				NoExit:     tc.noExit,
+			}, maker, emulator)
+			require.NoError(t, err)
+
+			requireSwapExitLeaf(t, ctx, maker, offerResult.OfferHex, !tc.noExit)
+
+			// Subscribe to maker vtxo events before funding the swap.
+			makerVtxoCh := maker.GetVtxoEventChannel(ctx)
+
+			// Fund swap address with 500 sats BTC + offer packet.
+			sendOffChainWithExtension(t, maker, clientTypes.Receiver{
+				To:     offerResult.SwapAddress,
+				Amount: 500,
+			}, offerResult.Packet)
+
+			// Wait for the taker's fulfill: the maker should observe an asset
+			// VTXO landing at their address.
+			requireAssetFulfillment(t, ctx, makerVtxoCh, assetID, 60*time.Second)
+		})
+	}
 }
 
 // TestSwapAssetToAsset: maker deposits assetA, wants assetB.
@@ -314,6 +339,55 @@ func requireNoAssetFulfillment(
 			}
 		}
 	}
+}
+
+func requireSwapExitLeaf(
+	t *testing.T,
+	ctx context.Context,
+	maker arksdk.Wallet,
+	offerHex string,
+	wantExit bool,
+) {
+	t.Helper()
+
+	offerBytes, err := hex.DecodeString(offerHex)
+	require.NoError(t, err)
+	offer, err := contract.DeserializeOffer(offerBytes)
+	require.NoError(t, err)
+
+	info, err := maker.Client().GetInfo(ctx)
+	require.NoError(t, err)
+	signerBytes, err := hex.DecodeString(info.SignerPubKey)
+	require.NoError(t, err)
+	signerKey, err := btcec.ParsePubKey(signerBytes)
+	require.NoError(t, err)
+
+	vtxoScript, err := offer.VtxoScript(signerKey)
+	require.NoError(t, err)
+
+	tapKey, _, err := vtxoScript.TapTree()
+	require.NoError(t, err)
+	swapPkScript, err := script.P2TRScript(tapKey)
+	require.NoError(t, err)
+	require.Equal(t, offer.SwapPkScript, swapPkScript)
+
+	exits := vtxoScript.ExitClosures()
+	if !wantExit {
+		require.Nil(t, offer.ExitDelay)
+		require.Empty(t, exits)
+		return
+	}
+
+	require.NotNil(t, offer.ExitDelay)
+	require.Len(t, exits, 1)
+	csv, ok := exits[0].(*script.CSVMultisigClosure)
+	require.True(t, ok)
+	require.Equal(t, *offer.ExitDelay, csv.Locktime)
+	require.Len(t, csv.PubKeys, 1, "exit leaf must be maker-only, otherwise it is not unilateral")
+	require.Equal(t,
+		schnorr.SerializePubKey(offer.MakerPublicKey),
+		schnorr.SerializePubKey(csv.PubKeys[0]),
+	)
 }
 
 func dialSwapClient(t *testing.T) swapv1.SwapServiceClient {

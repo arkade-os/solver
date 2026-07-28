@@ -120,7 +120,7 @@ reconstructed swap pkScript equals the offer's `SwapPkScript` before spending.
 TapscriptsVtxoScript {
   Closures[0] = MultisigClosure{ SignerPubKey, FulfillTweakedKey }              # REQUIRED — fulfill
   Closures[1] = MultisigClosure{ MakerPublicKey, SignerPubKey }                 # REQUIRED — cancel
-  Closures[2] = CSVMultisigClosure{ {MakerPublicKey, SignerPubKey}, ExitDelay } # iff ExitDelay
+  Closures[2] = CSVMultisigClosure{ {MakerPublicKey}, ExitDelay }               # iff ExitDelay
 }
 ```
 
@@ -176,9 +176,10 @@ transaction's asset packet (Section 4.2).
     `{MakerPublicKey, SignerPubKey}` — no timelock. It lets the maker reclaim an
     unfilled deposit cooperatively with the signer at any time. This is why
     `MakerPublicKey` is required for every offer.
--   **Exit** (`ExitDelay` set): a `CSVMultisigClosure` of the same keys with a
-    relative locktime, for the maker's unilateral-exit path when the signer is
-    unresponsive.
+-   **Exit** (`ExitDelay` set): a `CSVMultisigClosure` of `{MakerPublicKey}`
+    alone with a relative locktime. The signer key is deliberately absent: once
+    the VTXO is unrolled onchain and the delay elapses, the maker spends it
+    without any cooperation. This is the real unilateral-exit path.
 
 `solverd`'s maker helper (`CreateOffer`) always builds both: the cancel closure
 via `MakerPublicKey`, and the exit closure using the server's configured

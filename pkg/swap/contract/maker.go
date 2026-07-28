@@ -20,6 +20,7 @@ import (
 type CreateOfferParams struct {
 	WantAmount uint64         // sats the maker wants to receive
 	WantAsset  *asset.AssetId // nil for BTC
+	NoExit     bool           // omit the maker's unilateral exit leaf
 }
 
 // CreateOfferResult contains the result of creating an offer.
@@ -90,17 +91,20 @@ func CreateOffer(
 		return nil, err
 	}
 
-	// Always include the cancel (mandatory, via MakerPublicKey) and exit paths,
-	// matching the client so both derive the same swap address. The exit delay
-	// is the server's unilateral exit delay.
-	exitDelay := cfg.UnilateralExitDelay
+	// The cancel path (via MakerPublicKey) is mandatory. The exit path is opt-out
+	// and uses the server's unilateral exit delay. Both are derived from the
+	// offer, so the client reconstructs the same swap address either way.
+	var exitDelay *arklib.RelativeLocktime
+	if !params.NoExit {
+		exitDelay = &cfg.UnilateralExitDelay
+	}
 	offer := &Offer{
 		WantAmount:     params.WantAmount,
 		WantAsset:      params.WantAsset,
 		MakerPkScript:  makerPkScript,
 		MakerPublicKey: makerKeyRef.PubKey,
 		EmulatorPubkey: emulatorPubkey,
-		ExitDelay:      &exitDelay,
+		ExitDelay:      exitDelay,
 	}
 
 	// Compute swap address

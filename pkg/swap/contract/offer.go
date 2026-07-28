@@ -312,7 +312,7 @@ func (s *Offer) VtxoScript(server *btcec.PublicKey) (*script.TapscriptsVtxoScrip
 	if s.ExitDelay != nil {
 		exitClosure := &script.CSVMultisigClosure{
 			MultisigClosure: script.MultisigClosure{
-				PubKeys: []*btcec.PublicKey{s.MakerPublicKey, server},
+				PubKeys: []*btcec.PublicKey{s.MakerPublicKey},
 			},
 			Locktime: *s.ExitDelay,
 		}
