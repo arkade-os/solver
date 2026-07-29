@@ -4,10 +4,12 @@ A **solver bot** for [Arkade Intents](https://arkadeos.com/). It watches an
 Arkade for swap offers, and automatically fills the ones that match the markets
 and prices you configure.
 
-This is a guide to setting one up. It ships two binaries:
+This is a guide to setting one up. It ships three binaries:
 
 - `solverd` — the daemon that runs the bot, wallet, and API.
 - `solver` — the CLI you use to operate it (add markets, fund the wallet, check trades).
+- `banco` — an experimental, test-only CLI that takes the other side of a swap.
+  See [`cmd/banco/README.md`](cmd/banco/README.md).
 
 ---
 
@@ -32,7 +34,7 @@ Keep it safe: it controls the bot's funds.
 With Go installed:
 
 ```sh
-make build      # produces ./solverd and ./solver
+make build      # produces ./solverd, ./solver and ./banco
 ```
 
 Or run the daemon in a container:

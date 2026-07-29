@@ -16,7 +16,7 @@ build:
 	@echo "Building banco CLI..."
 	@go build -o banco ./cmd/banco/
 
-## run: build and run solverd locally against the fulmine test stack (arkd@7070, emulator@7273)
+## run: build and run solverd locally against the fulmine test stack (arkd@7070, emulator@7173)
 run: build
 	@echo "Running solverd against local test stack..."
 	@SOLVER_ARK_URL=localhost:7070 \
