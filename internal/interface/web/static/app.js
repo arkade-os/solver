@@ -1143,18 +1143,83 @@ function assetChip(id) {
   )}">${escapeHTML(label)}</b></span>`;
 }
 
-// txChip renders a labelled, click-to-copy transaction id (or a muted dash when
-// the id is missing).
-function txChip(label, txid) {
-  if (!txid) return `<span class="tx-none">${escapeHTML(label)} —</span>`;
-  return `<button type="button" class="tx-chip" data-copy-text="${escapeAttr(
-    txid
-  )}" title="Copy ${escapeHTML(label.toLowerCase())} txid — ${escapeAttr(
-    txid
-  )}"><span>${escapeHTML(label)}</span><code>${escapeHTML(
-    truncMid(txid, 6, 6)
-  )}</code></button>`;
+function decimalsFor(asset) {
+  if (!asset || asset === "BTC") return 8;
+  return Number(metaFor(asset).decimals || 0);
 }
+
+// tradePrice derives the executed price (quote per base) from the trade's own
+// amounts, so it reflects what this attempt was priced at rather than whatever
+// the feed says now. Returns null when the market or amounts can't be resolved.
+function tradePrice(t) {
+  const base = marketBase(t.market);
+  const quote = marketQuote(t.market);
+  if (!base || !quote) return null;
+  const sell = (t.deposit_asset || base) === base;
+  const baseRaw = Number(sell ? t.deposit_amount : t.want_amount);
+  const quoteRaw = Number(sell ? t.want_amount : t.deposit_amount);
+  if (!baseRaw || !quoteRaw) return null;
+  const b = baseRaw / 10 ** decimalsFor(base);
+  const q = quoteRaw / 10 ** decimalsFor(quote);
+  if (!b) return null;
+  const p = q / b;
+  // below 1e-8 a fixed-decimal render collapses to "0", which reads as free
+  const shown =
+    p >= 1e-8 ? p.toLocaleString("en-US", { maximumFractionDigits: 8 }) : p.toExponential(4);
+  return `${shown} ${assetDisplay(quote)} per ${assetDisplay(base)}`;
+}
+
+// detailRow renders one <dt>/<dd> pair; mono values get a copy button so a full
+// txid never has to be selected by hand.
+function detailRow(label, value, { mono = false, copy = "", cls = "" } = {}) {
+  if (!value) return "";
+  const body = mono
+    ? `<code class="detail-mono">${escapeHTML(value)}</code>${
+        copy
+          ? `<button type="button" class="icon-btn" data-copy-text="${escapeAttr(
+              copy
+            )}" aria-label="Copy ${escapeAttr(label)}">${icon("copy")}</button>`
+          : ""
+      }`
+    : escapeHTML(value);
+  return `<dt>${escapeHTML(label)}</dt><dd class="${cls}">${body}</dd>`;
+}
+
+const tradeDialog = $("#trade-dialog");
+
+function openTrade(t) {
+  const dep = t.deposit_asset || marketBase(t.market);
+  const want = t.want_asset || marketQuote(t.market);
+  const when = new Date(Number(t.created_at) * 1000);
+  $("#trade-details").innerHTML = [
+    detailRow(
+      "Status",
+      t.error ? "Failed" : "Filled",
+      { cls: t.error ? "detail-bad" : "detail-good" }
+    ),
+    detailRow("Time", when.toLocaleString()),
+    detailRow("Trade", `${assetDisplay(dep)} → ${assetDisplay(want)}`),
+    detailRow("Deposited", fmtAmount(t.deposit_amount, dep)),
+    // on a failed attempt nothing was filled — the amount is what was asked for
+    detailRow(t.error ? "Requested" : "Filled", fmtAmount(t.want_amount, want)),
+    detailRow("Price", tradePrice(t)),
+    detailRow("Offer txid", t.offer_txid, {
+      mono: true,
+      copy: t.offer_txid,
+    }),
+    detailRow("Fill txid", t.fulfill_txid, {
+      mono: true,
+      copy: t.fulfill_txid,
+    }),
+    detailRow("Error", t.error, { cls: "detail-bad detail-wrap" }),
+  ].join("");
+  hydrateIcons($("#trade-details"));
+  tradeDialog.showModal();
+}
+
+$$("#trade-dialog [data-close]").forEach((b) =>
+  b.addEventListener("click", () => tradeDialog.close())
+);
 
 async function loadTrades() {
   const body = $("#trades-body");
@@ -1183,8 +1248,9 @@ async function loadTrades() {
     for (const t of trades) {
       const dep = t.deposit_asset || marketBase(t.market);
       const want = t.want_asset || marketQuote(t.market);
+      const failed = Boolean(t.error);
       const tr = document.createElement("tr");
-      if (t.error) tr.className = "trade-failed";
+      tr.className = "trade-row" + (failed ? " trade-failed" : "");
       tr.innerHTML = `
         <td class="trade-time" title="${escapeAttr(
           new Date(t.created_at * 1000).toISOString()
@@ -1200,18 +1266,23 @@ async function loadTrades() {
         <td class="num trade-amt">${escapeHTML(
           fmtAmount(t.want_amount, want)
         )}</td>
-        <td>
-          <div class="tx-chips">
-            ${txChip("Offer", t.offer_txid)}${txChip("Fill", t.fulfill_txid)}
-          </div>
-        </td>
         <td>${
-          t.error
-            ? `<span class="badge err" title="${escapeAttr(
-                t.error
-              )}">${escapeHTML(t.error)}</span>`
+          failed
+            ? `<span class="badge err">Failed</span>`
             : `<span class="badge on">Filled</span>`
         }</td>`;
+      // txids and the failure reason live in the details dialog: they're far
+      // too long to sit in a row without crowding out everything else.
+      tr.tabIndex = 0;
+      tr.setAttribute("role", "button");
+      tr.title = "View attempt details";
+      tr.addEventListener("click", () => openTrade(t));
+      tr.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          openTrade(t);
+        }
+      });
       body.appendChild(tr);
     }
   } catch (err) {

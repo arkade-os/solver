@@ -160,14 +160,13 @@
                   <th>Trade</th>
                   <th class="num">Deposited</th>
                   <th class="num">Filled</th>
-                  <th>Transactions</th>
                   <th>Status</th>
                 </tr>
               </thead>
               <tbody id="trades-body">
-                <tr class="skeleton-row"><td colspan="6"><div class="skeleton"></div></td></tr>
-                <tr class="skeleton-row"><td colspan="6"><div class="skeleton"></div></td></tr>
-                <tr class="skeleton-row"><td colspan="6"><div class="skeleton"></div></td></tr>
+                <tr class="skeleton-row"><td colspan="5"><div class="skeleton"></div></td></tr>
+                <tr class="skeleton-row"><td colspan="5"><div class="skeleton"></div></td></tr>
+                <tr class="skeleton-row"><td colspan="5"><div class="skeleton"></div></td></tr>
               </tbody>
             </table>
           </div>
@@ -538,6 +537,26 @@
           <button type="submit" class="btn btn-primary" id="settle-submit">Settle now</button>
         </footer>
       </form>
+    </dialog>
+
+    <!-- Trade details dialog -->
+    <dialog id="trade-dialog" class="dialog">
+      <div class="dialog-form">
+        <header class="dialog-head">
+          <h2>Attempt details</h2>
+          <button type="button" class="icon-btn" data-close aria-label="Close">
+            <i data-icon="x"></i>
+          </button>
+        </header>
+
+        <div class="dialog-body">
+          <dl class="detail-list" id="trade-details"></dl>
+        </div>
+
+        <footer class="dialog-foot">
+          <button type="button" class="btn" data-close>Close</button>
+        </footer>
+      </div>
     </dialog>
 
     <!-- Seed backup dialog -->

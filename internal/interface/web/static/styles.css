@@ -455,11 +455,6 @@ tr:hover .row-actions {
   box-shadow: inset 2px 0 0 var(--danger);
 }
 .badge.err {
-  max-width: 260px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  vertical-align: middle;
   color: var(--danger);
   border-color: rgba(248, 113, 113, 0.35);
   background: var(--danger-soft);
@@ -722,6 +717,15 @@ tr:hover .row-actions {
   padding-top: 15px;
   padding-bottom: 15px;
 }
+
+/* Rows open the details dialog: txids and errors are too long for a column. */
+.trade-row {
+  cursor: pointer;
+}
+.trade-row:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
 .trade-time {
   color: var(--text-muted);
   white-space: nowrap;
@@ -760,55 +764,54 @@ tr:hover .row-actions {
   white-space: nowrap;
 }
 
-/* Offer / fulfill txids as click-to-copy chips. */
-.tx-chips {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
+/* Attempt-details dialog: label/value pairs, stacking on narrow screens. */
+.detail-list {
+  display: grid;
+  grid-template-columns: minmax(96px, max-content) minmax(0, 1fr);
+  gap: 10px 18px;
+  margin: 0;
+  align-items: baseline;
 }
-.tx-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 8px 3px 7px;
-  border-radius: 999px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  font: inherit;
-  font-size: 11px;
-  cursor: pointer;
-  transition: background var(--ease), border-color var(--ease),
-    color var(--ease);
-}
-.tx-chip > span {
+.detail-list dt {
+  color: var(--text-dim);
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.03em;
   text-transform: uppercase;
-  font-size: 10px;
-  color: var(--text-dim);
 }
-.tx-chip code {
-  font-size: 11.5px;
+.detail-list dd {
+  margin: 0;
+  min-width: 0;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.detail-mono {
+  font-size: 12.5px;
   color: var(--text-muted);
+  overflow-wrap: anywhere;
 }
-.tx-chip:hover {
-  background: var(--surface-3);
-  border-color: var(--border-strong);
-  color: var(--text);
+.detail-good {
+  color: var(--success);
 }
-.tx-chip:hover code {
-  color: var(--text);
+.detail-bad {
+  color: var(--danger);
 }
-.tx-chip:focus-visible {
-  outline: none;
-  box-shadow: var(--ring);
+.detail-wrap {
+  display: block;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
-.tx-none {
-  font-size: 11px;
-  color: var(--text-dim);
-  white-space: nowrap;
+
+@media (max-width: 560px) {
+  .detail-list {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  .detail-list dd + dt {
+    margin-top: 8px;
+  }
 }
 
 /* -------- Buttons -------- */
