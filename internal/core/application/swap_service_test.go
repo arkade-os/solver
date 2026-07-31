@@ -22,12 +22,12 @@ func TestValidateMarket(t *testing.T) {
 	// valid market (sell direction only, as configured by validMarket)
 	require.NoError(t, validateMarket(validMarket()))
 
-	// slippage at the cap is ok, above it is rejected
+	// tolerance at the cap is ok, above it is rejected
 	m := validMarket()
-	m.SlippageBps = 5000
+	m.ToleranceBps = 5000
 	require.NoError(t, validateMarket(m))
-	m.SlippageBps = 5001
-	require.ErrorContains(t, validateMarket(m), "slippage_bps must be at most 5000")
+	m.ToleranceBps = 5001
+	require.ErrorContains(t, validateMarket(m), "tolerance_bps must be at most 5000")
 
 	// base and quote are both required
 	m = validMarket()

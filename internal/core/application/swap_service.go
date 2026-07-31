@@ -162,8 +162,8 @@ func validateMarket(m swap.Market) error {
 	if err := pricefeed.ValidatePricePath(m.PricePath); err != nil {
 		return err
 	}
-	if m.SlippageBps > 5000 {
-		return fmt.Errorf("slippage_bps must be at most 5000 (50%%)")
+	if m.ToleranceBps > 5000 {
+		return fmt.Errorf("tolerance_bps must be at most 5000 (50%%)")
 	}
 	if m.PriceTTLSeconds > 3600 {
 		return fmt.Errorf("price_ttl_seconds must be at most 3600 (1 hour)")

@@ -1,10 +1,10 @@
 -- name: InsertMarket :exec
-INSERT INTO market (base_asset, quote_asset, base_decimals, quote_decimals, min_quote_amount, max_quote_amount, min_base_amount, max_base_amount, price_feed, price_path, slippage_bps, fee_bps, price_ttl_seconds)
+INSERT INTO market (base_asset, quote_asset, base_decimals, quote_decimals, min_quote_amount, max_quote_amount, min_base_amount, max_base_amount, price_feed, price_path, tolerance_bps, fee_bps, price_ttl_seconds)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: UpdateMarket :execrows
 UPDATE market
-SET base_decimals = ?, quote_decimals = ?, min_quote_amount = ?, max_quote_amount = ?, min_base_amount = ?, max_base_amount = ?, price_feed = ?, price_path = ?, slippage_bps = ?, fee_bps = ?, price_ttl_seconds = ?
+SET base_decimals = ?, quote_decimals = ?, min_quote_amount = ?, max_quote_amount = ?, min_base_amount = ?, max_base_amount = ?, price_feed = ?, price_path = ?, tolerance_bps = ?, fee_bps = ?, price_ttl_seconds = ?
 WHERE base_asset = ? AND quote_asset = ?;
 
 -- name: DeleteMarket :exec

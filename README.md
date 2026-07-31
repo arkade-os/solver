@@ -124,7 +124,7 @@ solver market add \
   --price-path /data/price \
   --min-quote 10000 --max-quote 1000000 \
   --min-base 1000   --max-base 100000 \
-  --slippage 100 \
+  --tolerance 100 \
   --fee 20
 ```
 
@@ -140,7 +140,7 @@ solver market add \
   sells base for quote (quote units). `--max-quote 0` disables that direction.
 - `--min-base` / `--max-base` — same for the other direction (offer buys base).
   `--max-base 0` disables it.
-- `--slippage` — max deviation from the feed price, in bps (0 = default, 10 = 0.1%).
+- `--tolerance` — max deviation from the feed price, in bps (0 = default, 10 = 0.1%).
 - `--price-ttl` — how long a fetched price stays usable, in seconds (0 or
   unset = server default of 15s, capped at 3600).
 - `--fee` — solver margin in bps, folded into the price so an offer must beat

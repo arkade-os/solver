@@ -68,12 +68,12 @@ func (c *priceCache) get(
 	return price, nil
 }
 
-func validatePrice(offerPrice, feedPrice float64, slippageBps uint32, dir Direction) bool {
+func validatePrice(offerPrice, feedPrice float64, toleranceBps uint32, dir Direction) bool {
 	// a non-positive feed price zeroes the margin, which would make Buy accept anything
 	if feedPrice <= 0 {
 		return false
 	}
-	margin := feedPrice * float64(slippageBps) / 10000
+	margin := feedPrice * float64(toleranceBps) / 10000
 	switch dir {
 	case Sell:
 		return offerPrice <= feedPrice+margin

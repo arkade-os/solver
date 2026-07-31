@@ -283,7 +283,7 @@ func protoToDomain(m *swapv1.MarketInfo) swap.Market {
 		MaxBaseAmount:   m.MaxBaseAmount,
 		PriceFeed:       m.PriceFeed,
 		PricePath:       m.PricePath,
-		SlippageBps:     m.SlippageBps,
+		ToleranceBps:    m.ToleranceBps,
 		FeeBps:          m.FeeBps,
 		PriceTTLSeconds: m.PriceTtlSeconds,
 	}
@@ -301,7 +301,7 @@ func domainToProto(m swap.Market) *swapv1.MarketInfo {
 		MaxBaseAmount:   m.MaxBaseAmount,
 		PriceFeed:       m.PriceFeed,
 		PricePath:       m.PricePath,
-		SlippageBps:     m.SlippageBps,
+		ToleranceBps:    m.ToleranceBps,
 		FeeBps:          m.FeeBps,
 		PriceTtlSeconds: m.PriceTTLSeconds,
 	}

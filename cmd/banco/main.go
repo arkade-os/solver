@@ -303,7 +303,7 @@ type swapConfig struct {
 
 // wantAmount converts a deposit into the quote units to request. The solver
 // inflates the offer price by feeBps, so we divide the raw amount by (1 + fee)
-// to land exactly on the accepted price; server-side slippage absorbs drift.
+// to land exactly on the accepted price; server-side tolerance absorbs drift.
 func (cfg swapConfig) wantAmount(deposit uint64) (uint64, error) {
 	want, err := computeWantAmount(deposit, cfg.depositDec, cfg.receiveDec, cfg.price)
 	if err != nil {

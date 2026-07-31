@@ -136,7 +136,7 @@ func (p *plugin) decode(ctx context.Context, tx *psbt.Packet) (*MatchedOffer, er
 }
 
 // checkPriceTolerance rejects offers whose price deviates more than the
-// market's slippage from the feed. It returns the rejection reason, or "" when
+// market's tolerance from the feed. It returns the rejection reason, or "" when
 // the offer passes. Logs (Warn) when the price feed is stale.
 func (p *plugin) checkPriceTolerance(ctx context.Context, m *MatchedOffer) (string, error) {
 	feedPrice, err := p.prices.get(
@@ -152,10 +152,10 @@ func (p *plugin) checkPriceTolerance(ctx context.Context, m *MatchedOffer) (stri
 	if !ok {
 		return "offer price is not computable", nil
 	}
-	if !validatePrice(offerPrice, feedPrice, m.Market.EffectiveSlippageBps(), m.Direction) {
+	if !validatePrice(offerPrice, feedPrice, m.Market.EffectiveToleranceBps(), m.Direction) {
 		return fmt.Sprintf(
 			"offer price %g outside %d bps tolerance of feed price %g",
-			offerPrice, m.Market.EffectiveSlippageBps(), feedPrice,
+			offerPrice, m.Market.EffectiveToleranceBps(), feedPrice,
 		), nil
 	}
 	return "", nil

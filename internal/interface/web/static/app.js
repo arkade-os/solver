@@ -301,11 +301,11 @@ function autoPricePath(feed) {
   }
 }
 
-// bandGeom maps a slippage in basis points to a symmetric band centered on the
+// bandGeom maps a tolerance in basis points to a symmetric band centered on the
 // feed marker. 500 bps (5%) or wider spans the whole track; a floor keeps tiny
 // tolerances visible. Returns percentages of the track width.
 function bandGeom(bps) {
-  const pct = (Number(bps) || DEFAULT_SLIPPAGE_BPS) / 100;
+  const pct = (Number(bps) || DEFAULT_TOLERANCE_BPS) / 100;
   const half = Math.max(Math.min(pct / 5, 1) * 50, 3);
   return { left: 50 - half, width: half * 2 };
 }
@@ -364,7 +364,7 @@ function renderMarkets(markets) {
     // Buy-base: deposit quote, want base (base-denominated bounds).
     const sellOn = Number(m.max_quote_amount) > 0;
     const buyOn = Number(m.max_base_amount) > 0;
-    const band = bandGeom(m.slippage_bps);
+    const band = bandGeom(m.tolerance_bps);
     const card = document.createElement("article");
     card.className = "market";
     card.dataset.market = marketId(m);
@@ -415,7 +415,7 @@ function renderMarkets(markets) {
       <div class="market-band">
         <div class="band-head">
           <span>Fill tolerance</span>
-          <span class="band-pct">±${escapeHTML(fmtSlippage(m.slippage_bps))}</span>
+          <span class="band-pct">±${escapeHTML(fmtTolerance(m.tolerance_bps))}</span>
         </div>
         <div class="band-track">
           <div class="band-fill" style="left:${band.left}%;width:${band.width}%"></div>
@@ -435,7 +435,7 @@ function renderMarkets(markets) {
         ${
           Number(m.fee_bps) > 0
             ? `<span class="badge on" title="Solver margin">Fee ${escapeHTML(
-                fmtSlippage(m.fee_bps)
+                fmtTolerance(m.fee_bps)
               )}</span>`
             : ""
         }
@@ -448,16 +448,16 @@ function renderMarkets(markets) {
   }
 }
 
-// DEFAULT_SLIPPAGE_BPS mirrors the server's DefaultSlippageBps (0/unset).
-const DEFAULT_SLIPPAGE_BPS = 10;
+// DEFAULT_TOLERANCE_BPS mirrors the server's DefaultToleranceBps (0/unset).
+const DEFAULT_TOLERANCE_BPS = 10;
 
 // DEFAULT_PRICE_TTL_SECONDS mirrors the server's DefaultPriceTTL (0/unset).
 const DEFAULT_PRICE_TTL_SECONDS = 15;
 
-// fmtSlippage renders basis points as a percentage; 0/unset means the server
+// fmtTolerance renders basis points as a percentage; 0/unset means the server
 // default.
-function fmtSlippage(bps) {
-  const n = Number(bps) || DEFAULT_SLIPPAGE_BPS;
+function fmtTolerance(bps) {
+  const n = Number(bps) || DEFAULT_TOLERANCE_BPS;
   return `${n / 100}%`;
 }
 
@@ -520,10 +520,10 @@ function updateForm() {
     $$(`[data-dir-fields="${dir}"] input`).forEach((i) => (i.disabled = !on));
   });
 
-  // feed hint reflects the configured slippage and TTL.
+  // feed hint reflects the configured tolerance and TTL.
   $("#feed-hint").textContent = `The solver reads the quote-per-base price from this URL when an offer arrives, at most once every ${
     Number(form.elements.price_ttl_seconds.value) || DEFAULT_PRICE_TTL_SECONDS
-  }s, and fulfills offers within ${fmtSlippage(form.elements.slippage_bps.value)}.`;
+  }s, and fulfills offers within ${fmtTolerance(form.elements.tolerance_bps.value)}.`;
 
   const auto = autoPricePath(form.elements.price_feed.value);
   const pathField = form.elements.price_path;
@@ -558,10 +558,10 @@ function updateForm() {
     : "Enable at least one direction to preview this market.";
 
   // fill-tolerance band mirrors the market card.
-  $("#preview-band-pct").textContent = `±${fmtSlippage(
-    form.elements.slippage_bps.value
+  $("#preview-band-pct").textContent = `±${fmtTolerance(
+    form.elements.tolerance_bps.value
   )}`;
-  const bg = bandGeom(form.elements.slippage_bps.value);
+  const bg = bandGeom(form.elements.tolerance_bps.value);
   const bf = $("#preview-band-fill");
   bf.style.left = `${bg.left}%`;
   bf.style.width = `${bg.width}%`;
@@ -647,7 +647,7 @@ function openEdit(m) {
   form.elements.price_feed.value = m.price_feed;
   form.elements.price_path.value = m.price_path || "";
   form.elements.price_ttl_seconds.value = m.price_ttl_seconds || "";
-  form.elements.slippage_bps.value = m.slippage_bps || "";
+  form.elements.tolerance_bps.value = m.tolerance_bps || "";
   form.elements.fee_bps.value = m.fee_bps || "";
   setAssetsLocked(true); // identity can't change on edit
   clearFormErrors();
@@ -740,7 +740,7 @@ form.addEventListener("submit", async (e) => {
     max_base_amount: buyOn ? num("max_base_amount") : 0,
     price_feed: String(form.elements.price_feed.value).trim(),
     price_path: String(form.elements.price_path.value).trim(),
-    slippage_bps: Number(form.elements.slippage_bps.value) || 0,
+    tolerance_bps: Number(form.elements.tolerance_bps.value) || 0,
     price_ttl_seconds: Number(form.elements.price_ttl_seconds.value) || 0,
     fee_bps: Number(form.elements.fee_bps.value) || 0,
   };

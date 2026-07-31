@@ -621,7 +621,7 @@ tr:hover .row-actions {
   opacity: 0.45;
 }
 
-/* Fill-tolerance band: symmetric ±slippage around the feed price */
+/* Fill-tolerance band: symmetric ±tolerance around the feed price */
 .market-band,
 .preview-band {
   display: flex;

@@ -14,7 +14,7 @@ type Market struct {
 	MinBaseAmount   int64
 	MaxBaseAmount   int64
 	PriceFeed       string
-	SlippageBps     int64
+	ToleranceBps    int64
 	FeeBps          int64
 	PricePath       string
 	PriceTtlSeconds int64

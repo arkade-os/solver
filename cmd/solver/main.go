@@ -190,7 +190,7 @@ func marketFlags(required bool) []cli.Flag {
 		&cli.Uint64Flag{Name: "max-base", Usage: "max want amount for buy-base (base units); 0 = disabled"},
 		&cli.StringFlag{Name: "price-feed", Required: required, Usage: "price feed URL (quote-per-base)"},
 		&cli.StringFlag{Name: "price-path", Usage: "JSON pointer to the price in the feed response, e.g. /bitcoin/usd; leave empty for a Binance or CoinGecko URL"},
-		&cli.Uint64Flag{Name: "slippage", Usage: "max deviation in bps (0 = server default)"},
+		&cli.Uint64Flag{Name: "tolerance", Usage: "max deviation in bps (0 = server default)"},
 		&cli.Uint64Flag{Name: "price-ttl", Usage: "price cache TTL in seconds (0 = server default of 15s)"},
 		&cli.Uint64Flag{Name: "fee", Usage: "solver margin in bps, shifted into the price (0 = none)"},
 	}
@@ -216,8 +216,8 @@ func marketOverrides(c *cli.Context) map[string]any {
 	if c.IsSet("price-path") {
 		out["price_path"] = c.String("price-path")
 	}
-	if c.IsSet("slippage") {
-		out["slippage_bps"] = c.Uint64("slippage")
+	if c.IsSet("tolerance") {
+		out["tolerance_bps"] = c.Uint64("tolerance")
 	}
 	if c.IsSet("price-ttl") {
 		out["price_ttl_seconds"] = c.Uint64("price-ttl")
@@ -475,7 +475,7 @@ type marketInfo struct {
 	MaxBaseAmount   uint64 `json:"max_base_amount"`
 	PriceFeed       string `json:"price_feed"`
 	PricePath       string `json:"price_path"`
-	SlippageBps     uint32 `json:"slippage_bps"`
+	ToleranceBps    uint32 `json:"tolerance_bps"`
 	PriceTTLSeconds uint32 `json:"price_ttl_seconds"`
 	FeeBps          uint32 `json:"fee_bps"`
 }
@@ -539,7 +539,7 @@ func renderMarkets(markets []marketInfo, meta map[string]assetInfo) {
 			fmtBound(m.MaxQuoteAmount, m.QuoteAsset, m.QuoteDecimals, meta),
 			fmtBound(m.MinBaseAmount, m.BaseAsset, m.BaseDecimals, meta),
 			fmtBound(m.MaxBaseAmount, m.BaseAsset, m.BaseDecimals, meta),
-			fmtTolerance(m.SlippageBps), fmtBps(m.FeeBps), feedHost(m.PriceFeed))
+			fmtTolerance(m.ToleranceBps), fmtBps(m.FeeBps), feedHost(m.PriceFeed))
 	}
 	tw.Flush() //nolint:errcheck
 }
@@ -555,7 +555,7 @@ func renderMarketDetail(m marketInfo, meta map[string]assetInfo) {
 	row("Max want (sell base)", fmtBound(m.MaxQuoteAmount, m.QuoteAsset, m.QuoteDecimals, meta))
 	row("Min want (buy base)", fmtBound(m.MinBaseAmount, m.BaseAsset, m.BaseDecimals, meta))
 	row("Max want (buy base)", fmtBound(m.MaxBaseAmount, m.BaseAsset, m.BaseDecimals, meta))
-	row("Tolerance", fmtTolerance(m.SlippageBps))
+	row("Tolerance", fmtTolerance(m.ToleranceBps))
 	row("Fee", fmtBps(m.FeeBps))
 	row("Price feed", m.PriceFeed)
 	row("Price path", fmtPricePath(m.PricePath, m.PriceFeed))
@@ -813,7 +813,7 @@ func fmtBps(bps uint32) string {
 
 func fmtTolerance(bps uint32) string {
 	if bps == 0 {
-		bps = 10 // server default (DefaultSlippageBps)
+		bps = 10 // server default (DefaultToleranceBps)
 	}
 	return glyph("±", "+/-") + strconv.FormatFloat(float64(bps)/100, 'f', -1, 64) + "%"
 }

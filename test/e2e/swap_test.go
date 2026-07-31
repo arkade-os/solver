@@ -410,7 +410,7 @@ func addMarket(t *testing.T, market swap.Market) {
 			MaxBaseAmount:  market.MaxBaseAmount,
 			PriceFeed:      market.PriceFeed,
 			PricePath:      market.PricePath,
-			SlippageBps:    market.SlippageBps,
+			ToleranceBps:   market.ToleranceBps,
 		},
 	})
 	require.NoError(t, err)

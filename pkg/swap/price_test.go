@@ -127,30 +127,30 @@ func TestPriceCacheGet(t *testing.T) {
 
 func TestValidatePrice(t *testing.T) {
 	tests := []struct {
-		name        string
-		offerPrice  float64
-		feedPrice   float64
-		slippageBps uint32
-		dir         Direction
-		want        bool
+		name         string
+		offerPrice   float64
+		feedPrice    float64
+		toleranceBps uint32
+		dir          Direction
+		want         bool
 	}{
-		{name: "sell exact match", offerPrice: 100, feedPrice: 100, slippageBps: 100, dir: Sell, want: true},
-		{name: "sell at upper bound", offerPrice: 101, feedPrice: 100, slippageBps: 100, dir: Sell, want: true},
-		{name: "sell above upper bound", offerPrice: 101.1, feedPrice: 100, slippageBps: 100, dir: Sell, want: false},
-		{name: "sell far below feed is a gift", offerPrice: 1, feedPrice: 100, slippageBps: 10, dir: Sell, want: true},
-		{name: "buy at lower bound", offerPrice: 99, feedPrice: 100, slippageBps: 100, dir: Buy, want: true},
-		{name: "buy below lower bound", offerPrice: 98.9, feedPrice: 100, slippageBps: 100, dir: Buy, want: false},
-		{name: "buy far above feed is a gift", offerPrice: 10_000, feedPrice: 100, slippageBps: 10, dir: Buy, want: true},
-		{name: "no match never validates", offerPrice: 100, feedPrice: 100, slippageBps: 100, dir: NoMatch, want: false},
+		{name: "sell exact match", offerPrice: 100, feedPrice: 100, toleranceBps: 100, dir: Sell, want: true},
+		{name: "sell at upper bound", offerPrice: 101, feedPrice: 100, toleranceBps: 100, dir: Sell, want: true},
+		{name: "sell above upper bound", offerPrice: 101.1, feedPrice: 100, toleranceBps: 100, dir: Sell, want: false},
+		{name: "sell far below feed is a gift", offerPrice: 1, feedPrice: 100, toleranceBps: 10, dir: Sell, want: true},
+		{name: "buy at lower bound", offerPrice: 99, feedPrice: 100, toleranceBps: 100, dir: Buy, want: true},
+		{name: "buy below lower bound", offerPrice: 98.9, feedPrice: 100, toleranceBps: 100, dir: Buy, want: false},
+		{name: "buy far above feed is a gift", offerPrice: 10_000, feedPrice: 100, toleranceBps: 10, dir: Buy, want: true},
+		{name: "no match never validates", offerPrice: 100, feedPrice: 100, toleranceBps: 100, dir: NoMatch, want: false},
 		// a zero feed price zeroes the margin; without a guard Buy would accept any offer
-		{name: "zero feed price never validates on buy", offerPrice: 100, feedPrice: 0, slippageBps: 10, dir: Buy, want: false},
-		{name: "zero feed price never validates on sell", offerPrice: 100, feedPrice: 0, slippageBps: 10, dir: Sell, want: false},
-		{name: "negative feed price never validates", offerPrice: 100, feedPrice: -1, slippageBps: 10, dir: Buy, want: false},
+		{name: "zero feed price never validates on buy", offerPrice: 100, feedPrice: 0, toleranceBps: 10, dir: Buy, want: false},
+		{name: "zero feed price never validates on sell", offerPrice: 100, feedPrice: 0, toleranceBps: 10, dir: Sell, want: false},
+		{name: "negative feed price never validates", offerPrice: 100, feedPrice: -1, toleranceBps: 10, dir: Buy, want: false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := validatePrice(tt.offerPrice, tt.feedPrice, tt.slippageBps, tt.dir)
+			got := validatePrice(tt.offerPrice, tt.feedPrice, tt.toleranceBps, tt.dir)
 			require.Equal(t, tt.want, got)
 		})
 	}

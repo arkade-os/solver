@@ -32,7 +32,7 @@ into `Market.Match` during decode, so a matched offer is already in-range.
 
 | Gate | Source | Reject when |
 |---|---|---|
-| `checkPriceTolerance` | price feed (`PriceFeed`) | offer price (quote-per-base) deviates more than `SlippageBps` (default 10 = 0.1%) from the feed; stale feed logs Warn but does not auto-reject |
+| `checkPriceTolerance` | price feed (`PriceFeed`) | offer price (quote-per-base) deviates more than `ToleranceBps` (default 10 = 0.1%) from the feed; stale feed logs Warn but does not auto-reject |
 | `checkBTCBalance` | `arkClient.Balance` | want side is BTC and offchain balance < `WantAmount`; skipped if want is a non-BTC asset |
 
 All gates return `(false, nil)` for silent drops — they reject by policy,

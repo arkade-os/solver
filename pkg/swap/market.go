@@ -29,11 +29,11 @@ type Market struct {
 	// Empty = guess from the feed host (Binance / CoinGecko).
 	PricePath       string `json:"pricePath"`
 	PriceTTLSeconds uint32 `json:"priceTtlSeconds"` // How long a fetched price stays usable. 0 = DefaultPriceTTL.
-	SlippageBps     uint32 `json:"slippageBps"`     // 0 = DefaultSlippageBps
+	ToleranceBps    uint32 `json:"toleranceBps"`    // 0 = DefaultToleranceBps
 	FeeBps          uint32 `json:"feeBps"`          // solver margin, shifted into the price; 0 = no fee
 }
 
-const DefaultSlippageBps uint32 = 10
+const DefaultToleranceBps uint32 = 10
 
 // DefaultPriceTTL applies when a market leaves PriceTTLSeconds unset.
 // Mirrored in the CLI, the dashboard, and the proto field comment — grep for "15s" if this changes.
@@ -51,12 +51,12 @@ const (
 // ID is the canonical "base/quote" identifier.
 func (m Market) ID() string { return m.BaseAsset + "/" + m.QuoteAsset }
 
-// EffectiveSlippageBps returns the market's slippage, falling back to the default.
-func (m Market) EffectiveSlippageBps() uint32 {
-	if m.SlippageBps == 0 {
-		return DefaultSlippageBps
+// EffectiveToleranceBps returns the market's tolerance, falling back to the default.
+func (m Market) EffectiveToleranceBps() uint32 {
+	if m.ToleranceBps == 0 {
+		return DefaultToleranceBps
 	}
-	return m.SlippageBps
+	return m.ToleranceBps
 }
 
 // EffectivePriceTTL returns the market's price cache TTL, falling back to the default.

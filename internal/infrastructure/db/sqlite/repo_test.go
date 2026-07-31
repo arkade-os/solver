@@ -74,7 +74,7 @@ func TestTradeErrorRoundTrip(t *testing.T) {
 	}
 }
 
-func TestMarketSlippageRoundTrip(t *testing.T) {
+func TestMarketToleranceRoundTrip(t *testing.T) {
 	db, err := sqlitedb.OpenDB(t.TempDir())
 	if err != nil {
 		t.Fatalf("open db: %v", err)
@@ -94,7 +94,7 @@ func TestMarketSlippageRoundTrip(t *testing.T) {
 		MaxBaseAmount:   50000,
 		PriceFeed:       "https://example.com/price",
 		PricePath:       "/bitcoin/usd",
-		SlippageBps:     250,
+		ToleranceBps:    250,
 		FeeBps:          300,
 		PriceTTLSeconds: 30,
 	}
@@ -106,7 +106,7 @@ func TestMarketSlippageRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	if len(markets) != 1 || markets[0].SlippageBps != 250 {
+	if len(markets) != 1 || markets[0].ToleranceBps != 250 {
 		t.Fatalf("round-trip mismatch: %+v", markets)
 	}
 	if markets[0].FeeBps != 300 {
@@ -122,7 +122,7 @@ func TestMarketSlippageRoundTrip(t *testing.T) {
 		t.Fatalf("base bound round-trip mismatch: %+v", markets[0])
 	}
 
-	in.SlippageBps = 0
+	in.ToleranceBps = 0
 	in.PriceTTLSeconds = 0
 	in.MinQuoteAmount = 2000
 	in.MaxQuoteAmount = 200000
@@ -135,11 +135,11 @@ func TestMarketSlippageRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list after update: %v", err)
 	}
-	if markets[0].SlippageBps != 0 {
+	if markets[0].ToleranceBps != 0 {
 		t.Fatalf("update mismatch: %+v", markets)
 	}
-	if markets[0].EffectiveSlippageBps() != swap.DefaultSlippageBps {
-		t.Fatalf("default resolution mismatch: %d", markets[0].EffectiveSlippageBps())
+	if markets[0].EffectiveToleranceBps() != swap.DefaultToleranceBps {
+		t.Fatalf("default resolution mismatch: %d", markets[0].EffectiveToleranceBps())
 	}
 	if markets[0].PriceTTLSeconds != 0 {
 		t.Fatalf("price ttl update mismatch: %+v", markets)

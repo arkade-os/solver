@@ -270,8 +270,8 @@ MAY apply any subset. `solverd` applies, in order:
     `(DepositAsset → WantAsset)` direction. Otherwise the offer is ignored.
 -   **Amount in range**: `WantAmount ∈ [MinAmount, MaxAmount]` for the pair.
 -   **Price tolerance**: the offer price (deposit/want, decimal-adjusted) MUST be
-    within the market's configured **slippage** of the price feed mid. Slippage is
-    per-market `slippage_bps` (basis points), defaulting to **10 bps (±0.1%)** when
+    within the market's configured **tolerance** of the price feed mid. Tolerance is
+    per-market `tolerance_bps` (basis points), defaulting to **10 bps (±0.1%)** when
     unset. A cached price past its TTL but within 6x the TTL is served with a
     warning; beyond that it is refused and the offer is rejected, as is an
     unavailable feed with no usable cache.
