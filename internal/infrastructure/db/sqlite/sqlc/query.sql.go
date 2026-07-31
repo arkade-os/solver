@@ -24,23 +24,24 @@ func (q *Queries) DeleteMarket(ctx context.Context, arg DeleteMarketParams) erro
 }
 
 const insertMarket = `-- name: InsertMarket :exec
-INSERT INTO market (base_asset, quote_asset, base_decimals, quote_decimals, min_quote_amount, max_quote_amount, min_base_amount, max_base_amount, price_feed, price_path, slippage_bps, fee_bps)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO market (base_asset, quote_asset, base_decimals, quote_decimals, min_quote_amount, max_quote_amount, min_base_amount, max_base_amount, price_feed, price_path, slippage_bps, fee_bps, price_ttl_seconds)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type InsertMarketParams struct {
-	BaseAsset      string
-	QuoteAsset     string
-	BaseDecimals   int64
-	QuoteDecimals  int64
-	MinQuoteAmount int64
-	MaxQuoteAmount int64
-	MinBaseAmount  int64
-	MaxBaseAmount  int64
-	PriceFeed      string
-	PricePath      string
-	SlippageBps    int64
-	FeeBps         int64
+	BaseAsset       string
+	QuoteAsset      string
+	BaseDecimals    int64
+	QuoteDecimals   int64
+	MinQuoteAmount  int64
+	MaxQuoteAmount  int64
+	MinBaseAmount   int64
+	MaxBaseAmount   int64
+	PriceFeed       string
+	PricePath       string
+	SlippageBps     int64
+	FeeBps          int64
+	PriceTtlSeconds int64
 }
 
 func (q *Queries) InsertMarket(ctx context.Context, arg InsertMarketParams) error {
@@ -57,6 +58,7 @@ func (q *Queries) InsertMarket(ctx context.Context, arg InsertMarketParams) erro
 		arg.PricePath,
 		arg.SlippageBps,
 		arg.FeeBps,
+		arg.PriceTtlSeconds,
 	)
 	return err
 }
@@ -94,7 +96,7 @@ func (q *Queries) InsertTrade(ctx context.Context, arg InsertTradeParams) error 
 }
 
 const listMarkets = `-- name: ListMarkets :many
-SELECT base_asset, quote_asset, base_decimals, quote_decimals, min_quote_amount, max_quote_amount, min_base_amount, max_base_amount, price_feed, slippage_bps, fee_bps, price_path FROM market
+SELECT base_asset, quote_asset, base_decimals, quote_decimals, min_quote_amount, max_quote_amount, min_base_amount, max_base_amount, price_feed, slippage_bps, fee_bps, price_path, price_ttl_seconds FROM market
 `
 
 func (q *Queries) ListMarkets(ctx context.Context) ([]Market, error) {
@@ -119,6 +121,7 @@ func (q *Queries) ListMarkets(ctx context.Context) ([]Market, error) {
 			&i.SlippageBps,
 			&i.FeeBps,
 			&i.PricePath,
+			&i.PriceTtlSeconds,
 		); err != nil {
 			return nil, err
 		}
@@ -185,23 +188,24 @@ func (q *Queries) ListTrades(ctx context.Context, arg ListTradesParams) ([]Trade
 
 const updateMarket = `-- name: UpdateMarket :execrows
 UPDATE market
-SET base_decimals = ?, quote_decimals = ?, min_quote_amount = ?, max_quote_amount = ?, min_base_amount = ?, max_base_amount = ?, price_feed = ?, price_path = ?, slippage_bps = ?, fee_bps = ?
+SET base_decimals = ?, quote_decimals = ?, min_quote_amount = ?, max_quote_amount = ?, min_base_amount = ?, max_base_amount = ?, price_feed = ?, price_path = ?, slippage_bps = ?, fee_bps = ?, price_ttl_seconds = ?
 WHERE base_asset = ? AND quote_asset = ?
 `
 
 type UpdateMarketParams struct {
-	BaseDecimals   int64
-	QuoteDecimals  int64
-	MinQuoteAmount int64
-	MaxQuoteAmount int64
-	MinBaseAmount  int64
-	MaxBaseAmount  int64
-	PriceFeed      string
-	PricePath      string
-	SlippageBps    int64
-	FeeBps         int64
-	BaseAsset      string
-	QuoteAsset     string
+	BaseDecimals    int64
+	QuoteDecimals   int64
+	MinQuoteAmount  int64
+	MaxQuoteAmount  int64
+	MinBaseAmount   int64
+	MaxBaseAmount   int64
+	PriceFeed       string
+	PricePath       string
+	SlippageBps     int64
+	FeeBps          int64
+	PriceTtlSeconds int64
+	BaseAsset       string
+	QuoteAsset      string
 }
 
 func (q *Queries) UpdateMarket(ctx context.Context, arg UpdateMarketParams) (int64, error) {
@@ -216,6 +220,7 @@ func (q *Queries) UpdateMarket(ctx context.Context, arg UpdateMarketParams) (int
 		arg.PricePath,
 		arg.SlippageBps,
 		arg.FeeBps,
+		arg.PriceTtlSeconds,
 		arg.BaseAsset,
 		arg.QuoteAsset,
 	)

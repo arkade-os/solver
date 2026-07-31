@@ -3,6 +3,7 @@ package swap
 import (
 	"context"
 	"math"
+	"time"
 )
 
 // Market is a bidirectional trading market for a base/quote asset pair.
@@ -26,12 +27,17 @@ type Market struct {
 	PriceFeed string `json:"priceFeed"` // returns quote-per-base
 	// JSON pointer to the price in the feed response, e.g. "/bitcoin/usd".
 	// Empty = guess from the feed host (Binance / CoinGecko).
-	PricePath   string `json:"pricePath"`
-	SlippageBps uint32 `json:"slippageBps"` // 0 = DefaultSlippageBps
-	FeeBps      uint32 `json:"feeBps"`      // solver margin, shifted into the price; 0 = no fee
+	PricePath       string `json:"pricePath"`
+	PriceTTLSeconds uint32 `json:"priceTtlSeconds"` // How long a fetched price stays usable. 0 = DefaultPriceTTL.
+	SlippageBps     uint32 `json:"slippageBps"`     // 0 = DefaultSlippageBps
+	FeeBps          uint32 `json:"feeBps"`          // solver margin, shifted into the price; 0 = no fee
 }
 
 const DefaultSlippageBps uint32 = 10
+
+// DefaultPriceTTL applies when a market leaves PriceTTLSeconds unset.
+// Mirrored in the CLI, the dashboard, and the proto field comment — grep for "15s" if this changes.
+const DefaultPriceTTL = 15 * time.Second
 
 // Direction is the side an offer trades on this market.
 type Direction int
@@ -51,6 +57,14 @@ func (m Market) EffectiveSlippageBps() uint32 {
 		return DefaultSlippageBps
 	}
 	return m.SlippageBps
+}
+
+// EffectivePriceTTL returns the market's price cache TTL, falling back to the default.
+func (m Market) EffectivePriceTTL() time.Duration {
+	if m.PriceTTLSeconds == 0 {
+		return DefaultPriceTTL
+	}
+	return time.Duration(m.PriceTTLSeconds) * time.Second
 }
 
 // Match resolves an offer's direction on this market, range-checking the want

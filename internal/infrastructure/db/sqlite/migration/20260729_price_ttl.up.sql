@@ -1,0 +1,1 @@
+ALTER TABLE market ADD COLUMN price_ttl_seconds INTEGER NOT NULL DEFAULT 0;

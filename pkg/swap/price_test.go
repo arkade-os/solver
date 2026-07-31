@@ -19,7 +19,7 @@ func TestPriceCacheGet(t *testing.T) {
 		cache := newPriceCache()
 
 		for range 2 {
-			price, err := cache.get(ctx, url, "/price")
+			price, err := cache.get(ctx, url, "/price", time.Minute)
 			require.NoError(t, err)
 			require.Equal(t, 42.0, price)
 		}
@@ -30,15 +30,14 @@ func TestPriceCacheGet(t *testing.T) {
 		body := `{"price":42}`
 		url, hits := feedServer(t, func() (string, int) { return body, http.StatusOK })
 		cache := newPriceCache()
-		cache.ttl = time.Millisecond
 
-		_, err := cache.get(ctx, url, "/price")
+		_, err := cache.get(ctx, url, "/price", time.Millisecond)
 		require.NoError(t, err)
 
 		time.Sleep(5 * time.Millisecond)
 		body = `{"price":99}`
 
-		price, err := cache.get(ctx, url, "/price")
+		price, err := cache.get(ctx, url, "/price", time.Millisecond)
 		require.NoError(t, err)
 		require.Equal(t, 99.0, price)
 		require.EqualValues(t, 2, *hits)
@@ -53,24 +52,47 @@ func TestPriceCacheGet(t *testing.T) {
 			return "boom", http.StatusInternalServerError
 		})
 		cache := newPriceCache()
-		cache.ttl = time.Millisecond
+		ttl := 20 * time.Millisecond
 
-		_, err := cache.get(ctx, url, "/price")
+		_, err := cache.get(ctx, url, "/price", ttl)
 		require.NoError(t, err)
 
-		time.Sleep(5 * time.Millisecond)
+		time.Sleep(30 * time.Millisecond)
 		ok = false
 
-		price, err := cache.get(ctx, url, "/price")
+		price, err := cache.get(ctx, url, "/price", ttl)
 		require.ErrorContains(t, err, "using stale cache")
 		require.Equal(t, 42.0, price)
+	})
+
+	t.Run("cache too stale to serve", func(t *testing.T) {
+		ok := true
+		url, _ := feedServer(t, func() (string, int) {
+			if ok {
+				return `{"price":42}`, http.StatusOK
+			}
+			return "boom", http.StatusInternalServerError
+		})
+		cache := newPriceCache()
+		ttl := time.Millisecond
+
+		_, err := cache.get(ctx, url, "/price", ttl)
+		require.NoError(t, err)
+
+		time.Sleep(20 * time.Millisecond)
+		ok = false
+
+		price, err := cache.get(ctx, url, "/price", ttl)
+		require.Error(t, err)
+		require.NotContains(t, err.Error(), "using stale cache")
+		require.Zero(t, price)
 	})
 
 	t.Run("fetch error without cache", func(t *testing.T) {
 		url, _ := feedServer(t, func() (string, int) { return "boom", http.StatusInternalServerError })
 		cache := newPriceCache()
 
-		price, err := cache.get(ctx, url, "/price")
+		price, err := cache.get(ctx, url, "/price", time.Minute)
 		require.Error(t, err)
 		require.NotContains(t, err.Error(), "using stale cache")
 		require.Zero(t, price)
@@ -81,7 +103,7 @@ func TestPriceCacheGet(t *testing.T) {
 		cache := newPriceCache()
 
 		for _, u := range []string{"  " + url + "  ", url} {
-			price, err := cache.get(ctx, u, "/price")
+			price, err := cache.get(ctx, u, "/price", time.Minute)
 			require.NoError(t, err)
 			require.Equal(t, 7.5, price)
 		}
@@ -92,11 +114,11 @@ func TestPriceCacheGet(t *testing.T) {
 		url, hits := feedServer(t, func() (string, int) { return `{"a":1,"b":2}`, http.StatusOK })
 		cache := newPriceCache()
 
-		a, err := cache.get(ctx, url, "/a")
+		a, err := cache.get(ctx, url, "/a", time.Minute)
 		require.NoError(t, err)
 		require.Equal(t, 1.0, a)
 
-		b, err := cache.get(ctx, url, "/b")
+		b, err := cache.get(ctx, url, "/b", time.Minute)
 		require.NoError(t, err)
 		require.Equal(t, 2.0, b)
 		require.EqualValues(t, 2, *hits)
@@ -120,6 +142,10 @@ func TestValidatePrice(t *testing.T) {
 		{name: "buy below lower bound", offerPrice: 98.9, feedPrice: 100, slippageBps: 100, dir: Buy, want: false},
 		{name: "buy far above feed is a gift", offerPrice: 10_000, feedPrice: 100, slippageBps: 10, dir: Buy, want: true},
 		{name: "no match never validates", offerPrice: 100, feedPrice: 100, slippageBps: 100, dir: NoMatch, want: false},
+		// a zero feed price zeroes the margin; without a guard Buy would accept any offer
+		{name: "zero feed price never validates on buy", offerPrice: 100, feedPrice: 0, slippageBps: 10, dir: Buy, want: false},
+		{name: "zero feed price never validates on sell", offerPrice: 100, feedPrice: 0, slippageBps: 10, dir: Sell, want: false},
+		{name: "negative feed price never validates", offerPrice: 100, feedPrice: -1, slippageBps: 10, dir: Buy, want: false},
 	}
 
 	for _, tt := range tests {

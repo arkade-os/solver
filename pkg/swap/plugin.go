@@ -139,7 +139,9 @@ func (p *plugin) decode(ctx context.Context, tx *psbt.Packet) (*MatchedOffer, er
 // market's slippage from the feed. It returns the rejection reason, or "" when
 // the offer passes. Logs (Warn) when the price feed is stale.
 func (p *plugin) checkPriceTolerance(ctx context.Context, m *MatchedOffer) (string, error) {
-	feedPrice, err := p.prices.get(ctx, m.Market.PriceFeed, m.Market.PricePath)
+	feedPrice, err := p.prices.get(
+		ctx, m.Market.PriceFeed, m.Market.PricePath, m.Market.EffectivePriceTTL(),
+	)
 	if err != nil && feedPrice == 0 {
 		return fmt.Sprintf("price feed unavailable: %s", err), nil
 	}

@@ -128,8 +128,9 @@ solver market add \
   --fee 20
 ```
 
-- `--price-feed` — URL the bot polls for the reference price, quoted as
-  **quote-per-base**. Any feed returning JSON works.
+- `--price-feed` — URL the bot reads the reference price from, quoted as
+  **quote-per-base**. Any feed returning JSON works. It is read when an offer
+  arrives, not on a schedule, so request volume tracks offer volume.
 - `--price-path` — [JSON pointer](https://datatracker.ietf.org/doc/html/rfc6901)
   to the price in that response, e.g. `/bitcoin/usd`. Both JSON numbers and
   numeric strings are accepted. Leave it empty for Binance
@@ -140,8 +141,15 @@ solver market add \
 - `--min-base` / `--max-base` — same for the other direction (offer buys base).
   `--max-base 0` disables it.
 - `--slippage` — max deviation from the feed price, in bps (0 = default, 10 = 0.1%).
+- `--price-ttl` — how long a fetched price stays usable, in seconds (0 or
+  unset = server default of 15s, capped at 3600).
 - `--fee` — solver margin in bps, folded into the price so an offer must beat
   the feed by that much to clear (0 = none).
+
+On upgrade, existing markets move from the previous fixed 60s price cache to
+the 15s default — roughly a 4x increase in price-feed request rate. Operators
+on a rate-limited or quota-metered feed (CoinGecko's free tier, for example)
+should set an explicit longer `--price-ttl`.
 
 Asset decimals are resolved by the daemon, you don't pass them.
 

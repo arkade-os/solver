@@ -86,16 +86,17 @@ func TestMarketSlippageRoundTrip(t *testing.T) {
 	ctx := context.Background()
 
 	in := swap.Market{
-		BaseAsset:      "BTC",
-		QuoteAsset:     "aabbcc",
-		MinQuoteAmount: 1000,
-		MaxQuoteAmount: 100000,
-		MinBaseAmount:  500,
-		MaxBaseAmount:  50000,
-		PriceFeed:      "https://example.com/price",
-		PricePath:      "/bitcoin/usd",
-		SlippageBps:    250,
-		FeeBps:         300,
+		BaseAsset:       "BTC",
+		QuoteAsset:      "aabbcc",
+		MinQuoteAmount:  1000,
+		MaxQuoteAmount:  100000,
+		MinBaseAmount:   500,
+		MaxBaseAmount:   50000,
+		PriceFeed:       "https://example.com/price",
+		PricePath:       "/bitcoin/usd",
+		SlippageBps:     250,
+		FeeBps:          300,
+		PriceTTLSeconds: 30,
 	}
 	if err := repo.Add(ctx, in); err != nil {
 		t.Fatalf("add: %v", err)
@@ -111,6 +112,9 @@ func TestMarketSlippageRoundTrip(t *testing.T) {
 	if markets[0].FeeBps != 300 {
 		t.Fatalf("fee round-trip mismatch: %+v", markets[0])
 	}
+	if markets[0].PriceTTLSeconds != 30 {
+		t.Fatalf("price ttl round-trip mismatch: %+v", markets[0])
+	}
 	if markets[0].MinQuoteAmount != 1000 || markets[0].MaxQuoteAmount != 100000 {
 		t.Fatalf("quote bound round-trip mismatch: %+v", markets[0])
 	}
@@ -119,6 +123,7 @@ func TestMarketSlippageRoundTrip(t *testing.T) {
 	}
 
 	in.SlippageBps = 0
+	in.PriceTTLSeconds = 0
 	in.MinQuoteAmount = 2000
 	in.MaxQuoteAmount = 200000
 	in.MinBaseAmount = 1500
@@ -135,6 +140,12 @@ func TestMarketSlippageRoundTrip(t *testing.T) {
 	}
 	if markets[0].EffectiveSlippageBps() != swap.DefaultSlippageBps {
 		t.Fatalf("default resolution mismatch: %d", markets[0].EffectiveSlippageBps())
+	}
+	if markets[0].PriceTTLSeconds != 0 {
+		t.Fatalf("price ttl update mismatch: %+v", markets)
+	}
+	if markets[0].EffectivePriceTTL() != swap.DefaultPriceTTL {
+		t.Fatalf("price ttl default resolution mismatch: %v", markets[0].EffectivePriceTTL())
 	}
 	if markets[0].MinQuoteAmount != 2000 || markets[0].MaxQuoteAmount != 200000 {
 		t.Fatalf("quote bound update mismatch: %+v", markets[0])

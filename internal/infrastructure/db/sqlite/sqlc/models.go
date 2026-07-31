@@ -5,18 +5,19 @@
 package sqlc
 
 type Market struct {
-	BaseAsset      string
-	QuoteAsset     string
-	BaseDecimals   int64
-	QuoteDecimals  int64
-	MinQuoteAmount int64
-	MaxQuoteAmount int64
-	MinBaseAmount  int64
-	MaxBaseAmount  int64
-	PriceFeed      string
-	SlippageBps    int64
-	FeeBps         int64
-	PricePath      string
+	BaseAsset       string
+	QuoteAsset      string
+	BaseDecimals    int64
+	QuoteDecimals   int64
+	MinQuoteAmount  int64
+	MaxQuoteAmount  int64
+	MinBaseAmount   int64
+	MaxBaseAmount   int64
+	PriceFeed       string
+	SlippageBps     int64
+	FeeBps          int64
+	PricePath       string
+	PriceTtlSeconds int64
 }
 
 type Trade struct {

@@ -47,6 +47,9 @@ message MarketInfo {
   // JSON pointer to the price in the feed response, e.g. "/bitcoin/usd".
   // Empty = guess from the feed host (Binance / CoinGecko).
   string price_path = 12;
+  // How long a fetched feed price stays usable, in seconds.
+  // 0 = server default (15s).
+  uint32 price_ttl_seconds = 13;
 }
 
 message AddMarketRequest { MarketInfo market = 1; }

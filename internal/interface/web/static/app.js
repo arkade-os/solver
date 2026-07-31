@@ -430,7 +430,7 @@ function renderMarkets(markets) {
               m.price_path
                 ? `price at ${m.price_path}`
                 : `price at ${autoPricePath(m.price_feed) || "?"} (auto)`
-            }`
+            } · cached ${Number(m.price_ttl_seconds) || DEFAULT_PRICE_TTL_SECONDS}s`
           )}">${icon("external")}<span>${escapeHTML(feedHost(m.price_feed))}</span></a>
         ${
           Number(m.fee_bps) > 0
@@ -450,6 +450,9 @@ function renderMarkets(markets) {
 
 // DEFAULT_SLIPPAGE_BPS mirrors the server's DefaultSlippageBps (0/unset).
 const DEFAULT_SLIPPAGE_BPS = 10;
+
+// DEFAULT_PRICE_TTL_SECONDS mirrors the server's DefaultPriceTTL (0/unset).
+const DEFAULT_PRICE_TTL_SECONDS = 15;
 
 // fmtSlippage renders basis points as a percentage; 0/unset means the server
 // default.
@@ -517,10 +520,10 @@ function updateForm() {
     $$(`[data-dir-fields="${dir}"] input`).forEach((i) => (i.disabled = !on));
   });
 
-  // feed hint reflects the configured slippage.
-  $("#feed-hint").textContent = `The solver polls this URL for the quote-per-base price and fulfills offers within ${fmtSlippage(
-    form.elements.slippage_bps.value
-  )}.`;
+  // feed hint reflects the configured slippage and TTL.
+  $("#feed-hint").textContent = `The solver reads the quote-per-base price from this URL when an offer arrives, at most once every ${
+    Number(form.elements.price_ttl_seconds.value) || DEFAULT_PRICE_TTL_SECONDS
+  }s, and fulfills offers within ${fmtSlippage(form.elements.slippage_bps.value)}.`;
 
   const auto = autoPricePath(form.elements.price_feed.value);
   const pathField = form.elements.price_path;
@@ -643,6 +646,7 @@ function openEdit(m) {
 
   form.elements.price_feed.value = m.price_feed;
   form.elements.price_path.value = m.price_path || "";
+  form.elements.price_ttl_seconds.value = m.price_ttl_seconds || "";
   form.elements.slippage_bps.value = m.slippage_bps || "";
   form.elements.fee_bps.value = m.fee_bps || "";
   setAssetsLocked(true); // identity can't change on edit
@@ -737,6 +741,7 @@ form.addEventListener("submit", async (e) => {
     price_feed: String(form.elements.price_feed.value).trim(),
     price_path: String(form.elements.price_path.value).trim(),
     slippage_bps: Number(form.elements.slippage_bps.value) || 0,
+    price_ttl_seconds: Number(form.elements.price_ttl_seconds.value) || 0,
     fee_bps: Number(form.elements.fee_bps.value) || 0,
   };
   const mode = form.dataset.mode;

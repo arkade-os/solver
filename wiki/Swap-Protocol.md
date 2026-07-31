@@ -270,10 +270,11 @@ MAY apply any subset. `solverd` applies, in order:
     `(DepositAsset → WantAsset)` direction. Otherwise the offer is ignored.
 -   **Amount in range**: `WantAmount ∈ [MinAmount, MaxAmount]` for the pair.
 -   **Price tolerance**: the offer price (deposit/want, decimal-adjusted) MUST be
-    within the pair's configured **slippage** of the price feed mid. Slippage is
-    per-pair `slippage_bps` (basis points), defaulting to **100 bps (±1%)** when
-    unset. A stale feed logs a warning but does not auto-reject; an unavailable
-    feed rejects.
+    within the market's configured **slippage** of the price feed mid. Slippage is
+    per-market `slippage_bps` (basis points), defaulting to **10 bps (±0.1%)** when
+    unset. A cached price past its TTL but within 6x the TTL is served with a
+    warning; beyond that it is refused and the offer is rejected, as is an
+    unavailable feed with no usable cache.
 -   **Solvency**: if the want leg is BTC, the taker's off-chain balance MUST be
     ≥ `WantAmount`. Asset wants skip this check.
 

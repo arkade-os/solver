@@ -380,7 +380,7 @@
               <label class="field">
                 <span>Price feed URL</span>
                 <input name="price_feed" type="url" placeholder="https://api.example.com/price" required />
-                <small class="muted" id="feed-hint">The solver polls this URL for the quote-per-base price and fulfills offers within 0.1%.</small>
+                <small class="muted" id="feed-hint">The solver reads the quote-per-base price from this URL when an offer arrives and fulfills offers within the configured slippage.</small>
               </label>
 
               <label class="field" id="path-field">
@@ -388,6 +388,16 @@
                 <input name="price_path" type="text" placeholder="/bitcoin/usd" pattern="/.*"
                   title="A JSON pointer must start with /" />
                 <small class="muted" id="path-hint">JSON pointer to the price in the feed response.</small>
+              </label>
+
+              <label class="field">
+                <span>Price TTL <small class="opt-tag">optional</small></span>
+                <div class="input-suffix">
+                  <input name="price_ttl_seconds" type="number" min="1" max="3600" step="1"
+                    inputmode="numeric" placeholder="15" />
+                  <span class="suffix">s</span>
+                </div>
+                <small class="muted">How long a fetched price stays usable before the solver re-reads the feed. Leave empty for the default of 15s.</small>
               </label>
 
               <label class="field">

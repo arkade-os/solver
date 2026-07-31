@@ -2,6 +2,7 @@ package swap
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -79,4 +80,13 @@ func TestMarketComputePrice_Fee(t *testing.T) {
 	p, ok = m.ComputePrice(3_000_000, 100_000_000, Buy)
 	require.True(t, ok)
 	require.InDelta(t, 30000.0*0.99, p, 1e-6)
+}
+
+func TestEffectivePriceTTL(t *testing.T) {
+	// unset falls back to the server default
+	require.Equal(t, DefaultPriceTTL, Market{}.EffectivePriceTTL())
+
+	// an explicit value is used verbatim
+	require.Equal(t, 5*time.Second, Market{PriceTTLSeconds: 5}.EffectivePriceTTL())
+	require.Equal(t, 3600*time.Second, Market{PriceTTLSeconds: 3600}.EffectivePriceTTL())
 }

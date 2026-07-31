@@ -273,34 +273,36 @@ func (h *handler) ListTrades(
 
 func protoToDomain(m *swapv1.MarketInfo) swap.Market {
 	return swap.Market{
-		BaseAsset:      m.BaseAsset,
-		QuoteAsset:     m.QuoteAsset,
-		BaseDecimals:   int(m.BaseDecimals),
-		QuoteDecimals:  int(m.QuoteDecimals),
-		MinQuoteAmount: m.MinQuoteAmount,
-		MaxQuoteAmount: m.MaxQuoteAmount,
-		MinBaseAmount:  m.MinBaseAmount,
-		MaxBaseAmount:  m.MaxBaseAmount,
-		PriceFeed:      m.PriceFeed,
-		PricePath:      m.PricePath,
-		SlippageBps:    m.SlippageBps,
-		FeeBps:         m.FeeBps,
+		BaseAsset:       m.BaseAsset,
+		QuoteAsset:      m.QuoteAsset,
+		BaseDecimals:    int(m.BaseDecimals),
+		QuoteDecimals:   int(m.QuoteDecimals),
+		MinQuoteAmount:  m.MinQuoteAmount,
+		MaxQuoteAmount:  m.MaxQuoteAmount,
+		MinBaseAmount:   m.MinBaseAmount,
+		MaxBaseAmount:   m.MaxBaseAmount,
+		PriceFeed:       m.PriceFeed,
+		PricePath:       m.PricePath,
+		SlippageBps:     m.SlippageBps,
+		FeeBps:          m.FeeBps,
+		PriceTTLSeconds: m.PriceTtlSeconds,
 	}
 }
 
 func domainToProto(m swap.Market) *swapv1.MarketInfo {
 	return &swapv1.MarketInfo{
-		BaseAsset:      m.BaseAsset,
-		QuoteAsset:     m.QuoteAsset,
-		BaseDecimals:   int32(m.BaseDecimals),  //nolint:gosec
-		QuoteDecimals:  int32(m.QuoteDecimals), //nolint:gosec
-		MinQuoteAmount: m.MinQuoteAmount,
-		MaxQuoteAmount: m.MaxQuoteAmount,
-		MinBaseAmount:  m.MinBaseAmount,
-		MaxBaseAmount:  m.MaxBaseAmount,
-		PriceFeed:      m.PriceFeed,
-		PricePath:      m.PricePath,
-		SlippageBps:    m.SlippageBps,
-		FeeBps:         m.FeeBps,
+		BaseAsset:       m.BaseAsset,
+		QuoteAsset:      m.QuoteAsset,
+		BaseDecimals:    int32(m.BaseDecimals),  //nolint:gosec
+		QuoteDecimals:   int32(m.QuoteDecimals), //nolint:gosec
+		MinQuoteAmount:  m.MinQuoteAmount,
+		MaxQuoteAmount:  m.MaxQuoteAmount,
+		MinBaseAmount:   m.MinBaseAmount,
+		MaxBaseAmount:   m.MaxBaseAmount,
+		PriceFeed:       m.PriceFeed,
+		PricePath:       m.PricePath,
+		SlippageBps:     m.SlippageBps,
+		FeeBps:          m.FeeBps,
+		PriceTtlSeconds: m.PriceTTLSeconds,
 	}
 }

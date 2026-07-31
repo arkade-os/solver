@@ -165,6 +165,9 @@ func validateMarket(m swap.Market) error {
 	if m.SlippageBps > 5000 {
 		return fmt.Errorf("slippage_bps must be at most 5000 (50%%)")
 	}
+	if m.PriceTTLSeconds > 3600 {
+		return fmt.Errorf("price_ttl_seconds must be at most 3600 (1 hour)")
+	}
 	if m.FeeBps > 5000 {
 		return fmt.Errorf("fee_bps must be at most 5000 (50%%)")
 	}

@@ -191,6 +191,7 @@ func marketFlags(required bool) []cli.Flag {
 		&cli.StringFlag{Name: "price-feed", Required: required, Usage: "price feed URL (quote-per-base)"},
 		&cli.StringFlag{Name: "price-path", Usage: "JSON pointer to the price in the feed response, e.g. /bitcoin/usd; leave empty for a Binance or CoinGecko URL"},
 		&cli.Uint64Flag{Name: "slippage", Usage: "max deviation in bps (0 = server default)"},
+		&cli.Uint64Flag{Name: "price-ttl", Usage: "price cache TTL in seconds (0 = server default of 15s)"},
 		&cli.Uint64Flag{Name: "fee", Usage: "solver margin in bps, shifted into the price (0 = none)"},
 	}
 }
@@ -217,6 +218,9 @@ func marketOverrides(c *cli.Context) map[string]any {
 	}
 	if c.IsSet("slippage") {
 		out["slippage_bps"] = c.Uint64("slippage")
+	}
+	if c.IsSet("price-ttl") {
+		out["price_ttl_seconds"] = c.Uint64("price-ttl")
 	}
 	if c.IsSet("fee") {
 		out["fee_bps"] = c.Uint64("fee")
@@ -461,18 +465,19 @@ var statusCommand = &cli.Command{
 }
 
 type marketInfo struct {
-	BaseAsset      string `json:"base_asset"`
-	QuoteAsset     string `json:"quote_asset"`
-	BaseDecimals   int32  `json:"base_decimals"`
-	QuoteDecimals  int32  `json:"quote_decimals"`
-	MinQuoteAmount uint64 `json:"min_quote_amount"`
-	MaxQuoteAmount uint64 `json:"max_quote_amount"`
-	MinBaseAmount  uint64 `json:"min_base_amount"`
-	MaxBaseAmount  uint64 `json:"max_base_amount"`
-	PriceFeed      string `json:"price_feed"`
-	PricePath      string `json:"price_path"`
-	SlippageBps    uint32 `json:"slippage_bps"`
-	FeeBps         uint32 `json:"fee_bps"`
+	BaseAsset       string `json:"base_asset"`
+	QuoteAsset      string `json:"quote_asset"`
+	BaseDecimals    int32  `json:"base_decimals"`
+	QuoteDecimals   int32  `json:"quote_decimals"`
+	MinQuoteAmount  uint64 `json:"min_quote_amount"`
+	MaxQuoteAmount  uint64 `json:"max_quote_amount"`
+	MinBaseAmount   uint64 `json:"min_base_amount"`
+	MaxBaseAmount   uint64 `json:"max_base_amount"`
+	PriceFeed       string `json:"price_feed"`
+	PricePath       string `json:"price_path"`
+	SlippageBps     uint32 `json:"slippage_bps"`
+	PriceTTLSeconds uint32 `json:"price_ttl_seconds"`
+	FeeBps          uint32 `json:"fee_bps"`
 }
 
 type assetInfo struct {
@@ -554,6 +559,7 @@ func renderMarketDetail(m marketInfo, meta map[string]assetInfo) {
 	row("Fee", fmtBps(m.FeeBps))
 	row("Price feed", m.PriceFeed)
 	row("Price path", fmtPricePath(m.PricePath, m.PriceFeed))
+	row("Price TTL", fmtPriceTTL(m.PriceTTLSeconds))
 	tw.Flush() //nolint:errcheck
 }
 
@@ -810,6 +816,14 @@ func fmtTolerance(bps uint32) string {
 		bps = 10 // server default (DefaultSlippageBps)
 	}
 	return glyph("±", "+/-") + strconv.FormatFloat(float64(bps)/100, 'f', -1, 64) + "%"
+}
+
+// fmtPriceTTL renders the price cache TTL; 0 reads as the server default.
+func fmtPriceTTL(secs uint32) string {
+	if secs == 0 {
+		return dim("15s (default)") // server default (DefaultPriceTTL)
+	}
+	return strconv.FormatUint(uint64(secs), 10) + "s"
 }
 
 // fmtPricePath shows the operator's JSON pointer, or the one derived from the

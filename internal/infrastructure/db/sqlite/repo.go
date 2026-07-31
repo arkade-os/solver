@@ -36,35 +36,37 @@ func (r *MarketRepository) List(ctx context.Context) ([]swap.Market, error) {
 
 func (r *MarketRepository) Add(ctx context.Context, m swap.Market) error {
 	return translateErr(r.queries.InsertMarket(ctx, sqlc.InsertMarketParams{
-		BaseAsset:      m.BaseAsset,
-		QuoteAsset:     m.QuoteAsset,
-		BaseDecimals:   int64(m.BaseDecimals),
-		QuoteDecimals:  int64(m.QuoteDecimals),
-		MinQuoteAmount: int64(m.MinQuoteAmount),
-		MaxQuoteAmount: int64(m.MaxQuoteAmount),
-		MinBaseAmount:  int64(m.MinBaseAmount),
-		MaxBaseAmount:  int64(m.MaxBaseAmount),
-		PriceFeed:      m.PriceFeed,
-		PricePath:      m.PricePath,
-		SlippageBps:    int64(m.SlippageBps),
-		FeeBps:         int64(m.FeeBps),
+		BaseAsset:       m.BaseAsset,
+		QuoteAsset:      m.QuoteAsset,
+		BaseDecimals:    int64(m.BaseDecimals),
+		QuoteDecimals:   int64(m.QuoteDecimals),
+		MinQuoteAmount:  int64(m.MinQuoteAmount),
+		MaxQuoteAmount:  int64(m.MaxQuoteAmount),
+		MinBaseAmount:   int64(m.MinBaseAmount),
+		MaxBaseAmount:   int64(m.MaxBaseAmount),
+		PriceFeed:       m.PriceFeed,
+		PricePath:       m.PricePath,
+		SlippageBps:     int64(m.SlippageBps),
+		FeeBps:          int64(m.FeeBps),
+		PriceTtlSeconds: int64(m.PriceTTLSeconds),
 	}))
 }
 
 func (r *MarketRepository) Update(ctx context.Context, m swap.Market) error {
 	rows, err := r.queries.UpdateMarket(ctx, sqlc.UpdateMarketParams{
-		BaseDecimals:   int64(m.BaseDecimals),
-		QuoteDecimals:  int64(m.QuoteDecimals),
-		MinQuoteAmount: int64(m.MinQuoteAmount),
-		MaxQuoteAmount: int64(m.MaxQuoteAmount),
-		MinBaseAmount:  int64(m.MinBaseAmount),
-		MaxBaseAmount:  int64(m.MaxBaseAmount),
-		PriceFeed:      m.PriceFeed,
-		PricePath:      m.PricePath,
-		SlippageBps:    int64(m.SlippageBps),
-		FeeBps:         int64(m.FeeBps),
-		BaseAsset:      m.BaseAsset,
-		QuoteAsset:     m.QuoteAsset,
+		BaseDecimals:    int64(m.BaseDecimals),
+		QuoteDecimals:   int64(m.QuoteDecimals),
+		MinQuoteAmount:  int64(m.MinQuoteAmount),
+		MaxQuoteAmount:  int64(m.MaxQuoteAmount),
+		MinBaseAmount:   int64(m.MinBaseAmount),
+		MaxBaseAmount:   int64(m.MaxBaseAmount),
+		PriceFeed:       m.PriceFeed,
+		PricePath:       m.PricePath,
+		SlippageBps:     int64(m.SlippageBps),
+		FeeBps:          int64(m.FeeBps),
+		PriceTtlSeconds: int64(m.PriceTTLSeconds),
+		BaseAsset:       m.BaseAsset,
+		QuoteAsset:      m.QuoteAsset,
 	})
 	if err != nil {
 		return translateErr(err)
@@ -84,18 +86,19 @@ func (r *MarketRepository) Remove(ctx context.Context, base, quote string) error
 
 func toDomainMarket(row sqlc.Market) swap.Market {
 	return swap.Market{
-		BaseAsset:      row.BaseAsset,
-		QuoteAsset:     row.QuoteAsset,
-		BaseDecimals:   int(row.BaseDecimals),
-		QuoteDecimals:  int(row.QuoteDecimals),
-		MinQuoteAmount: uint64(row.MinQuoteAmount),
-		MaxQuoteAmount: uint64(row.MaxQuoteAmount),
-		MinBaseAmount:  uint64(row.MinBaseAmount),
-		MaxBaseAmount:  uint64(row.MaxBaseAmount),
-		PriceFeed:      row.PriceFeed,
-		PricePath:      row.PricePath,
-		SlippageBps:    uint32(row.SlippageBps),
-		FeeBps:         uint32(row.FeeBps),
+		BaseAsset:       row.BaseAsset,
+		QuoteAsset:      row.QuoteAsset,
+		BaseDecimals:    int(row.BaseDecimals),
+		QuoteDecimals:   int(row.QuoteDecimals),
+		MinQuoteAmount:  uint64(row.MinQuoteAmount),
+		MaxQuoteAmount:  uint64(row.MaxQuoteAmount),
+		MinBaseAmount:   uint64(row.MinBaseAmount),
+		MaxBaseAmount:   uint64(row.MaxBaseAmount),
+		PriceFeed:       row.PriceFeed,
+		PricePath:       row.PricePath,
+		SlippageBps:     uint32(row.SlippageBps),
+		FeeBps:          uint32(row.FeeBps),
+		PriceTTLSeconds: uint32(row.PriceTtlSeconds),
 	}
 }
 

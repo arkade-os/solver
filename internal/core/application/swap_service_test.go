@@ -74,4 +74,11 @@ func TestValidateMarket(t *testing.T) {
 	require.NoError(t, validateMarket(m))
 	m.FeeBps = 5001
 	require.ErrorContains(t, validateMarket(m), "fee_bps must be at most 5000")
+
+	// price ttl at the cap is ok, above it is rejected
+	m = validMarket()
+	m.PriceTTLSeconds = 3600
+	require.NoError(t, validateMarket(m))
+	m.PriceTTLSeconds = 3601
+	require.ErrorContains(t, validateMarket(m), "price_ttl_seconds must be at most 3600")
 }
