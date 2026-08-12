@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	arkv1 "github.com/arkade-os/arkd/api-spec/protobuf/gen/ark/v1"
 	arkdclient "github.com/arkade-os/arkd/pkg/client-lib"
 	singlekey "github.com/arkade-os/arkd/pkg/client-lib/identity/singlekey"
 	singlekeyfilestore "github.com/arkade-os/arkd/pkg/client-lib/identity/singlekey/store/file"
@@ -40,6 +41,7 @@ type Service struct {
 	plugin       executor.Plugin
 	db           *sql.DB
 	emulatorConn *grpc.ClientConn
+	arkdConn     *grpc.ClientConn
 }
 
 // New wires a Service from config and an unlocked wallet: it opens the
@@ -69,10 +71,30 @@ func New(cfg *config.Config, wallet arksdk.Wallet) (*Service, error) {
 	}
 	emulator := emulatorclient.NewGRPCClient(emulatorConn)
 
+	// A second connection to arkd, alongside the wallet's own: the go-sdk keeps
+	// its conn private, and the indexer subscription is the only place a
+	// plugin's CEL filter can be applied server-side. grpc.NewClient is lazy,
+	// so this costs nothing when no plugin sets a filter.
+	arkdAddr, arkdCreds := dialTarget(cfg.ArkURL)
+	// Same 20MB cap client-lib uses: subscription events carry full PSBTs and
+	// overflow gRPC's 4MB default.
+	arkdConn, err := grpc.NewClient(
+		arkdAddr,
+		grpc.WithTransportCredentials(arkdCreds),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(20<<20)),
+	)
+	if err != nil {
+		// nolint:errcheck
+		emulatorConn.Close()
+		return nil, fmt.Errorf("failed to connect to arkd: %w", err)
+	}
+
 	db, err := sqlitedb.OpenDB(cfg.Datadir)
 	if err != nil {
 		// nolint:errcheck
 		emulatorConn.Close()
+		// nolint:errcheck
+		arkdConn.Close()
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
@@ -97,6 +119,7 @@ func New(cfg *config.Config, wallet arksdk.Wallet) (*Service, error) {
 		plugin:       plugin,
 		db:           db,
 		emulatorConn: emulatorConn,
+		arkdConn:     arkdConn,
 	}
 
 	log.Info("swap plugin enabled")
@@ -126,7 +149,8 @@ func (s *Service) GetConfig() OperatorConfig {
 	}
 }
 
-// Close releases the resources opened by New (database + emulator connection).
+// Close releases the resources opened by New (database + emulator and arkd
+// connections).
 func (s *Service) Close() {
 	if s.db != nil {
 		// nolint:errcheck
@@ -135,6 +159,10 @@ func (s *Service) Close() {
 	if s.emulatorConn != nil {
 		// nolint:errcheck
 		s.emulatorConn.Close()
+	}
+	if s.arkdConn != nil {
+		// nolint:errcheck
+		s.arkdConn.Close()
 	}
 }
 
@@ -145,7 +173,8 @@ func (s *Service) Run(ctx context.Context) error {
 
 	done := make(chan error, 1)
 	engine := executor.New(s.plugin).WithLogger(s.log)
-	src := arkdsource.New(s.arkClient.Client(), s.log)
+	src := arkdsource.New(s.arkClient.Client(), s.log).
+		WithSubscriptions(arkv1.NewIndexerServiceClient(s.arkdConn))
 	go func() {
 		done <- engine.Run(runtimeCtx, src)
 	}()
