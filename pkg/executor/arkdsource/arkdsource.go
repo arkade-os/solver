@@ -5,9 +5,9 @@ package arkdsource
 
 import (
 	"context"
-	"errors"
-	"io"
+	"math/rand/v2"
 	"strings"
+	"time"
 
 	arkv1 "github.com/arkade-os/arkd/api-spec/protobuf/gen/ark/v1"
 	"github.com/arkade-os/arkd/pkg/client-lib/client"
@@ -29,6 +29,24 @@ type SubscriptionClient interface {
 	) (arkv1.IndexerService_GetSubscriptionClient, error)
 }
 
+// Reconnect backoff for the filtered subscription. These match client-lib's
+// own GrpcReconnectConfig, which is what the unfiltered path already gets from
+// utils.StartReconnectingStream: two streams against the same arkd have no
+// reason to flap on different schedules.
+//
+// The ceiling is the number that matters. It bounds how long the subscription
+// stays down once arkd is reachable again — and so how long a claimable tx can
+// go unseen — while still being slow enough that retrying against an arkd that
+// is down costs one dial every ten seconds rather than a spin.
+const (
+	reconnectInitialDelay = time.Second
+	reconnectMaxDelay     = 10 * time.Second
+	reconnectMultiplier   = 2
+	// Jitter keeps a fleet of solvers pointed at one arkd from reconnecting in
+	// lockstep after it restarts.
+	reconnectJitter = 0.2
+)
+
 // Source subscribes to arkd's transaction stream and exposes it as a
 // executor.Source. Each call to Subscribe opens a fresh upstream stream so
 // per-plugin server-side filtering stays isolated.
@@ -36,6 +54,11 @@ type Source struct {
 	c    client.Client
 	subs SubscriptionClient
 	log  logrus.FieldLogger
+
+	// Backoff bounds for re-establishing a filtered subscription. Set by New;
+	// tests shorten them.
+	reconnectDelay    time.Duration
+	reconnectMaxDelay time.Duration
 }
 
 // New returns a Source backed by the given arkd client. Without a subscription
@@ -44,7 +67,12 @@ func New(c client.Client, log logrus.FieldLogger) *Source {
 	if log == nil {
 		log = logrus.StandardLogger()
 	}
-	return &Source{c: c, log: log}
+	return &Source{
+		c:                 c,
+		log:               log,
+		reconnectDelay:    reconnectInitialDelay,
+		reconnectMaxDelay: reconnectMaxDelay,
+	}
 }
 
 // WithSubscriptions returns a copy of s that honors plugin filters by opening
@@ -65,10 +93,10 @@ func (s *Source) WithSubscriptions(subs SubscriptionClient) *Source {
 // filter cannot be honored, and Subscribe says so and falls back to the full
 // stream rather than dropping the plugin's txs on the floor.
 //
-// The returned channel is closed when:
-//   - ctx is canceled
-//   - the upstream stream errors out at subscribe time
-//   - the upstream stream is closed
+// A subscription that cannot be established at all is reported as an error,
+// with no channel. Once a channel exists it is closed when ctx is canceled, and
+// for the unfiltered stream also when client-lib gives up reconnecting; the
+// filtered stream re-establishes itself instead (see subscribeFiltered).
 //
 // Decoding errors on individual events are logged and skipped — the
 // consumer receives only successfully-parsed packets.
@@ -133,7 +161,26 @@ func (s *Source) subscribeAll(ctx context.Context) (<-chan *psbt.Packet, error) 
 	return out, nil
 }
 
-// subscribeFiltered opens an indexer subscription evaluated server-side.
+// subscribeFiltered opens an indexer subscription evaluated server-side and
+// keeps one open for the lifetime of ctx.
+//
+// The first subscribe is synchronous, so an expression arkd rejects or an arkd
+// that is not there surfaces to the caller. Every failure after that is
+// retried rather than reported, because the channel closing is not a signal
+// the executor can act on: it treats a closed source as end-of-stream and, once
+// the last plugin's stream goes, Run returns ErrAllStreamsClosed. A daemon that
+// keeps running while claiming nothing is the outcome to avoid, so the only
+// thing that ends this subscription is ctx.
+//
+// That includes io.EOF. A server-streaming RPC ends in EOF whenever the server
+// closes it — arkd restarting, a deploy, a proxy reaping an idle connection —
+// and arkd has no "subscription finished" event, so EOF says the server went
+// away, not that there will never be more txs. It is a reconnect like any other.
+//
+// Reconnecting restores the stream. It does not replay what the stream missed:
+// arkd creates a fresh subscription each time and GetSubscriptionRequest carries
+// only a subscription id and a filter, with nothing to resume from. Txs that
+// arrive while the subscription is down are not delivered afterwards.
 //
 // The subscription id is left empty on purpose: arkd only applies the filter
 // when it is creating the subscription itself, and ignores it otherwise. The
@@ -142,9 +189,7 @@ func (s *Source) subscribeAll(ctx context.Context) (<-chan *psbt.Packet, error) 
 func (s *Source) subscribeFiltered(
 	ctx context.Context, filter string,
 ) (<-chan *psbt.Packet, error) {
-	stream, err := s.subs.GetSubscription(ctx, &arkv1.GetSubscriptionRequest{
-		Filter: &arkv1.SubscriptionFilter{Expressions: []string{filter}},
-	})
+	stream, err := s.openSubscription(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -154,34 +199,99 @@ func (s *Source) subscribeFiltered(
 		defer close(out)
 
 		for {
-			resp, rerr := stream.Recv()
-			if rerr != nil {
-				if ctx.Err() != nil || errors.Is(rerr, io.EOF) {
-					s.log.Debug("arkd subscription stream closed")
-					return
-				}
-				s.log.WithError(rerr).Warn("arkd subscription stream error")
+			rerr := s.readStream(ctx, stream, out)
+			if rerr == nil {
+				s.log.Debug("arkd subscription stream closed")
 				return
 			}
-			ev := resp.GetEvent()
-			if ev == nil || ev.GetTx() == "" {
-				continue
-			}
-			// arkd puts a base64 PSBT here for ark and checkpoint txs, and a
-			// hex raw tx for sweeps. Only the former can reach a plugin, so a
-			// sweep that satisfies the expression is a skip, not an error.
-			pkt, perr := psbt.NewFromRawBytes(strings.NewReader(ev.GetTx()), true)
-			if perr != nil {
-				s.log.WithError(perr).WithField("txid", ev.GetTxid()).
-					Debug("subscription tx is not a psbt, skipping")
-				continue
-			}
-			if !s.send(ctx, out, pkt) {
+			s.log.WithError(rerr).Warn("arkd subscription stream broke, reconnecting")
+
+			stream = s.reopenSubscription(ctx, filter)
+			if stream == nil {
 				return
 			}
 		}
 	}()
 	return out, nil
+}
+
+// openSubscription starts a subscription carrying filter.
+func (s *Source) openSubscription(
+	ctx context.Context, filter string,
+) (arkv1.IndexerService_GetSubscriptionClient, error) {
+	return s.subs.GetSubscription(ctx, &arkv1.GetSubscriptionRequest{
+		Filter: &arkv1.SubscriptionFilter{Expressions: []string{filter}},
+	})
+}
+
+// readStream forwards packets from stream until it fails, returning the receive
+// error that ended it. A nil error means ctx ended and the subscription should
+// not be re-established.
+func (s *Source) readStream(
+	ctx context.Context,
+	stream arkv1.IndexerService_GetSubscriptionClient,
+	out chan<- *psbt.Packet,
+) error {
+	for {
+		resp, rerr := stream.Recv()
+		if rerr != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			return rerr
+		}
+		ev := resp.GetEvent()
+		if ev == nil || ev.GetTx() == "" {
+			continue
+		}
+		// arkd puts a base64 PSBT here for ark and checkpoint txs, and a
+		// hex raw tx for sweeps. Only the former can reach a plugin, so a
+		// sweep that satisfies the expression is a skip, not an error.
+		pkt, perr := psbt.NewFromRawBytes(strings.NewReader(ev.GetTx()), true)
+		if perr != nil {
+			s.log.WithError(perr).WithField("txid", ev.GetTxid()).
+				Debug("subscription tx is not a psbt, skipping")
+			continue
+		}
+		if !s.send(ctx, out, pkt) {
+			return nil
+		}
+	}
+}
+
+// reopenSubscription re-establishes the subscription with the same expression,
+// backing off between attempts, until it succeeds or ctx ends. A nil return
+// means ctx ended.
+func (s *Source) reopenSubscription(
+	ctx context.Context, filter string,
+) arkv1.IndexerService_GetSubscriptionClient {
+	delay := s.reconnectDelay
+	for attempt := 1; ; attempt++ {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(jittered(delay)):
+		}
+
+		stream, err := s.openSubscription(ctx, filter)
+		if err == nil {
+			s.log.WithField("attempts", attempt).Info("arkd subscription re-established")
+			return stream
+		}
+		if ctx.Err() != nil {
+			return nil
+		}
+		s.log.WithError(err).WithField("attempts", attempt).
+			Warn("failed to reopen arkd subscription")
+
+		delay = min(delay*reconnectMultiplier, s.reconnectMaxDelay)
+	}
+}
+
+// jittered spreads d by ±reconnectJitter.
+func jittered(d time.Duration) time.Duration {
+	spread := float64(d) * reconnectJitter
+	return time.Duration(float64(d) - spread + rand.Float64()*2*spread)
 }
 
 // send hands pkt to the consumer, reporting false when ctx ended first.
