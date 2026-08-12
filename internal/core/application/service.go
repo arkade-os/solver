@@ -167,10 +167,10 @@ func (s *Service) Run(ctx context.Context) error {
 
 	done := make(chan error, 1)
 	engine := executor.New(s.plugin).WithLogger(s.log)
-	src := arkdsource.New(s.arkClient.Client(), s.log)
-	if s.arkdConn != nil {
-		src = src.WithSubscriptions(arkv1.NewIndexerServiceClient(s.arkdConn))
-	}
+	// New either sets arkdConn or fails, so there is no unsubscribed Service to
+	// guard against here.
+	src := arkdsource.New(s.arkClient.Client(), s.log).
+		WithSubscriptions(arkv1.NewIndexerServiceClient(s.arkdConn))
 	go func() {
 		done <- engine.Run(runtimeCtx, src)
 	}()
