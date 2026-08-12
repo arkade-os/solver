@@ -130,7 +130,7 @@ func TestSubscribe_FallsBackWhenNoSubscriptionClient(t *testing.T) {
 
 func TestSubscribe_FilteredSubscribeErrorIsReturned(t *testing.T) {
 	subs := newStubSubscriptions()
-	subs.err = errors.New("boom")
+	subs.err = status.Error(codes.Unauthenticated, "boom")
 	src := New(newStubArkClient(), quietLog()).WithSubscriptions(subs)
 
 	_, err := src.Subscribe(context.Background(), "has(tx.extension)")
@@ -489,14 +489,12 @@ func (s *stubSubscriptions) GetSubscription(
 	return stream, nil
 }
 
-// reqs snapshots the requests seen so far.
 func (s *stubSubscriptions) reqs() []*arkv1.GetSubscriptionRequest {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]*arkv1.GetSubscriptionRequest(nil), s.requests...)
 }
 
-// nextStream waits for the source to open another subscription.
 func (s *stubSubscriptions) nextStream(t *testing.T) *stubStream {
 	t.Helper()
 	select {

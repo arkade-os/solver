@@ -47,6 +47,10 @@ const (
 	// Jitter keeps a fleet of solvers pointed at one arkd from reconnecting in
 	// lockstep after it restarts.
 	reconnectJitter = 0.2
+	// arkd heartbeats the subscription every 60s; a Recv silent for three
+	// intervals means the connection is half-open, not idle, so the watchdog
+	// cancels the stream and lets the reconnect loop replace it.
+	streamStaleTimeout = 3 * time.Minute
 )
 
 // permanentCodes are the codes that will not come good on a retry: an
@@ -124,8 +128,8 @@ func (s *Source) WithSubscriptions(subs SubscriptionClient) *Source {
 // filter cannot be honored, and Subscribe says so and falls back to the full
 // stream rather than dropping the plugin's txs on the floor.
 //
-// A subscription that cannot be established at all is reported as an error,
-// with no channel. Once a channel exists it is closed when ctx is canceled, and
+// A subscription that can never be established is reported as an error, with
+// no channel. Once a channel exists it is closed when ctx is canceled, and
 // for the unfiltered stream also when client-lib gives up reconnecting; the
 // filtered stream re-establishes itself instead (see subscribeFiltered).
 //
@@ -145,7 +149,6 @@ func (s *Source) Subscribe(ctx context.Context, filter string) (<-chan *psbt.Pac
 	return s.subscribeFiltered(ctx, filter)
 }
 
-// subscribeAll reads arkd's unfiltered ark tx stream.
 func (s *Source) subscribeAll(ctx context.Context) (<-chan *psbt.Packet, error) {
 	eventsCh, stop, err := s.c.GetTransactionsStream(ctx)
 	if err != nil {
@@ -195,10 +198,13 @@ func (s *Source) subscribeAll(ctx context.Context) (<-chan *psbt.Packet, error) 
 // subscribeFiltered opens an indexer subscription evaluated server-side and
 // keeps one open for the lifetime of ctx.
 //
-// The first subscribe is synchronous, so an arkd that is not there surfaces to
-// the caller. An expression arkd rejects does not: gRPC returns a client stream
-// before the server's headers arrive, so the InvalidArgument lands on the first
-// Recv, inside the goroutine, after Subscribe has already returned nil.
+// A transient failure on the first subscribe does not surface to the caller:
+// the executor treats a Subscribe error as final and drops the plugin, so an
+// arkd that is merely still booting would take solverd down with it. It goes
+// through the same backoff as any later break instead. An expression arkd
+// rejects cannot surface either way: gRPC returns a client stream before the
+// server's headers arrive, so the InvalidArgument lands on the first Recv,
+// inside the goroutine, after Subscribe has already returned nil.
 //
 // So the receive loop sorts its errors. A transient one reconnects, because a
 // closed channel is not a signal the executor can act on — it reads a closed
@@ -225,9 +231,15 @@ func (s *Source) subscribeAll(ctx context.Context) (<-chan *psbt.Packet, error) 
 func (s *Source) subscribeFiltered(
 	ctx context.Context, filter string,
 ) (<-chan *psbt.Packet, error) {
-	stream, err := s.openSubscription(ctx, filter)
+	stream, cancel, err := s.openSubscription(ctx, filter)
 	if err != nil {
-		return nil, err
+		if isPermanent(err) {
+			return nil, err
+		}
+		s.log.WithError(err).Warn(
+			"arkd unreachable on first subscribe, retrying in background",
+		)
+		stream = nil
 	}
 
 	out := make(chan *psbt.Packet, 1)
@@ -235,7 +247,21 @@ func (s *Source) subscribeFiltered(
 		defer close(out)
 
 		for {
-			rerr := s.readStream(ctx, stream, out)
+			if stream == nil {
+				var oerr error
+				stream, cancel, oerr = s.reopenSubscription(ctx, filter)
+				if oerr != nil {
+					s.log.WithError(oerr).Error(
+						"arkd rejected the re-subscription; closing the stream",
+					)
+					return
+				}
+				if stream == nil {
+					return
+				}
+			}
+
+			rerr := s.readStream(ctx, stream, cancel, out)
 			if rerr == nil {
 				s.log.Debug("arkd subscription stream closed")
 				return
@@ -248,40 +274,45 @@ func (s *Source) subscribeFiltered(
 				return
 			}
 			s.log.WithError(rerr).Warn("arkd subscription stream broke, reconnecting")
-
-			var oerr error
-			stream, oerr = s.reopenSubscription(ctx, filter)
-			if oerr != nil {
-				s.log.WithError(oerr).Error(
-					"arkd rejected the re-subscription; closing the stream",
-				)
-				return
-			}
-			if stream == nil {
-				return
-			}
+			stream = nil
 		}
 	}()
 	return out, nil
 }
 
-// openSubscription starts a subscription carrying filter.
+// openSubscription runs the stream on a child context so the staleness
+// watchdog can kill it without touching ctx.
 func (s *Source) openSubscription(
 	ctx context.Context, filter string,
-) (arkv1.IndexerService_GetSubscriptionClient, error) {
-	return s.subs.GetSubscription(ctx, &arkv1.GetSubscriptionRequest{
+) (arkv1.IndexerService_GetSubscriptionClient, context.CancelFunc, error) {
+	sctx, cancel := context.WithCancel(ctx)
+	stream, err := s.subs.GetSubscription(sctx, &arkv1.GetSubscriptionRequest{
 		Filter: &arkv1.SubscriptionFilter{Expressions: []string{filter}},
 	})
+	if err != nil {
+		cancel()
+		return nil, nil, err
+	}
+	return stream, cancel, nil
 }
 
 // readStream forwards packets from stream until it fails, returning the receive
 // error that ended it. A nil error means ctx ended and the subscription should
 // not be re-established.
+//
+// arkd heartbeats every 60s even when nothing matches the filter, so any
+// stream silent past streamStaleTimeout is a dead connection Recv would block
+// on forever; the watchdog cancels it into a transient error the reconnect
+// loop handles.
 func (s *Source) readStream(
 	ctx context.Context,
 	stream arkv1.IndexerService_GetSubscriptionClient,
+	cancel context.CancelFunc,
 	out chan<- *psbt.Packet,
 ) error {
+	defer cancel()
+	stale := time.AfterFunc(streamStaleTimeout, cancel)
+	defer stale.Stop()
 	for {
 		resp, rerr := stream.Recv()
 		if rerr != nil {
@@ -290,6 +321,7 @@ func (s *Source) readStream(
 			}
 			return rerr
 		}
+		stale.Reset(streamStaleTimeout)
 		ev := resp.GetEvent()
 		if ev == nil || ev.GetTx() == "" {
 			continue
@@ -315,25 +347,25 @@ func (s *Source) readStream(
 // ctx ended.
 func (s *Source) reopenSubscription(
 	ctx context.Context, filter string,
-) (arkv1.IndexerService_GetSubscriptionClient, error) {
+) (arkv1.IndexerService_GetSubscriptionClient, context.CancelFunc, error) {
 	delay := s.reconnectDelay
 	for attempt := 1; ; attempt++ {
 		select {
 		case <-ctx.Done():
-			return nil, nil
+			return nil, nil, nil
 		case <-time.After(jittered(delay)):
 		}
 
-		stream, err := s.openSubscription(ctx, filter)
+		stream, cancel, err := s.openSubscription(ctx, filter)
 		if err == nil {
 			s.log.WithField("attempts", attempt).Info("arkd subscription re-established")
-			return stream, nil
+			return stream, cancel, nil
 		}
 		if ctx.Err() != nil {
-			return nil, nil
+			return nil, nil, nil
 		}
 		if isPermanent(err) {
-			return nil, err
+			return nil, nil, err
 		}
 		s.log.WithError(err).WithField("attempts", attempt).
 			Warn("failed to reopen arkd subscription")
@@ -342,13 +374,11 @@ func (s *Source) reopenSubscription(
 	}
 }
 
-// jittered spreads d by ±reconnectJitter.
 func jittered(d time.Duration) time.Duration {
 	spread := float64(d) * reconnectJitter
 	return time.Duration(float64(d) - spread + rand.Float64()*2*spread)
 }
 
-// send hands pkt to the consumer, reporting false when ctx ended first.
 func (s *Source) send(ctx context.Context, out chan<- *psbt.Packet, pkt *psbt.Packet) bool {
 	select {
 	case out <- pkt:

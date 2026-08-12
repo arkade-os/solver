@@ -76,7 +76,13 @@ func New(cfg *config.Config, wallet arksdk.Wallet) (*Service, error) {
 	// plugin's CEL filter can be applied server-side. grpc.NewClient is lazy,
 	// so this costs nothing when no plugin sets a filter.
 	arkdAddr, arkdCreds := dialTarget(cfg.ArkURL)
-	arkdConn, err := grpc.NewClient(arkdAddr, grpc.WithTransportCredentials(arkdCreds))
+	// Same 20MB cap client-lib uses: subscription events carry full PSBTs and
+	// overflow gRPC's 4MB default.
+	arkdConn, err := grpc.NewClient(
+		arkdAddr,
+		grpc.WithTransportCredentials(arkdCreds),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(20<<20)),
+	)
 	if err != nil {
 		// nolint:errcheck
 		emulatorConn.Close()
@@ -167,8 +173,6 @@ func (s *Service) Run(ctx context.Context) error {
 
 	done := make(chan error, 1)
 	engine := executor.New(s.plugin).WithLogger(s.log)
-	// New either sets arkdConn or fails, so there is no unsubscribed Service to
-	// guard against here.
 	src := arkdsource.New(s.arkClient.Client(), s.log).
 		WithSubscriptions(arkv1.NewIndexerServiceClient(s.arkdConn))
 	go func() {
