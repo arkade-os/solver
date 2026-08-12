@@ -203,6 +203,65 @@ func TestSubscribe_ReconnectsOnServerEOF(t *testing.T) {
 	require.NotNil(t, recvPacket(t, out), "EOF ended the subscription instead of reconnecting")
 }
 
+// The counterpart to reconnecting: an error that will never clear must not be
+// retried. arkd reports a rejected expression on the first Recv, not from
+// GetSubscription — gRPC hands back a client stream before the server's headers
+// arrive — so Subscribe has already returned nil by then. Retrying it would
+// leave the consumer on a channel that never closes and never delivers, which
+// hides the fault more thoroughly than the bug this file set out to fix.
+func TestSubscribe_PermanentErrorClosesChannel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	subs := newStubSubscriptions()
+	log, hook := recordingLog()
+	src := filteredSource(subs, log)
+
+	out, err := src.Subscribe(ctx, "bogus(")
+	require.NoError(t, err, "the rejection cannot surface here; it arrives on Recv")
+
+	subs.nextStream(t).recvErr <- status.Error(codes.InvalidArgument, "invalid CEL expression")
+
+	select {
+	case _, ok := <-out:
+		assert.False(t, ok, "channel should be closed, not carrying a packet")
+	case <-time.After(2 * time.Second):
+		t.Fatal("channel stayed open on a permanent error: the consumer is stranded")
+	}
+
+	// The give-away for a retry loop is a second subscribe. Backoff here is 5ms,
+	// so anything cycling would have gone round many times by now.
+	assert.Len(t, subs.reqs(), 1, "re-subscribed on an error that will not clear")
+
+	var loggedError bool
+	for _, e := range hook.snapshot() {
+		if e.Level == logrus.ErrorLevel {
+			loggedError = true
+		}
+	}
+	assert.True(t, loggedError, "a permanent rejection should log at Error, not Warn")
+}
+
+// The neighbouring case, to pin the boundary: Unavailable is what a restarting
+// arkd looks like, and it must still reconnect rather than be swept up by the
+// permanent-error check.
+func TestSubscribe_UnavailableStillReconnects(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	subs := newStubSubscriptions()
+	src := filteredSource(subs, quietLog())
+
+	out, err := src.Subscribe(ctx, "has(tx.extension)")
+	require.NoError(t, err)
+
+	subs.nextStream(t).recvErr <- status.Error(codes.Unavailable, "arkd restarting")
+
+	second := subs.nextStream(t)
+	second.msgs <- txEvent(t, "aa")
+	require.NotNil(t, recvPacket(t, out), "Unavailable was treated as permanent")
+}
+
 // Canceling ctx is the only thing that ends the subscription, and it has to
 // land even while a reconnect is pending — an hour of backoff must not
 // outlive the consumer.

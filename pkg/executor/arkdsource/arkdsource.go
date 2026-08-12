@@ -14,6 +14,8 @@ import (
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // SubscriptionClient is the part of arkd's indexer service a filtered
@@ -46,6 +48,35 @@ const (
 	// lockstep after it restarts.
 	reconnectJitter = 0.2
 )
+
+// permanentCodes are the codes that will not come good on a retry: an
+// expression arkd cannot compile, a credential it will not accept, an RPC it
+// does not serve. Reconnecting through one of those burns a dial every backoff
+// interval while the consumer waits on a channel that stays open and empty,
+// which hides the fault better than closing the stream does — so these end the
+// subscription and let the executor surface it.
+//
+// The list is deliberately short. Everything not named here, io.EOF included,
+// is treated as transient and reconnected: misjudging a recoverable error as
+// permanent brings back the silent outage this whole path exists to avoid, so
+// the ambiguous cases err towards retrying.
+//
+// These arrive on the first Recv, not from GetSubscription. gRPC hands back a
+// client stream before the server's headers do, so arkd's rejection cannot
+// reach Subscribe's caller synchronously — only an unreachable arkd can.
+var permanentCodes = map[codes.Code]bool{
+	codes.InvalidArgument:  true,
+	codes.Unauthenticated:  true,
+	codes.PermissionDenied: true,
+	codes.Unimplemented:    true,
+}
+
+// isPermanent reports whether err ends the subscription instead of reopening
+// it. Errors carrying no gRPC status — io.EOF, transport faults — are Unknown
+// to status.Code and so are retried.
+func isPermanent(err error) bool {
+	return permanentCodes[status.Code(err)]
+}
 
 // Source subscribes to arkd's transaction stream and exposes it as a
 // executor.Source. Each call to Subscribe opens a fresh upstream stream so
@@ -164,18 +195,23 @@ func (s *Source) subscribeAll(ctx context.Context) (<-chan *psbt.Packet, error) 
 // subscribeFiltered opens an indexer subscription evaluated server-side and
 // keeps one open for the lifetime of ctx.
 //
-// The first subscribe is synchronous, so an expression arkd rejects or an arkd
-// that is not there surfaces to the caller. Every failure after that is
-// retried rather than reported, because the channel closing is not a signal
-// the executor can act on: it treats a closed source as end-of-stream and, once
-// the last plugin's stream goes, Run returns ErrAllStreamsClosed. A daemon that
-// keeps running while claiming nothing is the outcome to avoid, so the only
-// thing that ends this subscription is ctx.
+// The first subscribe is synchronous, so an arkd that is not there surfaces to
+// the caller. An expression arkd rejects does not: gRPC returns a client stream
+// before the server's headers arrive, so the InvalidArgument lands on the first
+// Recv, inside the goroutine, after Subscribe has already returned nil.
 //
-// That includes io.EOF. A server-streaming RPC ends in EOF whenever the server
-// closes it — arkd restarting, a deploy, a proxy reaping an idle connection —
-// and arkd has no "subscription finished" event, so EOF says the server went
-// away, not that there will never be more txs. It is a reconnect like any other.
+// So the receive loop sorts its errors. A transient one reconnects, because a
+// closed channel is not a signal the executor can act on — it reads a closed
+// source as end-of-stream, and once the last plugin's stream goes Run returns
+// ErrAllStreamsClosed. That includes io.EOF: a server-streaming RPC ends in EOF
+// whenever the server closes it — arkd restarting, a deploy, a proxy reaping an
+// idle connection — and arkd has no "subscription finished" event, so EOF says
+// the server went away, not that there will never be more txs.
+//
+// A permanent one (see permanentCodes) ends the subscription instead. Retrying
+// a rejected expression forever would leave the consumer holding a channel that
+// never closes and never delivers, which is a quieter failure than the one this
+// path was written to fix. Closing lets the executor report it.
 //
 // Reconnecting restores the stream. It does not replay what the stream missed:
 // arkd creates a fresh subscription each time and GetSubscriptionRequest carries
@@ -204,9 +240,23 @@ func (s *Source) subscribeFiltered(
 				s.log.Debug("arkd subscription stream closed")
 				return
 			}
+			if isPermanent(rerr) {
+				s.log.WithError(rerr).Error(
+					"arkd rejected the subscription; closing the stream instead of " +
+						"retrying an error that will not clear",
+				)
+				return
+			}
 			s.log.WithError(rerr).Warn("arkd subscription stream broke, reconnecting")
 
-			stream = s.reopenSubscription(ctx, filter)
+			var oerr error
+			stream, oerr = s.reopenSubscription(ctx, filter)
+			if oerr != nil {
+				s.log.WithError(oerr).Error(
+					"arkd rejected the re-subscription; closing the stream",
+				)
+				return
+			}
 			if stream == nil {
 				return
 			}
@@ -260,26 +310,30 @@ func (s *Source) readStream(
 }
 
 // reopenSubscription re-establishes the subscription with the same expression,
-// backing off between attempts, until it succeeds or ctx ends. A nil return
-// means ctx ended.
+// backing off between attempts, until it succeeds or there is nothing left to
+// try. It returns either a stream, or a permanent error, or nil for both when
+// ctx ended.
 func (s *Source) reopenSubscription(
 	ctx context.Context, filter string,
-) arkv1.IndexerService_GetSubscriptionClient {
+) (arkv1.IndexerService_GetSubscriptionClient, error) {
 	delay := s.reconnectDelay
 	for attempt := 1; ; attempt++ {
 		select {
 		case <-ctx.Done():
-			return nil
+			return nil, nil
 		case <-time.After(jittered(delay)):
 		}
 
 		stream, err := s.openSubscription(ctx, filter)
 		if err == nil {
 			s.log.WithField("attempts", attempt).Info("arkd subscription re-established")
-			return stream
+			return stream, nil
 		}
 		if ctx.Err() != nil {
-			return nil
+			return nil, nil
+		}
+		if isPermanent(err) {
+			return nil, err
 		}
 		s.log.WithError(err).WithField("attempts", attempt).
 			Warn("failed to reopen arkd subscription")
