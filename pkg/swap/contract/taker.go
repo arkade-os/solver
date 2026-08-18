@@ -15,6 +15,7 @@ import (
 	"github.com/arkade-os/arkd/pkg/ark-lib/extension"
 	"github.com/arkade-os/arkd/pkg/ark-lib/offchain"
 	"github.com/arkade-os/arkd/pkg/ark-lib/script"
+	"github.com/arkade-os/arkd/pkg/ark-lib/txutils"
 	"github.com/arkade-os/arkd/pkg/client-lib/indexer"
 	clientTypes "github.com/arkade-os/arkd/pkg/client-lib/types"
 	"github.com/arkade-os/emulator/pkg/arkade"
@@ -340,6 +341,11 @@ func FulfillOffer(
 		checkpointB64s = append(checkpointB64s, signedCpB64)
 	}
 
+	signedArkTxB64, err = attachPrevArkTxs(ctx, signedArkTxB64, checkpoints, arkClient.Indexer())
+	if err != nil {
+		return nil, err
+	}
+
 	// Hand the pre-signed bundle to the emulator. Because solverd's swap
 	// fulfill closure makes the emulator tweaked key the last non-arkd
 	// signer, the emulator takes on the finalizer role: it forwards the
@@ -358,6 +364,57 @@ func FulfillOffer(
 	log.WithField("arkTxid", arkTxid).Debug("taker: emulator finalized fulfill tx")
 
 	return &FulfillResult{ArkTxid: arkTxid}, nil
+}
+
+// attachPrevArkTxs sets arkade.PrevArkTxField on every ark tx input.
+func attachPrevArkTxs(
+	ctx context.Context,
+	signedArkTxB64 string,
+	checkpoints []*psbt.Packet,
+	indexer indexer.Indexer,
+) (string, error) {
+	ptx, err := psbt.NewFromRawBytes(strings.NewReader(signedArkTxB64), true)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode signed ark tx: %w", err)
+	}
+
+	// checkpoint txid -> txid of the vtxo-creating tx it spends
+	parentTxids := make(map[string]string, len(checkpoints))
+	txids := make([]string, 0, len(checkpoints))
+	for _, cp := range checkpoints {
+		parentTxid := cp.UnsignedTx.TxIn[0].PreviousOutPoint.Hash.String()
+		parentTxids[cp.UnsignedTx.TxID()] = parentTxid
+		txids = append(txids, parentTxid)
+	}
+
+	resp, err := indexer.GetVirtualTxs(ctx, txids)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch previous ark txs: %w", err)
+	}
+	parents := make(map[string]*wire.MsgTx, len(resp.Txs))
+	for _, encoded := range resp.Txs {
+		parent, err := psbt.NewFromRawBytes(strings.NewReader(encoded), true)
+		if err != nil {
+			return "", fmt.Errorf("failed to decode previous ark tx: %w", err)
+		}
+		parents[parent.UnsignedTx.TxID()] = parent.UnsignedTx
+	}
+
+	for i, in := range ptx.UnsignedTx.TxIn {
+		parentTxid, ok := parentTxids[in.PreviousOutPoint.Hash.String()]
+		if !ok {
+			return "", fmt.Errorf("no checkpoint found for ark tx input %d", i)
+		}
+		parent, ok := parents[parentTxid]
+		if !ok {
+			return "", fmt.Errorf("previous ark tx %s not returned by indexer", parentTxid)
+		}
+		if err := txutils.SetArkPsbtField(ptx, i, arkade.PrevArkTxField, *parent); err != nil {
+			return "", fmt.Errorf("failed to set prev ark tx field: %w", err)
+		}
+	}
+
+	return ptx.B64Encode()
 }
 
 // buildFulfillAssetPacket creates an asset packet for the fulfillment tx.
