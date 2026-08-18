@@ -6,8 +6,8 @@ require (
 	github.com/arkade-os/arkd/api-spec v0.0.0-20260615144548-11cf2ba852c5
 	github.com/arkade-os/arkd/pkg/ark-lib v0.8.1-0.20260720133940-f444de6c336c
 	github.com/arkade-os/arkd/pkg/client-lib v0.0.0-20260707112601-db93f3d63dab
-	github.com/arkade-os/emulator/pkg/arkade v0.0.0-20260616144513-96f9b06a5380
-	github.com/arkade-os/emulator/pkg/client v0.0.0-20260526192649-eac4fbc07c4c
+	github.com/arkade-os/emulator/pkg/arkade v0.0.0-20260810202659-66fd93cdbd9e
+	github.com/arkade-os/emulator/pkg/client v0.0.0-20260810202659-66fd93cdbd9e
 	github.com/arkade-os/go-sdk v0.10.2-0.20260723143851-75cd6ad8a427
 	github.com/btcsuite/btcd v0.24.3-0.20250318170759-4f4ea81776d6
 	github.com/btcsuite/btcd/btcec/v2 v2.3.6
@@ -21,7 +21,7 @@ require (
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli/v2 v2.27.7
-	golang.org/x/sync v0.20.0
+	golang.org/x/sync v0.21.0
 	golang.org/x/term v0.43.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260209200024-4cfbd4190f57
 	google.golang.org/grpc v1.79.3
@@ -97,7 +97,7 @@ require (
 	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8 // indirect
 	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/sys v0.45.0 // indirect
-	golang.org/x/text v0.37.0 // indirect
+	golang.org/x/text v0.39.0 // indirect
 	google.golang.org/genproto v0.0.0-20241118233622-e639e219e697 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260226221140-a57be14db171 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

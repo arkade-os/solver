@@ -80,7 +80,7 @@ services:
         target: /app/data
 
   emulator:
-    image: ghcr.io/arkade-os/emulator:v0.0.3
+    image: ghcr.io/arkade-os/emulator:v0.0.7-rc.1
     container_name: solverd-emulator
     restart: unless-stopped
     depends_on:
