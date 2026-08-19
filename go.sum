@@ -30,8 +30,10 @@ github.com/arkade-os/emulator/pkg/arkade v0.0.0-20260810202659-66fd93cdbd9e h1:+
 github.com/arkade-os/emulator/pkg/arkade v0.0.0-20260810202659-66fd93cdbd9e/go.mod h1:V4oXmPm4lJDtp8NqdLVV0Wxdq+ExWreJ6jSRzl04PdU=
 github.com/arkade-os/emulator/pkg/client v0.0.0-20260810202659-66fd93cdbd9e h1:4lSQkIM0d2iaUNgc0YsUKjw65h4cqvEtkiAdexVJteU=
 github.com/arkade-os/emulator/pkg/client v0.0.0-20260810202659-66fd93cdbd9e/go.mod h1:Lerz4cyIxzmdzva5/qvFXd0xQHwz7zOdk8MTW4pWtko=
-github.com/arkade-os/go-sdk v0.10.2-0.20260723143851-75cd6ad8a427 h1:wXfuYbUdhLA71c3+PldbiP7FG9+43z164qm8J9fBAPs=
-github.com/arkade-os/go-sdk v0.10.2-0.20260723143851-75cd6ad8a427/go.mod h1:B/aH8hapIwgbf1xr49AD6N5Ft1vwxrgo5GFDuTYwp2U=
+github.com/arkade-os/go-sdk v0.11.0 h1:xE/MfapmbQ6xTqRu/bT+okdDQN4qCDTKLPUAKVyaJdA=
+github.com/arkade-os/go-sdk v0.11.0/go.mod h1:lIyfGiUx9N7eAl99kopr8TGpSUdLt+E76FQoXkV2qZU=
+github.com/base/go-bip39 v1.1.0 h1:ely6zK09KaQbfX8wpcmN4pRXy0SbbqMT2QF45P1BNh0=
+github.com/base/go-bip39 v1.1.0/go.mod h1:grZZXX8gYycovDC4cLS/RS0DmctofwHN+MUhedYCbO0=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/bits-and-blooms/bitset v1.20.0 h1:2F+rfL86jE2d/bmw7OhqUg2Sj/1rURkBn3MdfoPyRVU=
@@ -388,8 +390,6 @@ github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7 h1:epCh84lMvA70
 github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7/go.mod h1:q4W45IWZaF22tdD+VEXcAWRA037jwmWEB5VWYORlTpc=
 github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75 h1:6fotK7otjonDflCTK0BCfls4SPy3NcCVb5dqqmbRknE=
 github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75/go.mod h1:KO6IkyS8Y3j8OdNO85qEYBsRPuteD+YciPomcXdrMnk=
-github.com/tyler-smith/go-bip39 v1.1.0 h1:5eUemwrMargf3BSLRRCalXT93Ns6pQJIjYQN2nyfOP8=
-github.com/tyler-smith/go-bip39 v1.1.0/go.mod h1:gUYDtqQw1JS3ZJ8UWVcGTGqqr6YIN3CWg+kkNaLt55U=
 github.com/urfave/cli/v2 v2.27.7 h1:bH59vdhbjLv3LAvIu6gd0usJHgoTTPhCFib8qqOwXYU=
 github.com/urfave/cli/v2 v2.27.7/go.mod h1:CyNAG/xg+iAOg0N4MPGZqVmv2rCoP267496AOXUZjA4=
 github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb h1:zGWFAtiMcyryUHoUjUJX0/lt1H2+i2Ka2n+D3DImSNo=
