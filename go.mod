@@ -1,6 +1,6 @@
 module github.com/arkade-os/solver
 
-go 1.26.5
+go 1.26.6
 
 require (
 	github.com/arkade-os/arkd/api-spec v0.0.0-20260615144548-11cf2ba852c5
@@ -8,7 +8,7 @@ require (
 	github.com/arkade-os/arkd/pkg/client-lib v0.0.0-20260707112601-db93f3d63dab
 	github.com/arkade-os/emulator/pkg/arkade v0.0.0-20260810202659-66fd93cdbd9e
 	github.com/arkade-os/emulator/pkg/client v0.0.0-20260810202659-66fd93cdbd9e
-	github.com/arkade-os/go-sdk v0.10.2-0.20260723143851-75cd6ad8a427
+	github.com/arkade-os/go-sdk v0.11.0
 	github.com/btcsuite/btcd v0.24.3-0.20250318170759-4f4ea81776d6
 	github.com/btcsuite/btcd/btcec/v2 v2.3.6
 	github.com/btcsuite/btcd/btcutil/psbt v1.1.9
@@ -35,6 +35,7 @@ require (
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/arkade-os/arkd/pkg/errors v0.0.0-20260617121018-268d19d9641c // indirect
 	github.com/arkade-os/emulator/api-spec v0.0.0-20260526192649-eac4fbc07c4c // indirect
+	github.com/base/go-bip39 v1.1.0 // indirect
 	github.com/bits-and-blooms/bitset v1.20.0 // indirect
 	github.com/btcsuite/btcd/btcutil v1.1.6 // indirect
 	github.com/btcsuite/btclog v0.0.0-20241003133417-09c4e92e319c // indirect
@@ -89,7 +90,6 @@ require (
 	github.com/stoewer/go-strcase v1.2.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
-	github.com/tyler-smith/go-bip39 v1.1.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
